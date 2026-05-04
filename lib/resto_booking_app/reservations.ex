@@ -48,24 +48,32 @@ defmodule RestoBookingApp.Reservations do
 
   @doc """
   create a reservation. returns `{:ok, reservation}` or `{:error, changeset}`.
-  the overlap check runs inside a transaction so two simultaneous bookings
-  for the same slot can't both win — sqlite serialises writes anyway, so a
-  read-then-insert in one transaction is safe here.
+
+  the transaction runs in `:immediate` mode so the reserved write lock is
+  taken at `BEGIN`, not lazily at first `INSERT`. with the default `:deferred`
+  mode the overlap-check `SELECT` runs without any lock, and two parallel
+  callers can both decide the slot is free before either tries to write —
+  classic toctou. immediate mode forces them to serialise at `BEGIN`, so the
+  loser sees the winner's row in its own select. paired with a db-level
+  unique index on `(table_id, starts_at)` for defence in depth.
   """
   def create(attrs) do
-    Repo.transaction(fn ->
-      changeset = Reservation.changeset(%Reservation{}, attrs)
+    Repo.transaction(
+      fn ->
+        changeset = Reservation.changeset(%Reservation{}, attrs)
 
-      with {:ok, prepared} <- apply_action_for_overlap_check(changeset),
-           :ok <- check_no_overlap(prepared, exclude_id: nil),
-           {:ok, reservation} <- Repo.insert(changeset) do
-        broadcast({:reservation_created, reservation})
-        reservation
-      else
-        {:error, %Ecto.Changeset{} = cs} -> Repo.rollback(cs)
-        {:error, reason} -> Repo.rollback(reason)
-      end
-    end)
+        with {:ok, prepared} <- apply_action_for_overlap_check(changeset),
+             :ok <- check_no_overlap(prepared, exclude_id: nil),
+             {:ok, reservation} <- Repo.insert(changeset) do
+          broadcast({:reservation_created, reservation})
+          reservation
+        else
+          {:error, %Ecto.Changeset{} = cs} -> Repo.rollback(cs)
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end,
+      mode: :immediate
+    )
   end
 
   @doc """
@@ -87,20 +95,25 @@ defmodule RestoBookingApp.Reservations do
     end
   end
 
+  # `:immediate` mode for the same reason as create/1 — moving a reservation's
+  # time/table can race against a concurrent create on the destination slot.
   defp do_update(reservation, attrs) do
-    Repo.transaction(fn ->
-      changeset = Reservation.changeset(reservation, attrs)
+    Repo.transaction(
+      fn ->
+        changeset = Reservation.changeset(reservation, attrs)
 
-      with {:ok, prepared} <- apply_action_for_overlap_check(changeset),
-           :ok <- check_no_overlap(prepared, exclude_id: reservation.id),
-           {:ok, updated} <- Repo.update(changeset) do
-        broadcast({:reservation_updated, updated})
-        updated
-      else
-        {:error, %Ecto.Changeset{} = cs} -> Repo.rollback(cs)
-        {:error, reason} -> Repo.rollback(reason)
-      end
-    end)
+        with {:ok, prepared} <- apply_action_for_overlap_check(changeset),
+             :ok <- check_no_overlap(prepared, exclude_id: reservation.id),
+             {:ok, updated} <- Repo.update(changeset) do
+          broadcast({:reservation_updated, updated})
+          updated
+        else
+          {:error, %Ecto.Changeset{} = cs} -> Repo.rollback(cs)
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end,
+      mode: :immediate
+    )
   end
 
   @doc """
