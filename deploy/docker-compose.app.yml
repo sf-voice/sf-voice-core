@@ -9,7 +9,7 @@ services:
     env_file:
       - .env
     environment:
-      PHX_HOST: resto-demo.do.sf-voice.sh
+      PHX_HOST: resto-demo.sf-voice.sh
       PHX_SERVER: "true"
       PORT: "4000"
       DATABASE_PATH: /data/resto.db

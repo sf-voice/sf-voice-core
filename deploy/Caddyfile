@@ -1,13 +1,17 @@
-# shared front door for all demo apps on do.sf-voice.sh
+# shared front door for demo apps under sf-voice.sh
 #
 # strategy:
 #   - cloudflare proxies the zone (orange cloud) with TLS mode "Full (strict)"
 #   - we serve a cloudflare-issued origin cert that CF trusts
 #   - each app gets its own block routing by hostname
 #
-# the origin cert covers *.do.sf-voice.sh + do.sf-voice.sh and lasts 15 years,
-# so there's nothing to renew. drop replacement files in /etc/caddy/certs/
-# and `docker compose restart caddy` if it ever needs rotating.
+# we use 2nd-level subdomains (resto-demo.sf-voice.sh, not *.do.sf-voice.sh)
+# because cloudflare's free universal ssl cert only covers the apex and one
+# wildcard level — anything deeper would error with ERR_SSL_VERSION_OR_CIPHER_MISMATCH.
+#
+# the origin cert covers *.sf-voice.sh + sf-voice.sh and lasts 15 years, so
+# there's nothing to renew. drop replacement files in /etc/caddy/certs/ and
+# `docker compose restart caddy` if it ever needs rotating.
 
 {
 	# no auto-https — we provide our own cert
@@ -18,7 +22,7 @@
 	}
 }
 
-resto-demo.do.sf-voice.sh {
+resto-demo.sf-voice.sh {
 	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
 	encode zstd gzip
 
