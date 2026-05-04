@@ -33,6 +33,12 @@ jobs:
           elixir-version: ${{ env.ELIXIR_VERSION }}
           otp-version: ${{ env.OTP_VERSION }}
 
+      # ecto_sqlite3 (via exqlite) ships a C nif that needs a real compiler at
+      # `mix deps.compile` time. ubuntu-latest doesn't include build-essential
+      # in every image; install it explicitly so the build is deterministic.
+      - name: install build tools for native nifs
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+
       - name: cache deps
         uses: actions/cache@v4
         with:

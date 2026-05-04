@@ -1,11 +1,15 @@
 defmodule RestoBookingAppWeb.ReservationControllerTest do
   use RestoBookingAppWeb.ConnCase, async: false
 
+  alias RestoBookingApp.Clock
+
+  # opening hours validation runs in restaurant-local time, so build the
+  # iso datetime from a local clock-time. lets the suite pass on UTC ci
+  # runners and non-UTC dev boxes alike.
   defp at(hour, minute \\ 0) do
-    today = Date.utc_today()
+    today = Clock.today()
     {:ok, time} = Time.new(hour, minute, 0)
-    {:ok, dt} = DateTime.new(today, time, "Etc/UTC")
-    DateTime.to_iso8601(dt)
+    today |> Clock.local_to_utc(time) |> DateTime.to_iso8601()
   end
 
   defp create_one(conn) do

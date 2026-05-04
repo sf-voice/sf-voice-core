@@ -3,13 +3,15 @@ defmodule RestoBookingApp.ReservationsTest do
   # intermittent "database busy" errors, so we run them in a single thread
   use RestoBookingApp.DataCase, async: false
 
-  alias RestoBookingApp.Reservations
+  alias RestoBookingApp.{Clock, Reservations}
 
+  # opening hours are validated in restaurant-local time, so test fixtures
+  # must construct utc datetimes from a local clock-time. naive utc construction
+  # would behave differently on a UTC ci runner vs a non-UTC dev box.
   defp at(hour, minute \\ 0) do
-    today = Date.utc_today()
+    today = Clock.today()
     {:ok, time} = Time.new(hour, minute, 0)
-    {:ok, dt} = DateTime.new(today, time, "Etc/UTC")
-    dt
+    Clock.local_to_utc(today, time)
   end
 
   defp valid_attrs(overrides \\ %{}) do
@@ -155,7 +157,7 @@ defmodule RestoBookingApp.ReservationsTest do
   describe "availability_for_date/1" do
     test "groups by table id and seeds empty lists for unbooked tables" do
       {:ok, _} = Reservations.create(valid_attrs())
-      avail = Reservations.availability_for_date(Date.utc_today())
+      avail = Reservations.availability_for_date(Clock.today())
 
       assert length(avail["T1"]) == 1
       assert avail["T2"] == []
