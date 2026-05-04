@@ -1,4 +1,4 @@
-# RestoBookingApp
+# The Seasons Restaurant Booking 
 
 To start your Phoenix server:
 
