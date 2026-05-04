@@ -1,0 +1,41 @@
+# shared front door for all demo apps on do.sf-voice.sh
+#
+# strategy:
+#   - cloudflare proxies the zone (orange cloud) with TLS mode "Full (strict)"
+#   - we serve a cloudflare-issued origin cert that CF trusts
+#   - each app gets its own block routing by hostname
+#
+# the origin cert covers *.do.sf-voice.sh + do.sf-voice.sh and lasts 15 years,
+# so there's nothing to renew. drop replacement files in /etc/caddy/certs/
+# and `docker compose restart caddy` if it ever needs rotating.
+
+{
+	# no auto-https — we provide our own cert
+	auto_https off
+	# trust cloudflare's forwarded client ip headers
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+resto-demo.do.sf-voice.sh {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
+	encode zstd gzip
+
+	# phoenix listens on 4000 inside the proxy_net docker network
+	reverse_proxy resto-demo:4000 {
+		header_up X-Forwarded-Proto https
+	}
+}
+
+# anything else hitting the droplet on 443 with a host we don't know about
+:443 {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
+	respond "no demo at this hostname" 404
+}
+
+# redirect bare http to https (cloudflare will mostly handle this, but if
+# someone hits the droplet IP directly we still want the right answer)
+:80 {
+	redir https://{host}{uri} permanent
+}
