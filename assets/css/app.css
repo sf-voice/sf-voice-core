@@ -1,0 +1,165 @@
+/* See the Tailwind configuration guide for advanced usage
+   https://tailwindcss.com/docs/configuration */
+
+@import "tailwindcss" source(none);
+@source "../css";
+@source "../js";
+@source "../../lib/resto_booking_app_web";
+
+/* A Tailwind plugin that makes "hero-#{ICON}" classes available.
+   The heroicons installation itself is managed by your mix.exs */
+@plugin "../vendor/heroicons";
+
+/* daisyUI Tailwind Plugin. You can update this file by fetching the latest version with:
+   curl -sLO https://github.com/saadeghi/daisyui/releases/latest/download/daisyui.js
+   Make sure to look at the daisyUI changelog: https://daisyui.com/docs/changelog/ */
+@plugin "../vendor/daisyui" {
+  themes: false;
+}
+
+/* daisyUI theme plugin. You can update this file by fetching the latest version with:
+  curl -sLO https://github.com/saadeghi/daisyui/releases/latest/download/daisyui-theme.js
+  We ship with two themes, a light one inspired on Phoenix colors and a dark one inspired
+  on Elixir colors. Build your own at: https://daisyui.com/theme-generator/ */
+@plugin "../vendor/daisyui-theme" {
+  name: "dark";
+  default: false;
+  prefersdark: true;
+  color-scheme: "dark";
+  --color-base-100: oklch(30.33% 0.016 252.42);
+  --color-base-200: oklch(25.26% 0.014 253.1);
+  --color-base-300: oklch(20.15% 0.012 254.09);
+  --color-base-content: oklch(97.807% 0.029 256.847);
+  --color-primary: oklch(58% 0.233 277.117);
+  --color-primary-content: oklch(96% 0.018 272.314);
+  --color-secondary: oklch(58% 0.233 277.117);
+  --color-secondary-content: oklch(96% 0.018 272.314);
+  --color-accent: oklch(60% 0.25 292.717);
+  --color-accent-content: oklch(96% 0.016 293.756);
+  --color-neutral: oklch(37% 0.044 257.287);
+  --color-neutral-content: oklch(98% 0.003 247.858);
+  --color-info: oklch(58% 0.158 241.966);
+  --color-info-content: oklch(97% 0.013 236.62);
+  --color-success: oklch(60% 0.118 184.704);
+  --color-success-content: oklch(98% 0.014 180.72);
+  --color-warning: oklch(66% 0.179 58.318);
+  --color-warning-content: oklch(98% 0.022 95.277);
+  --color-error: oklch(58% 0.253 17.585);
+  --color-error-content: oklch(96% 0.015 12.422);
+  --radius-selector: 0.25rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.21875rem;
+  --size-field: 0.21875rem;
+  --border: 1.5px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* nibble light theme — warm pastels, peach + sage + butter, generous radii */
+@plugin "../vendor/daisyui-theme" {
+  name: "light";
+  default: true;
+  prefersdark: false;
+  color-scheme: "light";
+  --color-base-100: oklch(98.5% 0.012 80);
+  --color-base-200: oklch(95.5% 0.022 75);
+  --color-base-300: oklch(90% 0.035 65);
+  --color-base-content: oklch(32% 0.05 40);
+  --color-primary: oklch(72% 0.13 20);
+  --color-primary-content: oklch(99% 0.01 80);
+  --color-secondary: oklch(78% 0.075 150);
+  --color-secondary-content: oklch(25% 0.04 150);
+  --color-accent: oklch(86% 0.13 90);
+  --color-accent-content: oklch(28% 0.06 60);
+  --color-neutral: oklch(40% 0.04 40);
+  --color-neutral-content: oklch(98% 0.01 80);
+  --color-info: oklch(78% 0.09 230);
+  --color-info-content: oklch(25% 0.05 230);
+  --color-success: oklch(80% 0.11 160);
+  --color-success-content: oklch(25% 0.05 160);
+  --color-warning: oklch(82% 0.13 75);
+  --color-warning-content: oklch(28% 0.06 60);
+  --color-error: oklch(72% 0.16 25);
+  --color-error-content: oklch(99% 0.01 80);
+  --radius-selector: 0.75rem;
+  --radius-field: 0.875rem;
+  --radius-box: 1.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1.5px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* Add variants based on LiveView classes */
+@custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
+@custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);
+@custom-variant phx-change-loading (.phx-change-loading&, .phx-change-loading &);
+
+/* Use the data attribute for dark mode  */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+/* Make LiveView wrapper divs transparent for layout */
+[data-phx-session], [data-phx-teleported-src] { display: contents }
+
+/* nibble — friendly typography */
+body {
+  font-family: "Nunito", "Avenir Next", "Avenir", system-ui, -apple-system, sans-serif;
+  font-feature-settings: "ss01", "cv01";
+}
+.font-display {
+  font-family: "Caveat", "Patrick Hand", "Comic Sans MS", cursive;
+  letter-spacing: 0.01em;
+}
+
+/* warm gradient background that sets the cozy vibe */
+.nibble-bg {
+  background:
+    radial-gradient(circle at 12% 8%, oklch(94% 0.06 70 / 0.55), transparent 45%),
+    radial-gradient(circle at 88% 18%, oklch(92% 0.07 150 / 0.45), transparent 50%),
+    radial-gradient(circle at 70% 92%, oklch(94% 0.08 30 / 0.40), transparent 45%);
+}
+
+/* slot cells: free is whisper-cream, taken is peachy with a soft glow */
+.slot-free {
+  background: oklch(99% 0.01 80);
+  transition: transform 120ms ease, background 120ms ease;
+}
+.slot-free:hover {
+  background: oklch(94% 0.06 80);
+  transform: scale(1.02);
+}
+.slot-taken {
+  background: linear-gradient(135deg, oklch(88% 0.10 30), oklch(92% 0.07 50));
+  color: oklch(28% 0.06 30);
+  box-shadow: inset 0 0 0 1px oklch(80% 0.10 30 / 0.4);
+}
+.slot-taken-mine {
+  background: linear-gradient(135deg, oklch(86% 0.11 150), oklch(92% 0.07 130));
+  color: oklch(25% 0.06 150);
+  box-shadow: inset 0 0 0 1px oklch(75% 0.11 150 / 0.5);
+}
+.slot-continuation {
+  opacity: 0.6;
+}
+
+/* tiny rounded chip for table seat-count badge */
+.seat-pip {
+  background: oklch(94% 0.06 70);
+  color: oklch(32% 0.07 40);
+  border-radius: 9999px;
+  padding: 0 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+/* method pills in the api reference */
+.api-method { font-weight: 800; font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 0.5rem; letter-spacing: 0.04em; }
+.api-method-get    { background: oklch(88% 0.08 230); color: oklch(28% 0.08 230); }
+.api-method-post   { background: oklch(86% 0.10 150); color: oklch(28% 0.06 150); }
+.api-method-patch  { background: oklch(86% 0.13 75);  color: oklch(28% 0.06 60);  }
+.api-method-put    { background: oklch(86% 0.13 75);  color: oklch(28% 0.06 60);  }
+.api-method-delete { background: oklch(85% 0.12 25);  color: oklch(28% 0.08 25);  }
+
+/* This file is for your main application CSS */
