@@ -114,11 +114,11 @@ jobs:
         run: |
           # give the container a beat to come up, then probe the public url
           for i in $(seq 1 30); do
-            if curl -fsS https://resto-demo.do.sf-voice.sh/api/menu >/dev/null; then
+            if curl -fsS https://resto-demo.sf-voice.sh/api/menu >/dev/null; then
               echo "site is live"
               exit 0
             fi
             sleep 2
           done
-          echo "smoke check failed — site didn't respond within 60s"
+          echo "smoke check failed — resto-demo.sf-voice.sh didn't respond within 60s"
           exit 1
