@@ -2,7 +2,9 @@ defmodule RestoBookingAppWeb.ErrorJSONTest do
   use RestoBookingAppWeb.ConnCase, async: true
 
   test "renders 404" do
-    assert RestoBookingAppWeb.ErrorJSON.render("404.json", %{}) == %{errors: %{detail: "Not Found"}}
+    assert RestoBookingAppWeb.ErrorJSON.render("404.json", %{}) == %{
+             errors: %{detail: "Not Found"}
+           }
   end
 
   test "renders 500" do

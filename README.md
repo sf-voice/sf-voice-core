@@ -53,6 +53,14 @@ To roll back a specific migration in prod:
 bin/resto_booking_app eval "RestoBookingApp.Release.rollback(RestoBookingApp.Repo, <version>)"
 ```
 
+## Time matters (read this before demoing)
+
+The restaurant runs in **Pacific time** (`America/Los_Angeles`). All human-facing date/time logic — the floor plan's day, opening-hour validation (06:00–20:00 last start), the slot grid — is interpreted in that zone. Storage is UTC; conversion happens at the boundary.
+
+Everything goes through `RestoBookingApp.Clock`. If you change the timezone, change it once in `config/config.exs` (`:resto_booking_app, :timezone`) — don't sprinkle zones around.
+
+For the demo this means: a booking at "19:00" is 19:00 PT, regardless of the server's locale or what time it is in UTC. If the floor plan looks wrong around midnight UTC (which is mid-afternoon PT), check that the `tz` dep is actually loaded (`mix deps.get`) and that `Tz.TimeZoneDatabase` is the configured database.
+
 ## API
 
 JSON endpoints live under `/api`: `menu`, `tables`, `availability`, and `reservations` (full CRUD). The HTML floor plan is at `/`.
