@@ -97,10 +97,16 @@ jobs:
 
       - name: deploy via ssh
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          # the deploy script logs in to ghcr with these so `docker pull` works
+          # against the private package. token is ephemeral — expires with the job.
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           host: ${{ secrets.DROPLET_HOST }}
           username: deploy
           key: ${{ secrets.DROPLET_SSH_KEY }}
+          envs: GHCR_USER,GHCR_TOKEN
           script: |
             /usr/local/bin/deploy-resto-demo.sh sha-${{ github.sha }}
 

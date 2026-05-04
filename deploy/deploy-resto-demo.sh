@@ -17,6 +17,16 @@ cd "$COMPOSE_DIR"
 
 echo "==> deploying tag: $TAG"
 
+# the image lives in a private ghcr package, so we have to authenticate before
+# the pull. CI passes a short-lived GITHUB_TOKEN through the ssh session; if
+# someone runs this manually they need to export GHCR_USER and GHCR_TOKEN.
+if [[ -n "${GHCR_TOKEN:-}" && -n "${GHCR_USER:-}" ]]; then
+  echo "==> logging in to ghcr.io as $GHCR_USER"
+  echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+else
+  echo "!! GHCR_USER / GHCR_TOKEN not set — assuming docker is already logged in" >&2
+fi
+
 # rewrite the image line in compose so `up -d` actually picks up the new tag.
 # the sed pattern only touches our exact image; other lines are left alone.
 sed -i.bak -E \
