@@ -17,40 +17,37 @@
   themes: false;
 }
 
-/* daisyUI theme plugin. You can update this file by fetching the latest version with:
-  curl -sLO https://github.com/saadeghi/daisyui/releases/latest/download/daisyui-theme.js
-  We ship with two themes, a light one inspired on Phoenix colors and a dark one inspired
-  on Elixir colors. Build your own at: https://daisyui.com/theme-generator/ */
+/* nibble dark theme — warm espresso, dim peach + sage + butter, same language as light */
 @plugin "../vendor/daisyui-theme" {
   name: "dark";
   default: false;
   prefersdark: true;
   color-scheme: "dark";
-  --color-base-100: oklch(30.33% 0.016 252.42);
-  --color-base-200: oklch(25.26% 0.014 253.1);
-  --color-base-300: oklch(20.15% 0.012 254.09);
-  --color-base-content: oklch(97.807% 0.029 256.847);
-  --color-primary: oklch(58% 0.233 277.117);
-  --color-primary-content: oklch(96% 0.018 272.314);
-  --color-secondary: oklch(58% 0.233 277.117);
-  --color-secondary-content: oklch(96% 0.018 272.314);
-  --color-accent: oklch(60% 0.25 292.717);
-  --color-accent-content: oklch(96% 0.016 293.756);
-  --color-neutral: oklch(37% 0.044 257.287);
-  --color-neutral-content: oklch(98% 0.003 247.858);
-  --color-info: oklch(58% 0.158 241.966);
-  --color-info-content: oklch(97% 0.013 236.62);
-  --color-success: oklch(60% 0.118 184.704);
-  --color-success-content: oklch(98% 0.014 180.72);
-  --color-warning: oklch(66% 0.179 58.318);
-  --color-warning-content: oklch(98% 0.022 95.277);
-  --color-error: oklch(58% 0.253 17.585);
-  --color-error-content: oklch(96% 0.015 12.422);
-  --radius-selector: 0.25rem;
-  --radius-field: 0.25rem;
-  --radius-box: 0.5rem;
-  --size-selector: 0.21875rem;
-  --size-field: 0.21875rem;
+  --color-base-100: oklch(20% 0.018 40);
+  --color-base-200: oklch(24% 0.020 40);
+  --color-base-300: oklch(28% 0.024 45);
+  --color-base-content: oklch(94% 0.025 80);
+  --color-primary: oklch(72% 0.13 20);
+  --color-primary-content: oklch(20% 0.05 30);
+  --color-secondary: oklch(72% 0.08 150);
+  --color-secondary-content: oklch(18% 0.03 150);
+  --color-accent: oklch(80% 0.12 85);
+  --color-accent-content: oklch(22% 0.05 60);
+  --color-neutral: oklch(35% 0.03 40);
+  --color-neutral-content: oklch(94% 0.015 80);
+  --color-info: oklch(75% 0.09 230);
+  --color-info-content: oklch(18% 0.04 230);
+  --color-success: oklch(75% 0.10 160);
+  --color-success-content: oklch(18% 0.04 160);
+  --color-warning: oklch(80% 0.12 75);
+  --color-warning-content: oklch(22% 0.05 60);
+  --color-error: oklch(72% 0.16 25);
+  --color-error-content: oklch(99% 0.01 80);
+  --radius-selector: 0.75rem;
+  --radius-field: 0.875rem;
+  --radius-box: 1.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
   --border: 1.5px;
   --depth: 1;
   --noise: 0;
@@ -144,6 +141,16 @@ body {
   opacity: 0.6;
 }
 
+/* modal motion — bouncy on the way in (overshoot easing on scale + opacity),
+   snappy on the way out (no overshoot — just a quick fade-down). paired with
+   phx-mounted / phx-remove on the modal_shell card and backdrop. */
+.modal-bounce {
+  transition: transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 200ms ease-out;
+}
+.modal-snap {
+  transition: transform 150ms ease-in, opacity 150ms ease-in;
+}
+
 /* tiny rounded chip for table seat-count badge */
 .seat-pip {
   background: oklch(94% 0.06 70);
@@ -161,5 +168,42 @@ body {
 .api-method-patch  { background: oklch(86% 0.13 75);  color: oklch(28% 0.06 60);  }
 .api-method-put    { background: oklch(86% 0.13 75);  color: oklch(28% 0.06 60);  }
 .api-method-delete { background: oklch(85% 0.12 25);  color: oklch(28% 0.08 25);  }
+
+/* dark-mode overrides — the classes above use literal oklch values that don't switch,
+   so we re-state them in warm-dark tones to keep the nibble vibe in dark mode */
+[data-theme=dark] .nibble-bg {
+  background:
+    radial-gradient(circle at 12% 8%, oklch(35% 0.05 60 / 0.45), transparent 45%),
+    radial-gradient(circle at 88% 18%, oklch(33% 0.05 150 / 0.40), transparent 50%),
+    radial-gradient(circle at 70% 92%, oklch(36% 0.06 30 / 0.35), transparent 45%);
+}
+
+[data-theme=dark] .slot-free {
+  background: oklch(24% 0.02 40);
+}
+[data-theme=dark] .slot-free:hover {
+  background: oklch(30% 0.04 60);
+}
+[data-theme=dark] .slot-taken {
+  background: linear-gradient(135deg, oklch(38% 0.09 30), oklch(34% 0.06 50));
+  color: oklch(94% 0.04 60);
+  box-shadow: inset 0 0 0 1px oklch(50% 0.10 30 / 0.5);
+}
+[data-theme=dark] .slot-taken-mine {
+  background: linear-gradient(135deg, oklch(36% 0.09 150), oklch(34% 0.07 130));
+  color: oklch(94% 0.05 150);
+  box-shadow: inset 0 0 0 1px oklch(50% 0.10 150 / 0.5);
+}
+
+[data-theme=dark] .seat-pip {
+  background: oklch(32% 0.05 60);
+  color: oklch(94% 0.04 70);
+}
+
+[data-theme=dark] .api-method-get    { background: oklch(32% 0.06 230); color: oklch(90% 0.06 230); }
+[data-theme=dark] .api-method-post   { background: oklch(32% 0.06 150); color: oklch(90% 0.06 150); }
+[data-theme=dark] .api-method-patch  { background: oklch(34% 0.08 75);  color: oklch(92% 0.08 80);  }
+[data-theme=dark] .api-method-put    { background: oklch(34% 0.08 75);  color: oklch(92% 0.08 80);  }
+[data-theme=dark] .api-method-delete { background: oklch(34% 0.08 25);  color: oklch(92% 0.08 25);  }
 
 /* This file is for your main application CSS */
