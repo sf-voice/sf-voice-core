@@ -3,7 +3,8 @@ defmodule RestoBookingApp.ReservationsTest do
   # intermittent "database busy" errors, so we run them in a single thread
   use RestoBookingApp.DataCase, async: false
 
-  alias RestoBookingApp.{Clock, Reservations}
+  alias RestoBookingApp.{Clock, Repo, Reservations}
+  alias RestoBookingApp.Reservations.Reservation
 
   # opening hours are validated in restaurant-local time, so test fixtures
   # must construct utc datetimes from a local clock-time. naive utc construction
@@ -88,6 +89,17 @@ defmodule RestoBookingApp.ReservationsTest do
     test "different tables can be booked at the same time" do
       assert {:ok, _} = Reservations.create(valid_attrs())
       assert {:ok, _} = Reservations.create(valid_attrs(%{"table_id" => "T2"}))
+    end
+
+    test "db unique index is the backstop if the app-level overlap check is bypassed" do
+      # the application check normally rejects duplicates, but a real toctou race
+      # could let two callers past it. we simulate that by going around the
+      # context and inserting a second row with `Repo.insert/1` directly.
+      assert {:ok, _} = Reservations.create(valid_attrs())
+
+      bypass_changeset = Reservation.changeset(%Reservation{}, valid_attrs())
+      assert {:error, cs} = Repo.insert(bypass_changeset)
+      assert "has already been taken" in errors_on(cs).starts_at
     end
   end
 
