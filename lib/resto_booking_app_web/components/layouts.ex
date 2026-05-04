@@ -42,7 +42,7 @@ defmodule RestoBookingAppWeb.Layouts do
           <span class="text-xs opacity-60 hidden sm:inline">a tiny reservation desk</span>
         </a>
         <div class="flex items-center gap-2">
-          <a href="#api" class="btn btn-ghost btn-sm rounded-full">API</a>
+          <.link href="/api" class="btn btn-ghost btn-sm rounded-full">API</.link>
           <.theme_toggle />
         </div>
       </nav>

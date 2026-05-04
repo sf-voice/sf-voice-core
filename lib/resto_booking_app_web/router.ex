@@ -19,6 +19,10 @@ defmodule RestoBookingAppWeb.Router do
 
     # the floor plan is the landing page — no sign-in, no marketing splash
     live "/", FloorPlanLive, :index
+
+    # http api reference, kept off the guest landing page so it doesn't
+    # crowd out the booking ui
+    live "/api", ApiDocsLive, :index
   end
 
   scope "/api", RestoBookingAppWeb do
