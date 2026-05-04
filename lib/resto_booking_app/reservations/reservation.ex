@@ -48,6 +48,11 @@ defmodule RestoBookingApp.Reservations.Reservation do
     |> validate_party_size()
     |> put_ends_at()
     |> put_cancel_token()
+    # backstop for the application-level overlap check. if two callers race
+    # past the in-process check, the db's unique index rejects the second
+    # insert and ecto translates the constraint violation into a normal
+    # changeset error instead of a 500.
+    |> unique_constraint(:starts_at, name: :reservations_table_id_starts_at_index)
   end
 
   defp validate_table_id(changeset) do
