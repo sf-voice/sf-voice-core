@@ -823,15 +823,27 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
     >
       <div
         class="absolute inset-0 bg-base-content/30 backdrop-blur-sm"
-        phx-mounted={JS.transition({"transition-opacity duration-200 ease-out", "opacity-0", "opacity-100"}, time: 200)}
-        phx-remove={JS.transition({"transition-opacity duration-150 ease-in", "opacity-100", "opacity-0"}, time: 150)}
+        phx-mounted={
+          JS.transition({"transition-opacity duration-200 ease-out", "opacity-0", "opacity-100"},
+            time: 200
+          )
+        }
+        phx-remove={
+          JS.transition({"transition-opacity duration-150 ease-in", "opacity-100", "opacity-0"},
+            time: 150
+          )
+        }
       >
       </div>
       <div
         class="relative w-full max-w-md rounded-3xl bg-base-100 shadow-2xl border border-base-300 p-6 max-h-[90vh] overflow-y-auto"
         phx-click-away="close_modal"
-        phx-mounted={JS.transition({"modal-bounce", "opacity-0 scale-90", "opacity-100 scale-100"}, time: 280)}
-        phx-remove={JS.transition({"modal-snap", "opacity-100 scale-100", "opacity-0 scale-95"}, time: 150)}
+        phx-mounted={
+          JS.transition({"modal-bounce", "opacity-0 scale-90", "opacity-100 scale-100"}, time: 280)
+        }
+        phx-remove={
+          JS.transition({"modal-snap", "opacity-100 scale-100", "opacity-0 scale-95"}, time: 150)
+        }
       >
         <div class="flex items-center justify-between mb-3">
           <h3 class="font-display text-3xl text-primary leading-none">{@title}</h3>

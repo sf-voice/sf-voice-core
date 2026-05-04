@@ -191,7 +191,9 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
             desc="Full replace. Same handler as PATCH — Phoenix routes both verbs to the update action. Send all four mutable fields."
           >
             <:params>
-              <li><code>:id</code> — reservation UUID from the original <code>POST</code> response.</li>
+              <li>
+                <code>:id</code> — reservation UUID from the original <code>POST</code> response.
+              </li>
               <li>
                 <code>token</code>
                 — required query param. The <code>cancel_token</code>
