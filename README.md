@@ -1,9 +1,10 @@
+
 # The Seasons Booking System
 
 A small booking system for **The Seasons** restaurant. Single-tenant, built for guests and staff with very low technical literacy — every screen aims to be obvious without a tutorial.
 
 The landing page is the live floor plan. There is no sign-in or marketing splash.
-
+<img width="1500" height="973" alt="Screenshot 2026-05-04 at 1 45 54 am" src="https://github.com/user-attachments/assets/c7adcd04-b8a2-44e1-90f8-5014bc85d76a" />
 ## Stack
 
 - **Elixir** + **Phoenix 1.8** (LiveView)
