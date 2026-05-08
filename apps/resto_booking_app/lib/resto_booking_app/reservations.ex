@@ -146,10 +146,13 @@ defmodule RestoBookingApp.Reservations do
   def availability_for_date(%Date{} = date) do
     base = Map.new(RestoBookingApp.Tables.ids(), &{&1, []})
 
+    # prepend while reducing (O(1) per step), then reverse once per table at
+    # the end. preserves the asc-by-starts_at order that list/1 hands us.
     list(date: date)
     |> Enum.reduce(base, fn res, acc ->
-      Map.update(acc, res.table_id, [res], &(&1 ++ [res]))
+      Map.update(acc, res.table_id, [res], &[res | &1])
     end)
+    |> Map.new(fn {table_id, reservations} -> {table_id, Enum.reverse(reservations)} end)
   end
 
   # ── pubsub ───────────────────────────────────────────────────────────────

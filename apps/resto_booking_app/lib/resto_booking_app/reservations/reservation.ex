@@ -1,8 +1,12 @@
 defmodule RestoBookingApp.Reservations.Reservation do
   @moduledoc """
-  a single reservation: one table, one two-hour block, a name and an optional
-  dietary note. cancel_token is generated server-side and returned to the
-  caller so they (and only they) can mutate or delete the row later.
+  a single reservation: one table, one two-hour block, the guest's contact
+  details, plus optional special requests and remarks. cancel_token is
+  generated server-side and returned to the caller so they (and only they)
+  can mutate or delete the row later.
+
+  the restaurant is open 10:00–22:00 local time. bookings are 2 hours, so the
+  last bookable start is 20:00 — anything later would run past close.
   """
 
   use Ecto.Schema
@@ -13,10 +17,19 @@ defmodule RestoBookingApp.Reservations.Reservation do
   # 30-minute slot grid, 2-hour booking length
   @slot_minutes 30
   @duration_minutes 120
-  # opening hours, local time
-  @open_hour 6
-  # last bookable start = 20:00 so the 2h block ends at 22:00 close
-  @last_start_hour 20
+
+  # opening hours (local time) expressed in minutes-since-midnight so the
+  # check covers the half-hour boundary cleanly: 20:30 ends at 22:30, so it's
+  # rejected even though hour 20 is "in range".
+  @open_minutes 10 * 60
+  @last_start_minutes 20 * 60
+
+  # salutations are constrained to the form's three options. unset is allowed.
+  @salutations ~w(Mr Mrs Ms)
+
+  # cheap-and-cheerful email shape check. we don't pretend to validate rfc 5321 —
+  # this just rejects the obviously-broken stuff so the form gives quick feedback.
+  @email_regex ~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
@@ -26,22 +39,34 @@ defmodule RestoBookingApp.Reservations.Reservation do
     field :table_id, :string
     field :starts_at, :utc_datetime
     field :ends_at, :utc_datetime
-    field :name, :string
-    field :dietary, :string
-    field :notes, :string
+
+    field :salutation, :string
+    field :first_name, :string
+    field :last_name, :string
+    field :tel, :string
+    field :email, :string
     field :party_size, :integer
+    field :special_requests, :string
+    field :remarks, :string
 
     timestamps(type: :utc_datetime)
   end
 
-  @creatable_fields ~w(table_id starts_at name dietary notes party_size)a
-  @required_fields ~w(table_id starts_at name party_size)a
+  @creatable_fields ~w(
+    table_id starts_at salutation first_name last_name tel email
+    party_size special_requests remarks
+  )a
+  @required_fields ~w(table_id starts_at first_name last_name tel email party_size)a
 
   @doc "changeset used by both create and update — fills in ends_at + cancel_token as needed"
   def changeset(reservation, attrs) do
     reservation
     |> cast(attrs, @creatable_fields)
     |> validate_required(@required_fields)
+    |> validate_inclusion(:salutation, @salutations,
+      message: "must be one of: #{Enum.join(@salutations, ", ")}"
+    )
+    |> validate_format(:email, @email_regex, message: "must look like an email address")
     |> validate_table_id()
     |> validate_slot_alignment()
     |> validate_opening_hours()
@@ -71,16 +96,17 @@ defmodule RestoBookingApp.Reservations.Reservation do
     end)
   end
 
+  # the stored datetime is utc, but opening hours are local. shift before
+  # comparing so a 21:00 PT booking isn't mistaken for 04:00 UTC.
   defp validate_opening_hours(changeset) do
-    # the stored datetime is utc, but opening hours are local. shift before
-    # comparing so a 21:00 PT booking isn't mistaken for 04:00 UTC.
     validate_change(changeset, :starts_at, fn :starts_at, %DateTime{} = dt ->
-      %{hour: hour} = Clock.to_local(dt)
+      %{hour: h, minute: m} = Clock.to_local(dt)
+      mins = h * 60 + m
 
-      if hour >= @open_hour and hour <= @last_start_hour do
+      if mins >= @open_minutes and mins <= @last_start_minutes do
         []
       else
-        [starts_at: "must be between 06:00 and 20:00"]
+        [starts_at: "must be between 10:00 and 20:00"]
       end
     end)
   end
@@ -130,6 +156,17 @@ defmodule RestoBookingApp.Reservations.Reservation do
   @doc "useful constants for downstream code that needs to reason about slots"
   def slot_minutes, do: @slot_minutes
   def duration_minutes, do: @duration_minutes
-  def open_hour, do: @open_hour
-  def last_start_hour, do: @last_start_hour
+  def open_minutes, do: @open_minutes
+  def last_start_minutes, do: @last_start_minutes
+  def salutations, do: @salutations
+
+  @doc "convenience for the floor plan: 'Avery Chen' (no salutation)"
+  def display_name(%__MODULE__{first_name: f, last_name: l}) do
+    [f, l] |> Enum.reject(&(&1 in [nil, ""])) |> Enum.join(" ")
+  end
+
+  @doc "convenience for confirmation surfaces: 'Mr Avery Chen' (with salutation when present)"
+  def full_name(%__MODULE__{salutation: s} = res) do
+    [s, display_name(res)] |> Enum.reject(&(&1 in [nil, ""])) |> Enum.join(" ")
+  end
 end
