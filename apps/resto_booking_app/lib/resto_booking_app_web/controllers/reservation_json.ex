@@ -1,9 +1,9 @@
 defmodule RestoBookingAppWeb.ReservationJSON do
   @moduledoc """
   json shapes for reservations. `public/1` is what the floor plan and the
-  list endpoint emit (everyone sees names + dietary). `with_token/1` is the
-  same plus the cancel_token, returned only on create — that's the single
-  moment the booker gets to capture it.
+  list endpoint emit (everyone sees the booking + guest names). `with_token/1`
+  is the same plus the cancel_token, returned only on create — that's the
+  single moment the booker gets to capture it.
   """
 
   alias RestoBookingApp.Reservations.Reservation
@@ -26,10 +26,14 @@ defmodule RestoBookingAppWeb.ReservationJSON do
       table_id: res.table_id,
       starts_at: format_dt(res.starts_at),
       ends_at: format_dt(res.ends_at),
-      name: res.name,
-      dietary: res.dietary,
-      notes: res.notes,
-      party_size: res.party_size
+      salutation: res.salutation,
+      first_name: res.first_name,
+      last_name: res.last_name,
+      tel: res.tel,
+      email: res.email,
+      party_size: res.party_size,
+      special_requests: res.special_requests,
+      remarks: res.remarks
     }
   end
 
