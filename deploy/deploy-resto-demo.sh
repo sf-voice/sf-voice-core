@@ -39,6 +39,22 @@ docker compose up -d --no-deps app
 # clean up the .bak from sed
 rm -f docker-compose.yml.bak
 
+# wait for the new container to boot, then re-seed the demo data so the floor
+# plan always has rolling reservations across yesterday → today → +2 days.
+# the seed script wipes its own four-day window before inserting, so running
+# this on every deploy keeps the demo fresh without piling up duplicates.
+echo "==> waiting for app to be ready before seeding"
+for i in $(seq 1 30); do
+  if docker compose exec -T app /app/bin/resto_booking_app rpc "IO.puts(:up)" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+
+echo "==> running release seed task"
+docker compose exec -T app /app/bin/resto_booking_app eval "RestoBookingApp.Release.seed()" || \
+  echo "!! seed task failed — floor plan may be empty until next deploy" >&2
+
 # trim old images so disk doesn't fill up over time
 docker image prune -f --filter "until=168h" >/dev/null 2>&1 || true
 

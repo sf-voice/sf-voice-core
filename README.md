@@ -1,3 +1,13 @@
+# Repository layout
+
+This repo is a [workspace](https://hex.pm/packages/workspace) with two Phoenix apps:
+
+- **`apps/resto_booking_app`** — The Seasons booking system. The bulk of this repo. Documented below.
+- **`apps/ellie_ai`** — voice AI orchestration for the booking app. End-of-turn detection via GPT realtime, inbound calls from a Telnyx phone number (with ngrok for local testing against a production number), live turn-by-turn transcripts streamed over WebSocket/SSE into the booking app's chat UI, and call audio archived to S3 for post-processing.
+
+Workspace tooling lives at the root (`mix.exs`, `.workspace.exs`, `workspace.lock`). Each app has its own `mix.exs`, `config/`, `deps/`, and release.
+
+---
 
 # The Seasons Booking System
 
