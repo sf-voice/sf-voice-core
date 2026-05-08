@@ -32,6 +32,17 @@ resto-demo.sf-voice.sh {
 	}
 }
 
+ellie-ai.sf-voice.sh {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
+	encode zstd gzip
+
+	# ellie_ai listens on 4001 inside its container — same internal port it
+	# uses in dev so there's no cross-env surprise.
+	reverse_proxy ellie-ai:4001 {
+		header_up X-Forwarded-Proto https
+	}
+}
+
 # anything else hitting the droplet on 443 with a host we don't know about
 :443 {
 	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
