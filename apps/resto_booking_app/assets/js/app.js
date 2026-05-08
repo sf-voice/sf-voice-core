@@ -25,11 +25,11 @@ import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/resto_booking_app"
 import topbar from "../vendor/topbar"
 
-// nibble TokenVault — keeps cancel tokens in localStorage so the user can
-// edit/delete their bookings later without re-pasting tokens. on connect we
-// hydrate the LiveView with the stored map; create/delete events then add
+// the seasons TokenVault — keeps cancel tokens in localStorage so the user
+// can edit/delete their bookings later without re-pasting tokens. on connect
+// we hydrate the LiveView with the stored map; create/delete events then add
 // or remove keys.
-const VAULT_KEY = "nibble:tokens"
+const VAULT_KEY = "seasons:tokens"
 
 function readVault() {
   try {
