@@ -1,0 +1,163 @@
+# mise config for the sf-voice workspace. one source of truth for tool
+# versions, env, and dev tasks. install mise first (https://mise.jdx.dev),
+# then `mise install` from this dir to pin elixir + erlang to the
+# versions CI uses, and `mise run …` for any task below.
+
+# ── tool versions (match .github/workflows/*.yml so dev == ci) ───────────
+[tools]
+erlang = "27.3.4"
+elixir = "1.18.4-otp-27"
+
+# ── env ──────────────────────────────────────────────────────────────────
+# automatically load the root `.env` plus any per-app `.env` files for every
+# shell + every task. each phoenix app reads its own *_PORT var from the
+# root file. the per-app files (e.g. `apps/ellie_ai/.env`) are auto-written
+# by tasks that need to surface dynamic values — `mise run dev` writes
+# `NGROK_URL` there so ellie picks up the tunnel automatically. missing
+# files are silently skipped.
+[env]
+"_".file = [".env", "apps/resto_booking_app/.env", "apps/ellie_ai/.env"]
+
+# ── tasks ────────────────────────────────────────────────────────────────
+# run any task with `mise run <name>`, or list with `mise tasks`.
+
+[tasks.setup]
+description = "first-time setup: install deps, create dbs, migrate, seed"
+run = [
+  "mix deps.get",
+  "mix workspace.run -t ecto.create",
+  "mix workspace.run -t ecto.migrate",
+  "mise run seed",
+]
+
+[tasks."server:resto"]
+description = "run resto_booking_app with iex (port from RESTO_BOOKING_APP_PORT)"
+dir = "apps/resto_booking_app"
+run = "iex -S mix phx.server"
+
+[tasks."server:ellie"]
+description = "run ellie_ai with iex (port from ELLIE_AI_PORT)"
+dir = "apps/ellie_ai"
+run = "iex -S mix phx.server"
+
+[tasks.dev]
+description = "full local stack: ngrok tunnel for ellie + both phoenix apps"
+# flow:
+#   1. start ngrok in the background pointing at $ELLIE_AI_PORT
+#   2. poll its local api until the public url is up
+#   3. write NGROK_URL into apps/ellie_ai/.env so the ellie app picks it up
+#      on boot (mise's [env] block also re-loads that file for any task)
+#   4. spawn both apps with prefixed logs
+#   5. on Ctrl+C, the EXIT trap kills ngrok + both apps together
+#
+# for an iex'd boot of one app at a time, use `mise run server:resto` /
+# `mise run server:ellie` instead.
+run = """
+set -e
+
+if ! command -v ngrok >/dev/null 2>&1; then
+  echo "ngrok not found — install with 'brew install ngrok' or see https://ngrok.com/download" >&2
+  exit 1
+fi
+
+trap 'kill 0 2>/dev/null; pkill -P $$ 2>/dev/null; exit' EXIT INT TERM
+
+# 1. boot ngrok in the background
+ngrok http "$ELLIE_AI_PORT" --log=stdout > /tmp/ngrok-ellie.log 2>&1 &
+
+# 2. wait for the local api to come up + grab the https tunnel url
+echo "[ngrok] waiting for tunnel..."
+url=""
+for _ in $(seq 1 30); do
+  url=$(curl -s http://127.0.0.1:4040/api/tunnels 2>/dev/null \\
+        | grep -oE '"public_url":"https://[^"]+"' \\
+        | head -1 \\
+        | sed 's/.*"public_url":"//;s/"$//' || true)
+  [ -n "$url" ] && break
+  sleep 1
+done
+
+if [ -z "$url" ]; then
+  echo "[ngrok] tunnel didn't open in 30s — see /tmp/ngrok-ellie.log" >&2
+  exit 1
+fi
+
+# 3. persist into ellie's .env so the value is visible to mise's env loader
+#    on every run from now on (overwritten next time `dev` boots).
+mkdir -p apps/ellie_ai
+cat > apps/ellie_ai/.env <<EOF
+# auto-written by 'mise run dev' — overwritten each boot, do not edit.
+NGROK_URL=$url
+EOF
+export NGROK_URL="$url"
+
+echo "[ngrok] $url -> http://127.0.0.1:$ELLIE_AI_PORT"
+
+# 4. spawn both phoenix apps with prefixed logs. NGROK_URL is in the env
+#    via the export above; PORT vars come from the root `.env` mise loaded.
+(cd apps/resto_booking_app && mix phx.server 2>&1 | sed -u 's/^/[resto] /') &
+(cd apps/ellie_ai && mix phx.server 2>&1 | sed -u 's/^/[ellie] /') &
+wait
+"""
+
+[tasks.test]
+description = "run tests across every app in the workspace"
+run = "mix workspace.run -t test"
+
+[tasks."test.watch"]
+description = "watch tests for resto (the app with the bigger suite)"
+dir = "apps/resto_booking_app"
+run = "mix test.watch"
+
+[tasks.format]
+description = "mix format across every app"
+run = "mix workspace.run -t format"
+
+[tasks."format.check"]
+description = "ci-style formatting check (fails on diffs)"
+run = "mix workspace.run -t -- format --check-formatted"
+
+[tasks.compile]
+description = "compile every app with --warnings-as-errors"
+run = "mix workspace.run -t -- compile --warnings-as-errors"
+
+[tasks.migrate]
+description = "run pending migrations across every app"
+run = "mix workspace.run -t ecto.migrate"
+
+[tasks."migrate.rollback"]
+description = "rollback the last migration in resto"
+dir = "apps/resto_booking_app"
+run = "mix ecto.rollback"
+
+[tasks.seed]
+description = "reseed resto_booking_app's rolling 4-day demo window"
+dir = "apps/resto_booking_app"
+run = "mix run priv/repo/seeds.exs"
+
+[tasks.console]
+description = "iex console for resto (no server)"
+dir = "apps/resto_booking_app"
+run = "iex -S mix"
+
+[tasks."console:ellie"]
+description = "iex console for ellie_ai (no server)"
+dir = "apps/ellie_ai"
+run = "iex -S mix"
+
+[tasks.reset]
+description = "drop + recreate + migrate + seed resto's dev db (destructive)"
+dir = "apps/resto_booking_app"
+run = [
+  "mix ecto.drop",
+  "mix ecto.create",
+  "mix ecto.migrate",
+  "mix run priv/repo/seeds.exs",
+]
+
+[tasks.deps]
+description = "fetch + compile deps in every app"
+run = [
+  "mix deps.get",
+  "mix workspace.run -t deps.compile",
+]
