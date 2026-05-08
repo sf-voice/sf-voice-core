@@ -17,7 +17,12 @@ config :resto_booking_app, RestoBookingApp.Repo,
 config :resto_booking_app, RestoBookingAppWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  http: [ip: {127, 0, 0, 1}],
+  # port comes from RESTO_BOOKING_APP_PORT in the workspace `.env` (loaded
+  # by mise) so both phoenix apps can run side-by-side without colliding.
+  http: [
+    ip: {127, 0, 0, 1},
+    port: String.to_integer(System.get_env("RESTO_BOOKING_APP_PORT", "4000"))
+  ],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
