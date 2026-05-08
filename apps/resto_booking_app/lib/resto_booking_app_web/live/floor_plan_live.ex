@@ -1,6 +1,6 @@
 defmodule RestoBookingAppWeb.FloorPlanLive do
   @moduledoc """
-  the landing page for nibble. shows the day's floor plan as a timeline grid
+  the landing page for the seasons. shows the day's floor plan as a timeline grid
   of tables × 30-min slots. clicking a free slot opens a reserve modal;
   clicking a booked slot opens a manage modal where the owner of the
   reservation (identified by their cancel_token, persisted in localStorage)
@@ -25,8 +25,10 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
   alias RestoBookingApp.{Clock, Reservations, Tables}
   alias RestoBookingApp.Reservations.Reservation
 
-  # display columns: 06:00 through 21:30 in 30-min steps
-  @display_start_minutes 6 * 60
+  # display 10:00 → 22:00 so users see the full opening window. the last
+  # three slots (20:30 / 21:00 / 21:30) are shown but disabled — a 2-hour
+  # booking starting then would run past the 22:00 close.
+  @display_start_minutes 10 * 60
   @display_end_minutes 22 * 60
 
   # ── lifecycle ────────────────────────────────────────────────────────────
@@ -69,15 +71,18 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
   @impl true
   def handle_event("change_date", %{"date" => date_str}, socket) do
     case Date.from_iso8601(date_str) do
-      {:ok, date} ->
-        {:noreply,
-         socket
-         |> assign(:selected_date, date)
-         |> assign(:date_input, Date.to_iso8601(date))
-         |> assign(:availability, Reservations.availability_for_date(date))}
+      {:ok, date} -> {:noreply, set_date(socket, date)}
+      {:error, _} -> {:noreply, socket}
+    end
+  end
 
-      {:error, _} ->
-        {:noreply, socket}
+  # chevron arrows on either side of the date picker. `by` is +/- a number of
+  # days as a string (phx-value-* always serialises to strings).
+  @impl true
+  def handle_event("shift_date", %{"by" => by}, socket) do
+    case Integer.parse(by) do
+      {days, _} -> {:noreply, set_date(socket, Date.add(socket.assigns.selected_date, days))}
+      :error -> {:noreply, socket}
     end
   end
 
@@ -87,8 +92,8 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
   def handle_event("open_reserve", %{"table" => table_id, "minutes" => minutes_str}, socket) do
     minutes = String.to_integer(minutes_str)
 
-    if minutes > Reservation.last_start_hour() * 60 do
-      # no booking can start past 20:00 — gently refuse
+    if minutes > Reservation.last_start_minutes() do
+      # 20:30+ would push the 2h block past 22:00 close — refuse politely
       {:noreply, put_flash(socket, :error, "Last booking starts at 20:00 (it's a 2-hour slot).")}
     else
       {:ok, starts_at} = slot_datetime(socket.assigns.selected_date, minutes)
@@ -294,32 +299,47 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
     <Layouts.app flash={@flash}>
       <div id="token-vault" phx-hook="TokenVault" class="hidden"></div>
 
-      <section class="mb-8">
-        <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+      <section class="mb-6 lg:mb-3">
+        <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 lg:gap-2">
           <div>
-            <h1 class="font-display text-5xl text-primary leading-none">welcome to the seasons</h1>
-            <p class="mt-2 text-base-content/70 text-sm sm:text-base max-w-xl">
-              Thirty seats. Three meals a day. Open every day, 6am to 10pm.
-              Pick a free slot to reserve, or click your booking to change it.
+            <p class="text-[10px] uppercase tracking-[0.3em] text-primary opacity-70 mb-1">
+              Reserve a table
             </p>
+            <h1 class="font-display text-2xl lg:text-xl text-base-content leading-tight">
+              Pick any open slot. Two-hour bookings, 10:00 to 22:00.
+            </h1>
           </div>
-          <form phx-change="change_date" class="flex items-center gap-2 self-start sm:self-end">
+          <div class="flex items-center gap-3 self-start sm:self-end">
             <label for="date" class="text-sm font-semibold">Date</label>
-            <input
-              type="date"
-              id="date"
-              name="date"
-              value={@date_input}
-              class="input input-bordered input-sm rounded-full"
-            />
-          </form>
+            <div class="date-stepper">
+              <button
+                type="button"
+                phx-click="shift_date"
+                phx-value-by="-1"
+                aria-label="Previous day"
+              >
+                <.icon name="hero-chevron-left-mini" class="size-4" />
+              </button>
+              <form phx-change="change_date">
+                <input type="date" id="date" name="date" value={@date_input} />
+              </form>
+              <button
+                type="button"
+                phx-click="shift_date"
+                phx-value-by="1"
+                aria-label="Next day"
+              >
+                <.icon name="hero-chevron-right-mini" class="size-4" />
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section class="mb-10">
-        <div class="rounded-3xl bg-base-100/80 backdrop-blur p-3 sm:p-5 shadow-sm border border-base-300">
+      <section class="mb-6 lg:mb-3">
+        <div class="rounded-2xl bg-base-100/80 backdrop-blur p-3 sm:p-5 lg:p-3 shadow-sm border border-base-300">
           <.legend />
-          <div class="overflow-x-auto mt-3">
+          <div class="overflow-x-auto mt-3 lg:mt-2">
             <table class="w-full text-[10px] sm:text-xs border-separate" style="border-spacing: 4px">
               <thead>
                 <tr>
@@ -332,7 +352,7 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
                     :for={slot <- @slots}
                     class={[
                       "text-center font-mono font-semibold opacity-70",
-                      slot > Reservation.last_start_hour() * 60 && "opacity-30"
+                      slot > Reservation.last_start_minutes() && "opacity-30"
                     ]}
                   >
                     {format_slot(slot)}
@@ -341,12 +361,12 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
               </thead>
               <tbody>
                 <tr :for={table <- @tables}>
-                  <th class="text-left sticky left-0 bg-base-100/80 backdrop-blur z-10 px-2 py-1 align-middle whitespace-nowrap">
+                  <th class="text-left sticky left-0 bg-base-100/80 backdrop-blur z-10 px-2 py-1 lg:py-0 align-middle whitespace-nowrap">
                     <div class="flex items-center gap-2">
-                      <span class="font-mono font-bold text-sm">{table.id}</span>
+                      <span class="font-mono font-bold text-sm lg:text-xs">{table.id}</span>
                       <span class="seat-pip">{table.seats} seats</span>
                     </div>
-                    <div class="text-[10px] opacity-50 mt-0.5">{table.shape}</div>
+                    <div class="text-[10px] opacity-50 mt-0.5 lg:hidden">{table.shape}</div>
                   </th>
                   <td
                     :for={slot <- @slots}
@@ -369,7 +389,7 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
                           res -> Map.has_key?(@my_tokens, res.id)
                         end
                       }
-                      bookable?={slot <= Reservation.last_start_hour() * 60}
+                      bookable?={slot <= Reservation.last_start_minutes()}
                     />
                   </td>
                 </tr>
@@ -380,10 +400,6 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
       </section>
 
       <.your_bookings_section my_tokens={@my_tokens} availability={@availability} />
-
-      <p class="mt-12 text-center text-xs opacity-50">
-        Building something? <.link href="/api" class="underline">See the HTTP API →</.link>
-      </p>
 
       <%= if @modal == :reserve do %>
         <.reserve_modal form={@reserve_form} ctx={@reserve_context} date={@selected_date} />
@@ -414,18 +430,18 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
 
   defp legend(assigns) do
     ~H"""
-    <div class="flex flex-wrap items-center gap-3 text-xs px-2">
+    <div class="flex flex-wrap items-center gap-4 text-xs px-2">
       <div class="flex items-center gap-1.5">
-        <span class="inline-block w-4 h-4 rounded-md slot-free border border-base-300"></span>
-        <span class="opacity-70">free — click to reserve</span>
+        <span class="inline-block w-3 h-3 rounded slot-free border border-base-300"></span>
+        <span class="opacity-70">Free</span>
       </div>
       <div class="flex items-center gap-1.5">
-        <span class="inline-block w-4 h-4 rounded-md slot-taken"></span>
-        <span class="opacity-70">booked</span>
+        <span class="inline-block w-3 h-3 rounded slot-taken"></span>
+        <span class="opacity-70">Booked</span>
       </div>
       <div class="flex items-center gap-1.5">
-        <span class="inline-block w-4 h-4 rounded-md slot-taken-mine"></span>
-        <span class="opacity-70">yours — click to manage</span>
+        <span class="inline-block w-3 h-3 rounded slot-taken-mine"></span>
+        <span class="opacity-70">Your booking</span>
       </div>
     </div>
     """
@@ -439,6 +455,13 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
   attr :bookable?, :boolean, required: true
 
   defp slot_cell(%{reservation: nil} = assigns) do
+    label =
+      if assigns.bookable?,
+        do: "Reserve #{assigns.table.id} at #{format_slot(assigns.minutes)}",
+        else: "#{assigns.table.id} at #{format_slot(assigns.minutes)} — past last bookable start"
+
+    assigns = assign(assigns, :a11y_label, label)
+
     ~H"""
     <button
       type="button"
@@ -446,41 +469,45 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
       phx-value-table={@table.id}
       phx-value-minutes={@minutes}
       disabled={!@bookable?}
+      aria-label={@a11y_label}
+      title={@a11y_label}
       class={[
-        "slot-free w-14 h-9 rounded-lg border border-base-300 text-base-content/30 text-lg leading-none cursor-pointer disabled:cursor-not-allowed disabled:opacity-40",
+        "slot-free w-14 h-9 lg:w-12 lg:h-7 rounded-lg border border-base-300 text-base-content/40 text-lg lg:text-base leading-none cursor-pointer disabled:cursor-not-allowed disabled:opacity-40",
         !@bookable? && "slot-continuation"
       ]}
-      title={
-        if(@bookable?,
-          do: "Reserve #{@table.id} at #{format_slot(@minutes)}",
-          else: "Past last bookable start (20:00)"
-        )
-      }
     >
-      +
+      <span class="slot-plus" aria-hidden="true">+</span>
     </button>
     """
   end
 
   defp slot_cell(%{reservation: _res} = assigns) do
+    guest = Reservation.display_name(assigns.reservation)
+
+    label =
+      "#{guest}, party of #{assigns.reservation.party_size}, table #{assigns.table.id} at #{format_slot(assigns.minutes)}"
+
+    assigns = assigns |> assign(:guest, guest) |> assign(:a11y_label, label)
+
     ~H"""
     <button
       type="button"
       phx-click="open_manage"
       phx-value-id={@reservation.id}
+      aria-label={@a11y_label}
+      title={"#{@guest} · party of #{@reservation.party_size}#{if @reservation.special_requests, do: " · " <> @reservation.special_requests, else: ""}"}
       class={[
-        "w-14 h-9 rounded-lg cursor-pointer overflow-hidden text-left px-1.5",
+        "w-14 h-9 lg:w-12 lg:h-7 rounded-lg cursor-pointer overflow-hidden text-left px-1.5",
         if(@mine?, do: "slot-taken-mine", else: "slot-taken"),
         !@first_slot? && "slot-continuation"
       ]}
-      title={"#{@reservation.name} · party of #{@reservation.party_size}#{if @reservation.dietary, do: " · " <> @reservation.dietary, else: ""}"}
     >
       <%= if @first_slot? do %>
         <div class="font-bold text-[10px] truncate leading-tight">
-          {@reservation.name} <span class="opacity-70">×{@reservation.party_size}</span>
+          {@guest} <span class="opacity-70">×{@reservation.party_size}</span>
         </div>
         <div class="text-[9px] truncate opacity-80 leading-tight">
-          {@reservation.dietary || ""}
+          {@reservation.special_requests || ""}
         </div>
       <% end %>
     </button>
@@ -501,9 +528,15 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
 
     ~H"""
     <%= if @mine != [] do %>
-      <section class="mb-10">
-        <h2 class="font-display text-3xl text-primary mb-3">your bookings today</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <section class="mb-6 lg:mb-2">
+        <p class="text-[10px] uppercase tracking-[0.3em] text-primary opacity-70 mb-2 lg:mb-1">
+          Saved on this device
+        </p>
+        <h2 class="font-display text-2xl sm:text-3xl lg:text-base lg:font-medium text-base-content mb-4 lg:mb-2 lg:inline-block lg:mr-3">
+          Your reservations
+        </h2>
+        <%!-- mobile: full cards. lg: inline pills on the same row as the heading. --%>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 lg:hidden">
           <button
             :for={res <- @mine}
             type="button"
@@ -512,7 +545,7 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
             class="text-left rounded-2xl bg-base-100 border border-base-300 p-4 hover:border-secondary hover:shadow-md transition-all cursor-pointer"
           >
             <div class="flex items-center justify-between gap-2">
-              <span class="font-bold">{res.name}</span>
+              <span class="font-bold">{Reservation.display_name(res)}</span>
               <span class="text-[10px] font-mono opacity-60">{res.table_id}</span>
             </div>
             <div class="mt-1 text-sm opacity-80 font-mono">
@@ -521,13 +554,27 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
             <div class="mt-1 text-xs opacity-70">
               party of {res.party_size}
             </div>
-            <div :if={res.dietary} class="mt-0.5 text-xs opacity-70 italic">
-              {res.dietary}
+            <div :if={res.special_requests} class="mt-0.5 text-xs opacity-70 italic">
+              {res.special_requests}
             </div>
-            <div :if={res.notes} class="mt-0.5 text-xs opacity-70">
-              {res.notes}
+            <div :if={res.remarks} class="mt-0.5 text-xs opacity-70">
+              {res.remarks}
             </div>
             <div class="mt-2 text-xs text-secondary font-semibold">click to edit or cancel →</div>
+          </button>
+        </div>
+        <div class="hidden lg:inline-flex flex-wrap gap-2 align-middle">
+          <button
+            :for={res <- @mine}
+            type="button"
+            phx-click="open_manage"
+            phx-value-id={res.id}
+            class="inline-flex items-center gap-2 rounded-full bg-base-100 border border-base-300 px-3 py-1 text-xs hover:border-secondary cursor-pointer"
+            title={"#{Reservation.display_name(res)} · #{res.table_id} · party of #{res.party_size}"}
+          >
+            <span class="font-mono opacity-60">{res.table_id}</span>
+            <span class="font-semibold">{Reservation.display_name(res)}</span>
+            <span class="font-mono opacity-70">{format_dt(res.starts_at)}</span>
           </button>
         </div>
       </section>
@@ -555,26 +602,41 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
         phx-submit="submit_reserve"
         class="space-y-2"
       >
-        <.input field={@form[:name]} type="text" label="Your name" placeholder="Avery Chen" required />
+        <p class="text-xs opacity-60 mb-1">
+          <span class="text-error">*</span> indicates required fields.
+        </p>
+
+        <.input
+          field={@form[:salutation]}
+          type="select"
+          label="Salutation"
+          options={[{"—", ""} | Enum.map(Reservation.salutations(), &{&1, &1})]}
+        />
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <.input field={@form[:first_name]} type="text" label="First name *" required />
+          <.input field={@form[:last_name]} type="text" label="Last name *" required />
+        </div>
+        <.input field={@form[:tel]} type="tel" label="Telephone *" required />
+        <.input field={@form[:email]} type="email" label="Email *" required />
         <.input
           field={@form[:party_size]}
           type="number"
-          label={"How many people? (1–#{@ctx.seats})"}
+          label={"Number of guests * (1–#{@ctx.seats})"}
           min="1"
           max={@ctx.seats}
           required
         />
         <.input
-          field={@form[:dietary]}
+          field={@form[:special_requests]}
           type="text"
-          label="Dietary requirements (optional)"
-          placeholder="vegan, no peanuts, gluten free…"
+          label="Special requests"
+          placeholder="dietary, allergies, accessibility…"
         />
         <.input
-          field={@form[:notes]}
+          field={@form[:remarks]}
           type="textarea"
-          label="notes (optional)"
-          placeholder="anything else? what you want to eat, occasion, requests…"
+          label="Remarks"
+          placeholder="anything else we should know? occasion, seating preferences…"
         />
 
         <div class="flex items-center justify-end gap-2 pt-3">
@@ -594,18 +656,16 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
 
   defp saved_modal(assigns) do
     ~H"""
-    <.modal_shell title="Booked!">
-      <div class="text-center mb-4">
-        <div class="font-display text-4xl text-secondary">yay 🎀</div>
-        <p class="text-sm opacity-80 mt-1">
-          We saved your spot. Your cancel token is below — we've also stored it
-          in this browser, so you can edit or cancel any time without re-typing.
-        </p>
-      </div>
+    <.modal_shell title="Reservation confirmed">
+      <p class="text-sm opacity-80 leading-relaxed mb-4">
+        Your table is held. Keep the booking reference below if you'd like to
+        amend or cancel from another device.
+      </p>
 
       <div class="rounded-2xl bg-base-200 p-4 mb-4 space-y-1 text-sm">
         <div>
-          <span class="opacity-60">Name:</span> <span class="font-bold">{@reservation.name}</span>
+          <span class="opacity-60">Name:</span>
+          <span class="font-bold">{Reservation.full_name(@reservation)}</span>
         </div>
         <div>
           <span class="opacity-60">Party:</span>
@@ -623,15 +683,24 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
             {format_dt(@reservation.starts_at)} → {format_dt(@reservation.ends_at)}
           </span>
         </div>
-        <div :if={@reservation.dietary}>
-          <span class="opacity-60">Dietary:</span> <span class="italic">{@reservation.dietary}</span>
+        <div>
+          <span class="opacity-60">Tel:</span> <span class="font-mono">{@reservation.tel}</span>
         </div>
-        <div :if={@reservation.notes}>
-          <span class="opacity-60">Notes:</span> {@reservation.notes}
+        <div>
+          <span class="opacity-60">Email:</span> <span class="font-mono">{@reservation.email}</span>
+        </div>
+        <div :if={@reservation.special_requests}>
+          <span class="opacity-60">Special requests:</span>
+          <span class="italic">{@reservation.special_requests}</span>
+        </div>
+        <div :if={@reservation.remarks}>
+          <span class="opacity-60">Remarks:</span> {@reservation.remarks}
         </div>
       </div>
 
-      <label class="text-xs uppercase tracking-wider opacity-60 font-semibold">Cancel token</label>
+      <label class="text-xs uppercase tracking-wider opacity-60 font-semibold">
+        Booking reference
+      </label>
       <div class="flex items-center gap-2 mt-1">
         <code class="flex-1 rounded-xl bg-base-300 px-3 py-2 font-mono text-xs break-all">
           {@reservation.cancel_token}
@@ -645,6 +714,9 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
           Copy
         </button>
       </div>
+      <p class="text-[11px] opacity-60 mt-1">
+        Used to confirm changes — not your reservation ID.
+      </p>
 
       <div class="text-right mt-5">
         <button type="button" phx-click="dismiss_saved" class="btn btn-primary rounded-full">
@@ -673,7 +745,8 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
     <.modal_shell title="Reservation">
       <div class="rounded-2xl bg-accent/30 px-4 py-3 mb-4 text-sm space-y-1">
         <div>
-          <span class="opacity-60">Name:</span> <span class="font-bold">{@reservation.name}</span>
+          <span class="opacity-60">Name:</span>
+          <span class="font-bold">{Reservation.full_name(@reservation)}</span>
         </div>
         <div>
           <span class="opacity-60">Party:</span>
@@ -691,27 +764,27 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
             {format_dt(@reservation.starts_at)} → {format_dt(@reservation.ends_at)}
           </span>
         </div>
-        <div :if={@reservation.dietary}>
-          <span class="opacity-60">Dietary:</span>
-          <span class="italic">{@reservation.dietary}</span>
+        <div :if={@reservation.special_requests}>
+          <span class="opacity-60">Special requests:</span>
+          <span class="italic">{@reservation.special_requests}</span>
         </div>
-        <div :if={@reservation.notes}>
-          <span class="opacity-60">Notes:</span>
-          {@reservation.notes}
+        <div :if={@reservation.remarks}>
+          <span class="opacity-60">Remarks:</span>
+          {@reservation.remarks}
         </div>
       </div>
 
       <%= cond do %>
         <% not @has_token? -> %>
           <p class="text-sm mb-2 opacity-80">
-            To edit or cancel this booking, paste the cancel token returned at
-            booking time:
+            To amend or cancel, paste the booking reference shown when you
+            first reserved:
           </p>
           <form phx-submit="submit_token" class="flex items-center gap-2">
             <input
               type="text"
               name="token"
-              placeholder="cancel token"
+              placeholder="booking reference"
               class="input input-bordered rounded-full flex-1 font-mono text-xs"
               required
             />
@@ -749,42 +822,63 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
             phx-submit="submit_edit"
             class="space-y-2"
           >
-            <.input
-              field={f[:name]}
-              type="text"
-              label="Name"
-              required
-            />
+            <%!--
+              Field order is intentional: people opening the manage modal are
+              almost always tweaking *when* (start time / table / party size).
+              Personal details live in a collapsed disclosure below.
+            --%>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <.input
+                field={f[:starts_at]}
+                type="select"
+                label="Start time"
+                options={start_time_options(@date, @slots)}
+              />
+              <.input
+                field={f[:table_id]}
+                type="select"
+                label="Table"
+                options={for t <- @tables, do: {"#{t.id} (#{t.seats} seats)", t.id}}
+              />
+            </div>
             <.input
               field={f[:party_size]}
               type="number"
-              label={"How many people? (1–#{@max_seats})"}
+              label={"Number of guests (1–#{@max_seats})"}
               min="1"
               max={@max_seats}
               required
             />
             <.input
-              field={f[:dietary]}
+              field={f[:special_requests]}
               type="text"
-              label="Dietary requirements"
+              label="Special requests"
             />
             <.input
-              field={f[:notes]}
+              field={f[:remarks]}
               type="textarea"
-              label="notes"
+              label="Remarks"
             />
-            <.input
-              field={f[:table_id]}
-              type="select"
-              label="Table"
-              options={for t <- @tables, do: {"#{t.id} (#{t.seats} seats)", t.id}}
-            />
-            <.input
-              field={f[:starts_at]}
-              type="select"
-              label="Start time"
-              options={start_time_options(@date, @slots)}
-            />
+
+            <details class="rounded-xl border border-base-300 px-3 py-2 mt-2">
+              <summary class="cursor-pointer text-xs uppercase tracking-wider opacity-70 font-semibold list-none">
+                Edit guest details
+              </summary>
+              <div class="space-y-2 mt-3">
+                <.input
+                  field={f[:salutation]}
+                  type="select"
+                  label="Salutation"
+                  options={[{"—", ""} | Enum.map(Reservation.salutations(), &{&1, &1})]}
+                />
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <.input field={f[:first_name]} type="text" label="First name" required />
+                  <.input field={f[:last_name]} type="text" label="Last name" required />
+                </div>
+                <.input field={f[:tel]} type="tel" label="Telephone" required />
+                <.input field={f[:email]} type="email" label="Email" required />
+              </div>
+            </details>
 
             <p :if={@token_error} class="text-error text-sm">{@token_error}</p>
 
@@ -836,7 +930,7 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
       >
       </div>
       <div
-        class="relative w-full max-w-md rounded-3xl bg-base-100 shadow-2xl border border-base-300 p-6 max-h-[90vh] overflow-y-auto"
+        class="relative w-full max-w-md rounded-3xl bg-base-100 shadow-2xl border border-base-300 max-h-[90vh] flex flex-col overflow-hidden"
         phx-click-away="close_modal"
         phx-mounted={
           JS.transition({"modal-bounce", "opacity-0 scale-90", "opacity-100 scale-100"}, time: 280)
@@ -845,8 +939,16 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
           JS.transition({"modal-snap", "opacity-100 scale-100", "opacity-0 scale-95"}, time: 150)
         }
       >
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="font-display text-3xl text-primary leading-none">{@title}</h3>
+        <%!-- header is fixed; body scrolls. keeps the close X reachable on long forms. --%>
+        <div class="flex items-center justify-between px-6 pt-5 pb-3 border-b border-base-300 bg-base-100">
+          <div>
+            <p class="text-[10px] uppercase tracking-[0.3em] text-primary opacity-70">
+              The Seasons
+            </p>
+            <h3 class="font-display text-xl sm:text-2xl text-base-content leading-tight mt-0.5">
+              {@title}
+            </h3>
+          </div>
           <button
             type="button"
             phx-click="close_modal"
@@ -856,7 +958,9 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
             <.icon name="hero-x-mark" class="size-4" />
           </button>
         </div>
-        {render_slot(@inner_block)}
+        <div class="px-6 py-5 overflow-y-auto">
+          {render_slot(@inner_block)}
+        </div>
       </div>
     </div>
     """
@@ -920,6 +1024,13 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
     Reservations.availability_for_date(socket.assigns.selected_date)
   end
 
+  defp set_date(socket, %Date{} = date) do
+    socket
+    |> assign(:selected_date, date)
+    |> assign(:date_input, Date.to_iso8601(date))
+    |> assign(:availability, Reservations.availability_for_date(date))
+  end
+
   defp open_manage_modal(socket, reservation) do
     has_token? = Map.has_key?(socket.assigns.my_tokens, reservation.id)
 
@@ -938,17 +1049,19 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
     |> to_form(as: "reservation")
   end
 
-  # the form sends user-typed name, dietary, notes, party_size; table_id and
-  # starts_at come from the modal context (set when the user clicked the cell)
+  # the form sends the guest fields + party_size; table_id and starts_at come
+  # from the modal context (set when the user clicked the cell)
   defp merge_context(params, %{table_id: table_id, starts_at: starts_at}) do
     params
     |> Map.put_new("table_id", table_id)
     |> Map.put_new("starts_at", DateTime.to_iso8601(starts_at))
   end
 
-  # build the {label, value} options for the start-time select used in edit
+  # build the {label, value} options for the start-time select used in edit.
+  # only the bookable slots (≤ 20:00) make it into the dropdown — picking a
+  # 20:30 start would just bounce off the schema's opening-hours check.
   defp start_time_options(date, slots) do
-    last_start = Reservation.last_start_hour() * 60
+    last_start = Reservation.last_start_minutes()
 
     for minutes <- slots, minutes <= last_start do
       {:ok, dt} = slot_datetime(date, minutes)
