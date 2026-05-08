@@ -1,0 +1,23 @@
+# installed at /srv/ellie-ai/docker-compose.yml on the droplet.
+# the deploy script swaps the image tag and re-creates the `app` service.
+
+services:
+  app:
+    image: ghcr.io/sf-voice/ellie-ai:latest
+    container_name: ellie-ai
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PHX_HOST: ellie-ai.sf-voice.sh
+      PHX_SERVER: "true"
+      PORT: "4001"
+      # SECRET_KEY_BASE comes from .env (gitignored, written by bootstrap.sh)
+    expose:
+      - "4001"
+    networks:
+      - proxy_net
+
+networks:
+  proxy_net:
+    external: true
