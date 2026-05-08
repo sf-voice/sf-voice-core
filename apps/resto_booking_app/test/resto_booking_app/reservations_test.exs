@@ -6,9 +6,9 @@ defmodule RestoBookingApp.ReservationsTest do
   alias RestoBookingApp.{Clock, Repo, Reservations}
   alias RestoBookingApp.Reservations.Reservation
 
-  # opening hours are validated in restaurant-local time, so test fixtures
-  # must construct utc datetimes from a local clock-time. naive utc construction
-  # would behave differently on a UTC ci runner vs a non-UTC dev box.
+  # opening hours (10:00–22:00) are validated in restaurant-local time, so
+  # build fixtures from a local clock-time. naive utc construction would behave
+  # differently on a UTC ci runner vs a non-UTC dev box.
   defp at(hour, minute \\ 0) do
     today = Clock.today()
     {:ok, time} = Time.new(hour, minute, 0)
@@ -20,9 +20,14 @@ defmodule RestoBookingApp.ReservationsTest do
       %{
         "table_id" => "T1",
         "starts_at" => at(10),
-        "name" => "Lois",
+        "salutation" => "Ms",
+        "first_name" => "Lois",
+        "last_name" => "Tester",
+        "tel" => "+1-415-555-0100",
+        "email" => "lois@example.com",
         "party_size" => 2,
-        "dietary" => "vegan"
+        "special_requests" => "vegan",
+        "remarks" => "window seat please"
       },
       overrides
     )
@@ -34,6 +39,8 @@ defmodule RestoBookingApp.ReservationsTest do
       assert res.ends_at == DateTime.add(res.starts_at, 2 * 60 * 60, :second)
       assert is_binary(res.cancel_token)
       assert byte_size(res.cancel_token) >= 16
+      assert res.first_name == "Lois"
+      assert res.last_name == "Tester"
     end
 
     test "rejects unknown table" do
@@ -57,6 +64,33 @@ defmodule RestoBookingApp.ReservationsTest do
       assert "can't be blank" in errors_on(cs).party_size
     end
 
+    test "requires first_name, last_name, tel, email" do
+      attrs =
+        valid_attrs()
+        |> Map.drop(["first_name", "last_name", "tel", "email"])
+
+      assert {:error, cs} = Reservations.create(attrs)
+      errors = errors_on(cs)
+      assert "can't be blank" in errors.first_name
+      assert "can't be blank" in errors.last_name
+      assert "can't be blank" in errors.tel
+      assert "can't be blank" in errors.email
+    end
+
+    test "rejects bad email shape" do
+      assert {:error, cs} = Reservations.create(valid_attrs(%{"email" => "not-an-email"}))
+      assert "must look like an email address" in errors_on(cs).email
+    end
+
+    test "rejects unknown salutation" do
+      assert {:error, cs} = Reservations.create(valid_attrs(%{"salutation" => "Dr"}))
+      assert "must be one of: Mr, Mrs, Ms" in errors_on(cs).salutation
+    end
+
+    test "salutation is optional" do
+      assert {:ok, _} = Reservations.create(valid_attrs(%{"salutation" => nil}))
+    end
+
     test "rejects misaligned slot" do
       starts = DateTime.add(at(10), 15 * 60, :second)
       assert {:error, cs} = Reservations.create(valid_attrs(%{"starts_at" => starts}))
@@ -64,11 +98,23 @@ defmodule RestoBookingApp.ReservationsTest do
     end
 
     test "rejects out-of-hours bookings" do
-      assert {:error, cs} = Reservations.create(valid_attrs(%{"starts_at" => at(5, 30)}))
-      assert "must be between 06:00 and 20:00" in errors_on(cs).starts_at
+      # before opening (10:00)
+      assert {:error, cs} = Reservations.create(valid_attrs(%{"starts_at" => at(9, 30)}))
+      assert "must be between 10:00 and 20:00" in errors_on(cs).starts_at
 
-      assert {:error, cs2} = Reservations.create(valid_attrs(%{"starts_at" => at(21)}))
-      assert "must be between 06:00 and 20:00" in errors_on(cs2).starts_at
+      # after last bookable start (20:00) — 20:30 ends past 22:00 close
+      assert {:error, cs2} = Reservations.create(valid_attrs(%{"starts_at" => at(20, 30)}))
+      assert "must be between 10:00 and 20:00" in errors_on(cs2).starts_at
+
+      # 21:00 is well past
+      assert {:error, cs3} = Reservations.create(valid_attrs(%{"starts_at" => at(21)}))
+      assert "must be between 10:00 and 20:00" in errors_on(cs3).starts_at
+    end
+
+    test "accepts bookings at the boundaries" do
+      # 10:00 is the first bookable slot, 20:00 is the last
+      assert {:ok, _} = Reservations.create(valid_attrs(%{"starts_at" => at(10)}))
+      assert {:ok, _} = Reservations.create(valid_attrs(%{"starts_at" => at(20), "table_id" => "T2"}))
     end
 
     test "rejects overlapping bookings on the same table" do
@@ -110,18 +156,20 @@ defmodule RestoBookingApp.ReservationsTest do
     end
 
     test "rejects bad token", %{res: res} do
-      assert {:error, :invalid_token} = Reservations.update(res.id, "wrong", %{"name" => "Hax"})
+      assert {:error, :invalid_token} =
+               Reservations.update(res.id, "wrong", %{"first_name" => "Hax"})
     end
 
-    test "updates name and dietary with valid token", %{res: res} do
+    test "updates fields with valid token", %{res: res} do
       assert {:ok, updated} =
                Reservations.update(res.id, res.cancel_token, %{
-                 "name" => "Lois B",
-                 "dietary" => "vegan + nut allergy"
+                 "first_name" => "Lois",
+                 "last_name" => "Beam",
+                 "special_requests" => "vegan + nut allergy"
                })
 
-      assert updated.name == "Lois B"
-      assert updated.dietary == "vegan + nut allergy"
+      assert updated.last_name == "Beam"
+      assert updated.special_requests == "vegan + nut allergy"
       # cancel_token must remain stable so the owner doesn't lock themselves out
       assert updated.cancel_token == res.cancel_token
     end
@@ -174,6 +222,28 @@ defmodule RestoBookingApp.ReservationsTest do
       assert length(avail["T1"]) == 1
       assert avail["T2"] == []
       assert Map.has_key?(avail, "T9")
+    end
+  end
+
+  describe "name helpers" do
+    test "display_name/1 omits salutation" do
+      res = %Reservation{salutation: "Ms", first_name: "Avery", last_name: "Chen"}
+      assert Reservation.display_name(res) == "Avery Chen"
+    end
+
+    test "full_name/1 includes salutation when present" do
+      res = %Reservation{salutation: "Ms", first_name: "Avery", last_name: "Chen"}
+      assert Reservation.full_name(res) == "Ms Avery Chen"
+    end
+
+    test "full_name/1 drops salutation when absent" do
+      res = %Reservation{salutation: nil, first_name: "Avery", last_name: "Chen"}
+      assert Reservation.full_name(res) == "Avery Chen"
+    end
+
+    test "full_name/1 handles single-word names" do
+      res = %Reservation{salutation: "Mr", first_name: "Cher", last_name: ""}
+      assert Reservation.full_name(res) == "Mr Cher"
     end
   end
 end
