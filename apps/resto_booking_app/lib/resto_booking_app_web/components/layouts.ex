@@ -35,24 +35,42 @@ defmodule RestoBookingAppWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <header class="px-4 sm:px-6 lg:px-10 pt-6">
-      <nav class="mx-auto max-w-6xl flex items-center justify-between">
-        <a href="/" class="flex items-baseline gap-2">
-          <span class="font-display text-4xl text-primary leading-none">The Seasons</span>
-          <span class="text-xs opacity-60 hidden sm:inline">a tiny reservation desk</span>
+    <header class="px-4 sm:px-6 lg:px-10 pt-6 lg:pt-3">
+      <nav class="mx-auto max-w-7xl flex items-center justify-between">
+        <a href="/" class="flex flex-col leading-none">
+          <span class="font-display text-2xl sm:text-3xl lg:text-2xl uppercase tracking-[0.2em] text-primary">
+            The Seasons
+          </span>
+          <span class="text-[10px] uppercase tracking-[0.25em] opacity-50 mt-1">
+            Reservations Desk
+          </span>
         </a>
         <div class="flex items-center gap-2">
-          <.link href="/api" class="btn btn-ghost btn-sm rounded-full">API</.link>
+          <.link
+            href="/api"
+            class="btn btn-ghost btn-sm uppercase tracking-widest text-xs"
+          >
+            API
+          </.link>
           <.theme_toggle />
         </div>
       </nav>
+      <div class="mx-auto max-w-7xl mt-3 lg:mt-2">
+        <div class="h-px bg-base-300"></div>
+      </div>
     </header>
 
-    <main class="px-4 sm:px-6 lg:px-10 pt-6 pb-16">
-      <div class="mx-auto max-w-6xl">
+    <main class="px-4 sm:px-6 lg:px-10 pt-6 lg:pt-4 pb-12 lg:pb-2">
+      <div class="mx-auto max-w-7xl">
         {render_slot(@inner_block)}
       </div>
     </main>
+
+    <footer class="px-4 sm:px-6 lg:px-10 pb-6 lg:pb-2">
+      <div class="mx-auto max-w-7xl border-t border-base-300 pt-3 lg:pt-2 text-[11px] opacity-60 leading-relaxed text-center">
+        The Seasons · a prodigy demo project · no actual reservations are held
+      </div>
+    </footer>
 
     <.flash_group flash={@flash} />
     """
@@ -109,18 +127,10 @@ defmodule RestoBookingAppWeb.Layouts do
   def theme_toggle(assigns) do
     ~H"""
     <div class="card relative flex flex-row items-center border-2 border-base-300 bg-base-300 rounded-full">
-      <div class="absolute w-1/3 h-full rounded-full border-1 border-base-200 bg-base-100 brightness-200 left-0 [[data-theme=light]_&]:left-1/3 [[data-theme=dark]_&]:left-2/3 transition-[left]" />
+      <div class="absolute w-1/2 h-full rounded-full border-1 border-base-200 bg-base-100 brightness-200 left-0 [[data-theme=dark]_&]:left-1/2 transition-[left]" />
 
       <button
-        class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="system"
-      >
-        <.icon name="hero-computer-desktop-micro" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
-
-      <button
-        class="flex p-2 cursor-pointer w-1/3"
+        class="flex p-2 cursor-pointer w-1/2"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="light"
       >
@@ -128,7 +138,7 @@ defmodule RestoBookingAppWeb.Layouts do
       </button>
 
       <button
-        class="flex p-2 cursor-pointer w-1/3"
+        class="flex p-2 cursor-pointer w-1/2"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="dark"
       >
