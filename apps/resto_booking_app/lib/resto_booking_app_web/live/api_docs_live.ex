@@ -20,10 +20,17 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
       </section>
 
       <section>
-        <div class="mb-4">
-          <h1 class="font-display text-5xl text-primary leading-none">api reference</h1>
-          <p class="text-sm opacity-70 mt-2">
-            Everything the website does is also available over HTTP. Have at it.
+        <div class="mb-6">
+          <p class="text-[10px] uppercase tracking-[0.3em] text-primary opacity-70 mb-2">
+            For developers
+          </p>
+          <h1 class="font-display text-4xl sm:text-5xl text-base-content leading-tight">
+            HTTP API reference
+          </h1>
+          <p class="text-sm opacity-70 mt-3 max-w-2xl leading-relaxed">
+            Everything the website does is also available over HTTP. The
+            endpoints below are the same surface the floor plan uses — public,
+            unauthenticated, and stable.
           </p>
         </div>
 
@@ -44,8 +51,7 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
             <li>
               Save it. Pass it as <code>?token=&lt;value&gt;</code>
               on every <code>PATCH</code>, <code>PUT</code>, or <code>DELETE</code>
-              for
-              that reservation's <code>:id</code>.
+              for that reservation's <code>:id</code>.
             </li>
             <li>
               There's no token recovery and no admin override. Lose it and the
@@ -54,7 +60,7 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
             </li>
           </ol>
           <div class="mt-3 text-xs opacity-80">
-            The browser stashes tokens for bookings made on this device in <code>localStorage["nibble:tokens"]</code>, so the website's
+            The browser stashes tokens for bookings made on this device in <code>localStorage["seasons:tokens"]</code>, so the website's
             edit/cancel buttons work without re-pasting. The HTTP API has no
             such convenience — you carry the token yourself.
           </div>
@@ -64,7 +70,7 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
           <.api_card
             method="GET"
             path="/api/menu"
-            desc="Three services (breakfast / lunch / dinner) with prices in cents and dietary tags."
+            desc="Three services (breakfast / lunch / dinner) with prices in cents and dietary tags on each menu item."
           >
             <:response>{menu_example()}</:response>
           </.api_card>
@@ -83,7 +89,7 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
             desc="Per-table list of taken intervals for a date. Empty list means the table is free all day."
           >
             <:params>
-              <li><code>date</code> — optional, ISO date. Defaults to today (UTC).</li>
+              <li><code>date</code> — optional, ISO date. Defaults to today.</li>
             </:params>
             <:response>{availability_example()}</:response>
             <:errors>
@@ -94,7 +100,7 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
           <.api_card
             method="GET"
             path="/api/reservations[?date=YYYY-MM-DD]"
-            desc="List reservations, optionally filtered to a single calendar day (UTC)."
+            desc="List reservations, optionally filtered to a single calendar day."
           >
             <:params>
               <li><code>date</code> — optional, ISO date.</li>
@@ -122,16 +128,23 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
           <.api_card
             method="POST"
             path="/api/reservations"
-            desc="Create a reservation. Bookings are 2 hours, anchored to a 30-min boundary, between 06:00 and 20:00 UTC. The cancel_token in the response is the only way to mutate the reservation later — store it!"
+            desc="Create a reservation. Bookings are 2 hours, anchored to a 30-min boundary, between 10:00 and 20:00 local time (the restaurant closes at 22:00). The cancel_token in the response is the only way to mutate the reservation later — store it!"
           >
             <:params>
               <li><code>table_id</code> — required, one of T1..T9.</li>
               <li>
-                <code>starts_at</code> — required, ISO datetime on a :00 or :30 boundary, hour 6..20.
+                <code>starts_at</code> — required, ISO datetime on a :00 or :30 boundary, local hour 10..20.
               </li>
-              <li><code>name</code> — required.</li>
+              <li><code>first_name</code> — required.</li>
+              <li><code>last_name</code> — required.</li>
+              <li><code>tel</code> — required.</li>
+              <li><code>email</code> — required.</li>
               <li><code>party_size</code> — required integer, 1..table seats.</li>
-              <li><code>dietary</code> — optional free text.</li>
+              <li>
+                <code>salutation</code> — optional, one of <code>Mr</code>, <code>Mrs</code>, <code>Ms</code>.
+              </li>
+              <li><code>special_requests</code> — optional free text.</li>
+              <li><code>remarks</code> — optional free text.</li>
             </:params>
             <:request>{create_request_example()}</:request>
             <:response>{create_response_example()}</:response>
@@ -143,8 +156,9 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
               <li>
                 <code>422 must align to a 30-minute slot</code> — bad <code>starts_at</code> minutes.
               </li>
-              <li><code>422 must be between 06:00 and 20:00</code> — out of hours.</li>
+              <li><code>422 must be between 10:00 and 20:00</code> — outside opening hours.</li>
               <li><code>422 table is already booked for this time slot</code> — overlap.</li>
+              <li><code>422 must look like an email address</code> — bad <code>email</code>.</li>
               <li><code>422 must be greater than 0</code> — non-positive <code>party_size</code>.</li>
               <li><code>422 is more than the table's N seats</code> — too many for this table.</li>
               <li><code>422 can't be blank</code> — missing required field.</li>
@@ -154,7 +168,7 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
           <.api_card
             method="PATCH"
             path="/api/reservations/:id?token=…"
-            desc="Partial update. Send any subset of table_id, starts_at, name, party_size, or dietary. The same validations as create apply, plus an overlap check that excludes the row being updated."
+            desc="Partial update. Send any subset of the booking fields. The same validations as create apply, plus an overlap check that excludes the row being updated."
           >
             <:params>
               <li>
@@ -188,7 +202,7 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
           <.api_card
             method="PUT"
             path="/api/reservations/:id?token=…"
-            desc="Full replace. Same handler as PATCH — Phoenix routes both verbs to the update action. Send all four mutable fields."
+            desc="Full replace. Same handler as PATCH — Phoenix routes both verbs to the update action. Send all required fields."
           >
             <:params>
               <li>
@@ -210,7 +224,7 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
               <li><code>404 Not Found</code>.</li>
               <li>
                 <code>422</code>
-                — same validation errors as POST (alignment, hours, table fit, overlap).
+                — same validation errors as POST (alignment, table fit, overlap, missing fields).
               </li>
             </:errors>
           </.api_card>
@@ -340,18 +354,23 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
   defp availability_example do
     """
     {
-      "date": "2026-05-04",
+      "date": "2026-05-07",
       "tables": [
         {
           "table_id": "T1",
           "reservations": [
             { "id": "uuid",
               "table_id": "T1",
-              "starts_at": "2026-05-04T08:00:00Z",
-              "ends_at":   "2026-05-04T10:00:00Z",
-              "name": "Avery Chen",
-              "dietary": "gluten free",
-              "party_size": 2 }
+              "starts_at": "2026-05-07T15:00:00Z",
+              "ends_at":   "2026-05-07T17:00:00Z",
+              "salutation": "Ms",
+              "first_name": "Avery",
+              "last_name":  "Chen",
+              "tel":        "+1-415-555-0142",
+              "email":      "avery.chen@example.com",
+              "party_size": 2,
+              "special_requests": "gluten free",
+              "remarks": null }
           ]
         },
         { "table_id": "T2", "reservations": [] },
@@ -367,11 +386,16 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
       "reservations": [
         { "id": "uuid",
           "table_id": "T1",
-          "starts_at": "2026-05-04T08:00:00Z",
-          "ends_at":   "2026-05-04T10:00:00Z",
-          "name": "Avery Chen",
-          "dietary": "gluten free",
-          "party_size": 2 },
+          "starts_at": "2026-05-07T15:00:00Z",
+          "ends_at":   "2026-05-07T17:00:00Z",
+          "salutation": "Ms",
+          "first_name": "Avery",
+          "last_name":  "Chen",
+          "tel":        "+1-415-555-0142",
+          "email":      "avery.chen@example.com",
+          "party_size": 2,
+          "special_requests": "gluten free",
+          "remarks": null },
         ...
       ]
     }
@@ -384,11 +408,16 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
       "reservation": {
         "id": "uuid",
         "table_id": "T1",
-        "starts_at": "2026-05-04T08:00:00Z",
-        "ends_at":   "2026-05-04T10:00:00Z",
-        "name": "Avery Chen",
-        "dietary": "gluten free",
-        "party_size": 2
+        "starts_at": "2026-05-07T15:00:00Z",
+        "ends_at":   "2026-05-07T17:00:00Z",
+        "salutation": "Ms",
+        "first_name": "Avery",
+        "last_name":  "Chen",
+        "tel":        "+1-415-555-0142",
+        "email":      "avery.chen@example.com",
+        "party_size": 2,
+        "special_requests": "gluten free",
+        "remarks": null
       }
     }
     """
@@ -398,10 +427,14 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
     """
     {
       "table_id": "T5",
-      "starts_at": "2026-05-04T18:00:00Z",
-      "name": "Lois",
+      "starts_at": "2026-05-08T18:00:00Z",
+      "salutation": "Ms",
+      "first_name": "Lois",
+      "last_name": "Tester",
+      "tel": "+1-415-555-0100",
+      "email": "lois@example.com",
       "party_size": 3,
-      "dietary": "vegan"
+      "special_requests": "vegan tasting menu"
     }
     """
   end
@@ -413,11 +446,16 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
         "id": "uuid",
         "cancel_token": "QMyYa1Iv4c5Rs7Itx3VPtg",
         "table_id": "T5",
-        "starts_at": "2026-05-04T18:00:00Z",
-        "ends_at":   "2026-05-04T20:00:00Z",
-        "name": "Lois",
+        "starts_at": "2026-05-08T18:00:00Z",
+        "ends_at":   "2026-05-08T20:00:00Z",
+        "salutation": "Ms",
+        "first_name": "Lois",
+        "last_name":  "Tester",
+        "tel":        "+1-415-555-0100",
+        "email":      "lois@example.com",
         "party_size": 3,
-        "dietary": "vegan"
+        "special_requests": "vegan tasting menu",
+        "remarks": null
       }
     }
     """
@@ -426,9 +464,9 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
   defp patch_request_example do
     """
     {
-      "starts_at": "2026-05-04T19:00:00Z",
+      "starts_at": "2026-05-08T19:00:00Z",
       "party_size": 4,
-      "dietary": "vegan + nut allergy"
+      "special_requests": "vegan + nut allergy"
     }
     """
   end
@@ -439,11 +477,16 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
       "reservation": {
         "id": "uuid",
         "table_id": "T5",
-        "starts_at": "2026-05-04T19:00:00Z",
-        "ends_at":   "2026-05-04T21:00:00Z",
-        "name": "Lois",
+        "starts_at": "2026-05-08T19:00:00Z",
+        "ends_at":   "2026-05-08T21:00:00Z",
+        "salutation": "Ms",
+        "first_name": "Lois",
+        "last_name":  "Tester",
+        "tel":        "+1-415-555-0100",
+        "email":      "lois@example.com",
         "party_size": 4,
-        "dietary": "vegan + nut allergy"
+        "special_requests": "vegan + nut allergy",
+        "remarks": null
       }
     }
     """
@@ -453,10 +496,14 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
     """
     {
       "table_id": "T5",
-      "starts_at": "2026-05-04T19:00:00Z",
-      "name": "Lois",
+      "starts_at": "2026-05-08T19:00:00Z",
+      "salutation": "Ms",
+      "first_name": "Lois",
+      "last_name": "Tester",
+      "tel": "+1-415-555-0100",
+      "email": "lois@example.com",
       "party_size": 4,
-      "dietary": "vegan + nut allergy"
+      "special_requests": "vegan + nut allergy"
     }
     """
   end
@@ -467,11 +514,16 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
       "reservation": {
         "id": "uuid",
         "table_id": "T5",
-        "starts_at": "2026-05-04T19:00:00Z",
-        "ends_at":   "2026-05-04T21:00:00Z",
-        "name": "Lois",
+        "starts_at": "2026-05-08T19:00:00Z",
+        "ends_at":   "2026-05-08T21:00:00Z",
+        "salutation": "Ms",
+        "first_name": "Lois",
+        "last_name":  "Tester",
+        "tel":        "+1-415-555-0100",
+        "email":      "lois@example.com",
         "party_size": 4,
-        "dietary": "vegan + nut allergy"
+        "special_requests": "vegan + nut allergy",
+        "remarks": null
       }
     }
     """
@@ -484,10 +536,14 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
       -H 'content-type: application/json' \\
       -d '{
         "table_id": "T5",
-        "starts_at": "2026-05-04T18:00:00Z",
-        "name": "Lois",
+        "starts_at": "2026-05-08T18:00:00Z",
+        "salutation": "Ms",
+        "first_name": "Lois",
+        "last_name": "Tester",
+        "tel": "+1-415-555-0100",
+        "email": "lois@example.com",
         "party_size": 3,
-        "dietary": "vegan"
+        "special_requests": "vegan"
       }'
     # → { "reservation": { "id": "...", "cancel_token": "...", ... } }
     """
@@ -501,21 +557,25 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
 
     curl -sX PATCH "localhost:4000/api/reservations/$ID?token=$TOKEN" \\
       -H 'content-type: application/json' \\
-      -d '{ "party_size": 4, "dietary": "vegan + nut allergy" }'
+      -d '{ "party_size": 4, "special_requests": "vegan + nut allergy" }'
     """
   end
 
   defp put_curl_example do
     """
-    # PUT requires all four mutable fields. ID and TOKEN are still from POST.
+    # PUT requires all the required fields. ID and TOKEN are still from POST.
     curl -sX PUT "localhost:4000/api/reservations/$ID?token=$TOKEN" \\
       -H 'content-type: application/json' \\
       -d '{
         "table_id": "T5",
-        "starts_at": "2026-05-04T19:00:00Z",
-        "name": "Lois",
+        "starts_at": "2026-05-08T19:00:00Z",
+        "salutation": "Ms",
+        "first_name": "Lois",
+        "last_name": "Tester",
+        "tel": "+1-415-555-0100",
+        "email": "lois@example.com",
         "party_size": 4,
-        "dietary": "vegan + nut allergy"
+        "special_requests": "vegan + nut allergy"
       }'
     """
   end
