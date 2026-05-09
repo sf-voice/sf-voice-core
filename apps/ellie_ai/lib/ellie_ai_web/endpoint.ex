@@ -36,9 +36,13 @@ defmodule EllieAiWeb.Endpoint do
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 
+  # cache the raw body in conn.assigns.raw_body so the telnyx webhook
+  # signature plug can verify against the exact bytes telnyx sent.
+  # cost is one extra binary reference per request — negligible.
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
+    body_reader: {EllieAi.Telnyx.CacheBodyReader, :read_body, []},
     json_decoder: Phoenix.json_library()
 
   plug Plug.MethodOverride
