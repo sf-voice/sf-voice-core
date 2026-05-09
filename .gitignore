@@ -49,3 +49,7 @@ node_modules/
 .idea/
 .vscode/
 
+# multi-region planning doc — working draft, not for the public repo yet.
+# move into docs/ and unignore once the design lands.
+multi-region-support.md
+
