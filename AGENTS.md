@@ -4,6 +4,7 @@ This is a web application written using the Phoenix web framework.
 
 - Use `mix precommit` alias when you are done with all changes and fix any pending issues
 - Use the already included and available `:req` (`Req`) library for HTTP requests, **avoid** `:httpoison`, `:tesla`, and `:httpc`. Req is included by default and is the preferred HTTP client for Phoenix apps
+- **Shared constants live in a constants module.** When a literal value (domain enum, magic number with business meaning, regex, etc.) is used in **two or more modules**, extract it to a per-context `Constants` module — e.g. `RestoBookingApp.Reservations.Constants`. Cross-context shared values go in a top-level module (`RestoBookingApp.Validations`, etc.). Values used in only one module stay as `@module_attribute` co-located with the function that uses them. Do not preemptively centralise — wait for the second use. Existing examples: `RestoBookingApp.Reservations.Constants`, `RestoBookingApp.Menu.Constants`, `RestoBookingApp.Contacts.Constants`, `RestoBookingApp.Validations`, `EllieAi.Calls.Constants`. Caveats: pattern matches and Ecto schema-default literals (e.g. `field :status, :string, default: "ringing"`) keep their string literals — Elixir can't reference a function call in either position. For `in` guards, read the constant once at compile time via a module attribute (`@roles Constants.roles()`), since guards reject runtime function calls.
 
 ### Phoenix v1.8 guidelines
 
