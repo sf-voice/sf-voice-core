@@ -40,11 +40,37 @@ defmodule EllieAi.MixProject do
   defp deps do
     [
       {:phoenix, "~> 1.8.5"},
+      {:phoenix_ecto, "~> 4.5"},
+      # liveview for the staff ui (homepage + call detail). vendored js
+      # served from priv/static/assets; tailwind comes from cdn — no
+      # esbuild/tailwind dep dance for v0.
+      {:phoenix_live_view, "~> 1.0"},
+      {:phoenix_html, "~> 4.1"},
+      {:ecto_sql, "~> 3.13"},
+      {:ecto_sqlite3, ">= 0.0.0"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
-      {:bandit, "~> 1.5"}
+      {:bandit, "~> 1.5"},
+      # http client for the read-only resto integration. retry: :transient
+      # handles network noise without us hand-rolling backoff.
+      {:req, "~> 0.5"},
+      # E.164 normalization on the boundary — resto trusts whatever ellie
+      # sends, so ellie does the work.
+      {:ex_phone_number, "~> 0.4"},
+      # outbound websocket client — used to bridge to OpenAI Realtime.
+      # GenServer-shaped so it slots into a per-call supervision tree.
+      {:websockex, "~> 0.4.3"},
+      # ONNX runtime via rust NIF. used to run silero-vad locally on
+      # μ-law-decoded 8kHz pcm. compiles a rust extension on first install
+      # (~2-5 min on m-series) and downloads onnxruntime binaries.
+      {:ortex, "~> 0.1.10"},
+      # tiny http server for testing the resto client without a real network.
+      {:bypass, "~> 2.1", only: :test},
+      # liveview test helpers parse rendered html — required dep for
+      # `Phoenix.LiveViewTest.live/2`.
+      {:lazy_html, ">= 0.1.0", only: :test}
     ]
   end
 
@@ -56,7 +82,10 @@ defmodule EllieAi.MixProject do
   # See the documentation for `Mix` for more info on aliases.
   defp aliases do
     [
-      setup: ["deps.get"],
+      setup: ["deps.get", "ecto.setup"],
+      "ecto.setup": ["ecto.create", "ecto.migrate"],
+      "ecto.reset": ["ecto.drop", "ecto.setup"],
+      test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]
     ]
   end
