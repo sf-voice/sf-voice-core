@@ -9,14 +9,12 @@ erlang = "27.3.4"
 elixir = "1.18.4-otp-27"
 
 # ── env ──────────────────────────────────────────────────────────────────
-# automatically load the root `.env` plus any per-app `.env` files for every
-# shell + every task. each phoenix app reads its own *_PORT var from the
-# root file. the per-app files (e.g. `apps/ellie_ai/.env`) are auto-written
-# by tasks that need to surface dynamic values — `mise run dev` writes
-# `NGROK_URL` there so ellie picks up the tunnel automatically. missing
-# files are silently skipped.
+# single root `.env` is the source of truth for every var, every app,
+# every shell. mise loads it on cd-into and on every `mise run …`.
+# `mise run dev` writes dynamic values (e.g. NGROK_URL) back into this
+# same file so they survive across terminals.
 [env]
-"_".file = [".env", "apps/resto_booking_app/.env", "apps/ellie_ai/.env"]
+"_".file = ".env"
 
 # ── tasks ────────────────────────────────────────────────────────────────
 # run any task with `mise run <name>`, or list with `mise tasks`.
@@ -55,6 +53,10 @@ description = "full local stack: ngrok tunnel for ellie + both phoenix apps"
 run = """
 set -e
 
+# env-var validation lives in elixir — each app's `<App>.EnvCheck`
+# runs on boot and halts with a clean banner if a required var is
+# missing. nothing to do here at the shell layer.
+
 if ! command -v ngrok >/dev/null 2>&1; then
   echo "ngrok not found — install with 'brew install ngrok' or see https://ngrok.com/download" >&2
   exit 1
@@ -82,13 +84,13 @@ if [ -z "$url" ]; then
   exit 1
 fi
 
-# 3. persist into ellie's .env so the value is visible to mise's env loader
-#    on every run from now on (overwritten next time `dev` boots).
-mkdir -p apps/ellie_ai
-cat > apps/ellie_ai/.env <<EOF
-# auto-written by 'mise run dev' — overwritten each boot, do not edit.
-NGROK_URL=$url
-EOF
+# 3. persist NGROK_URL in the root .env so other terminals running
+#    `mise run server:ellie` etc. pick it up too. replace-in-place so
+#    we don't dogpile duplicate lines.
+touch .env
+grep -v '^NGROK_URL=' .env > .env.tmp 2>/dev/null || true
+echo "NGROK_URL=$url" >> .env.tmp
+mv .env.tmp .env
 export NGROK_URL="$url"
 
 echo "[ngrok] $url -> http://127.0.0.1:$ELLIE_AI_PORT"
