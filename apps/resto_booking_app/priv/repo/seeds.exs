@@ -1,25 +1,102 @@
-# demo bookings spread across yesterday, today, and the next two days so the
-# floor plan is never empty on first load. safe to run repeatedly: we wipe
-# every reservation that matches the seed window before re-inserting, so
-# running `RestoBookingApp.Release.seed/0` on each deploy keeps the demo
-# fresh without ever piling up duplicates.
+# multi-org seed: builds two demo restaurants under one resto deploy,
+# each with their own floor plan, menu, and a rolling four-day window
+# of fixture reservations. safe to run repeatedly: orgs/tables/menu use
+# upsert-by-slug; reservations are wiped within the seed window before
+# re-insert.
 
 import Ecto.Query
 
-alias RestoBookingApp.{Clock, Repo, Reservations}
+alias RestoBookingApp.{Bookings, Clock, Menu, Orgs, Repo, Tables}
 alias RestoBookingApp.Reservations.Reservation
 
-today = Clock.today()
+# ── orgs ───────────────────────────────────────────────────────────────────
 
-# four-day rolling window: yesterday → today → +1 → +2.
-window_dates = [
-  Date.add(today, -1),
-  today,
-  Date.add(today, 1),
-  Date.add(today, 2)
+orgs_spec = [
+  %{
+    slug: "seasons-sf",
+    name: "The Seasons",
+    location: "San Francisco, CA",
+    time_zone: "America/Los_Angeles"
+  },
+  %{
+    slug: "seasons-la",
+    name: "The Seasons",
+    location: "Los Angeles, CA",
+    time_zone: "America/Los_Angeles"
+  }
 ]
 
-# helper: build a UTC datetime for a local-clock time on a given date
+orgs =
+  Enum.map(orgs_spec, fn spec ->
+    {:ok, org} = Orgs.upsert_by_slug(spec.slug, spec)
+    IO.puts("seed: org #{org.slug} (#{org.location})")
+    org
+  end)
+
+# ── tables: same nine-table layout in both orgs (the seasons brand) ────────
+
+tables_spec = [
+  %{slug: "T1", seats: 2, shape: "round", x: 0, y: 0, sort_order: 1},
+  %{slug: "T2", seats: 2, shape: "round", x: 1, y: 0, sort_order: 2},
+  %{slug: "T3", seats: 2, shape: "round", x: 2, y: 0, sort_order: 3},
+  %{slug: "T4", seats: 2, shape: "round", x: 3, y: 0, sort_order: 4},
+  %{slug: "T5", seats: 4, shape: "square", x: 0, y: 1, sort_order: 5},
+  %{slug: "T6", seats: 4, shape: "square", x: 1, y: 1, sort_order: 6},
+  %{slug: "T7", seats: 4, shape: "square", x: 2, y: 1, sort_order: 7},
+  %{slug: "T8", seats: 4, shape: "square", x: 3, y: 1, sort_order: 8},
+  %{slug: "T9", seats: 6, shape: "rect", x: 0, y: 2, sort_order: 9}
+]
+
+Enum.each(orgs, fn org ->
+  Enum.each(tables_spec, fn t ->
+    {:ok, _} = Tables.upsert(org.id, t)
+  end)
+
+  IO.puts("seed: #{length(tables_spec)} tables for #{org.slug}")
+end)
+
+# ── menu: same three services + items in both orgs ─────────────────────────
+
+menu_spec = [
+  # breakfast
+  %{service: "breakfast", name: "Sourdough Toast & Jam", price_cents: 700, dietary: [:vegan], sort_order: 1},
+  %{service: "breakfast", name: "Garden Veg Shakshuka", price_cents: 1400, dietary: [:vegetarian, :gluten_free], sort_order: 2},
+  %{service: "breakfast", name: "Smoked Salmon Bagel", price_cents: 1600, dietary: [:nut_free], sort_order: 3},
+  %{service: "breakfast", name: "Buckwheat Pancakes", price_cents: 1200, dietary: [:vegetarian, :nut_free], sort_order: 4},
+  %{service: "breakfast", name: "Oat Porridge, Berries", price_cents: 900, dietary: [:vegan, :gluten_free], sort_order: 5},
+
+  # lunch
+  %{service: "lunch", name: "House Caesar Salad", price_cents: 1500, dietary: [:vegetarian], sort_order: 1},
+  %{service: "lunch", name: "Roasted Squash Risotto", price_cents: 1800, dietary: [:vegetarian, :gluten_free], sort_order: 2},
+  %{service: "lunch", name: "Steak Frites", price_cents: 2600, dietary: [:gluten_free], sort_order: 3},
+  %{service: "lunch", name: "Crispy Tofu Bowl", price_cents: 1700, dietary: [:vegan, :gluten_free, :nut_free], sort_order: 4},
+  %{service: "lunch", name: "Mushroom Tagliatelle", price_cents: 1900, dietary: [:vegetarian], sort_order: 5},
+
+  # dinner
+  %{service: "dinner", name: "Charred Octopus", price_cents: 2400, dietary: [:gluten_free, :dairy_free], sort_order: 1},
+  %{service: "dinner", name: "Wagyu Tartare", price_cents: 2900, dietary: [:gluten_free, :nut_free], sort_order: 2},
+  %{service: "dinner", name: "Truffle Tagliolini", price_cents: 3200, dietary: [:vegetarian], sort_order: 3},
+  %{service: "dinner", name: "Branzino al Sale", price_cents: 3600, dietary: [:gluten_free, :dairy_free], sort_order: 4},
+  %{service: "dinner", name: "Beetroot Wellington", price_cents: 2800, dietary: [:vegan], sort_order: 5},
+  %{service: "dinner", name: "Dark Chocolate Tart", price_cents: 1100, dietary: [:vegetarian, :gluten_free], sort_order: 6}
+]
+
+Enum.each(orgs, fn org ->
+  Enum.each(menu_spec, fn item ->
+    {:ok, _} = Menu.upsert(org.id, item)
+  end)
+
+  IO.puts("seed: #{length(menu_spec)} menu items for #{org.slug}")
+end)
+
+# ── reservations: rolling four-day window per org ──────────────────────────
+
+today = Clock.today()
+window_dates = [Date.add(today, -1), today, Date.add(today, 1), Date.add(today, 2)]
+
+window_start = Clock.local_to_utc(List.first(window_dates), ~T[00:00:00])
+window_end = Clock.local_to_utc(Date.add(List.last(window_dates), 1), ~T[00:00:00])
+
 defmodule SeedHelpers do
   alias RestoBookingApp.Clock
 
@@ -28,10 +105,9 @@ defmodule SeedHelpers do
     Clock.local_to_utc(date, time)
   end
 
-  def fixtures(date, day_index) do
-    # rotate the cast a bit per-day so the floor plan looks lived-in instead
-    # of identical every day. base_hour stays inside the 10:00–20:00 booking
-    # window so the schema's opening-hours check accepts every fixture.
+  # rotate cast per-day so the floor plan looks lived-in. one fixture set
+  # per org with slightly different names so demos can tell them apart.
+  def fixtures(date, day_index, :seasons_sf) do
     base_hour = 10 + rem(day_index, 3)
 
     [
@@ -41,7 +117,7 @@ defmodule SeedHelpers do
         "salutation" => "Ms",
         "first_name" => "Avery",
         "last_name" => "Chen",
-        "tel" => "+1-415-555-0142",
+        "phone" => "+14155550142",
         "email" => "avery.chen@example.com",
         "party_size" => 2,
         "special_requests" => "gluten-free menu, please"
@@ -52,7 +128,7 @@ defmodule SeedHelpers do
         "salutation" => "Mr",
         "first_name" => "Mateo",
         "last_name" => "Romano",
-        "tel" => "+1-415-555-0193",
+        "phone" => "+14155550193",
         "email" => "mateo@example.com",
         "party_size" => 4,
         "special_requests" => "no shellfish",
@@ -64,30 +140,43 @@ defmodule SeedHelpers do
         "salutation" => "Ms",
         "first_name" => "Priya",
         "last_name" => "Patel",
-        "tel" => "+1-415-555-0177",
+        "phone" => "+14155550177",
         "email" => "priya.p@example.com",
         "party_size" => 6,
         "special_requests" => "vegan tasting menu"
+      }
+    ]
+  end
+
+  def fixtures(date, day_index, :seasons_la) do
+    base_hour = 11 + rem(day_index, 3)
+
+    [
+      %{
+        "table_id" => "T2",
+        "starts_at" => at(date, base_hour, 0),
+        "salutation" => "Mr",
+        "first_name" => "Diego",
+        "last_name" => "Vargas",
+        "phone" => "+13235550112",
+        "email" => "diego@example.com",
+        "party_size" => 2,
+        "special_requests" => "window seat please"
       },
       %{
-        "table_id" => "T6",
-        "starts_at" => at(date, 19, 30),
-        "salutation" => "Mr",
-        "first_name" => "Jonas",
-        "last_name" => "Becker",
-        "tel" => "+49-30-555-0118",
-        "email" => "jonas.becker@example.com",
-        "party_size" => 3
+        "table_id" => "T7",
+        "starts_at" => at(date, 18, 30),
+        "salutation" => "Ms",
+        "first_name" => "Hana",
+        "last_name" => "Watanabe",
+        "phone" => "+13235550168",
+        "email" => "hana.w@example.com",
+        "party_size" => 4,
+        "remarks" => "celebrating new job"
       }
     ]
   end
 end
-
-# wipe any reservation that falls inside the seed window so re-running this
-# script doesn't dogpile duplicates. we only touch dates we're about to
-# re-seed — anything booked outside the four-day window is left alone.
-window_start = Clock.local_to_utc(List.first(window_dates), ~T[00:00:00])
-window_end = Clock.local_to_utc(Date.add(List.last(window_dates), 1), ~T[00:00:00])
 
 deleted =
   Repo.delete_all(
@@ -95,20 +184,26 @@ deleted =
       where: r.starts_at >= ^window_start and r.starts_at < ^window_end
   )
 
-IO.puts("seed: cleared #{elem(deleted, 0)} existing rows in window")
+IO.puts("seed: cleared #{elem(deleted, 0)} reservation rows in window")
 
-window_dates
-|> Enum.with_index()
-|> Enum.flat_map(fn {date, idx} -> SeedHelpers.fixtures(date, idx) end)
-|> Enum.each(fn attrs ->
-  case Reservations.create(attrs) do
-    {:ok, res} ->
-      IO.puts(
-        "seed: #{Date.to_iso8601(DateTime.to_date(res.starts_at))} " <>
-          "#{res.table_id} #{res.first_name} #{res.last_name}"
-      )
+org_keys = %{"seasons-sf" => :seasons_sf, "seasons-la" => :seasons_la}
 
-    {:error, cs} ->
-      IO.puts("seed: skipped #{attrs["first_name"]} (#{inspect(cs.errors)})")
-  end
+Enum.each(orgs, fn org ->
+  key = Map.fetch!(org_keys, org.slug)
+
+  window_dates
+  |> Enum.with_index()
+  |> Enum.flat_map(fn {date, idx} -> SeedHelpers.fixtures(date, idx, key) end)
+  |> Enum.each(fn attrs ->
+    case Bookings.book(org.id, attrs) do
+      {:ok, res} ->
+        IO.puts(
+          "seed: #{org.slug} #{Date.to_iso8601(DateTime.to_date(res.starts_at))} " <>
+            "#{res.table_id} #{res.customer.first_name} #{res.customer.last_name}"
+        )
+
+      {:error, cs} ->
+        IO.puts("seed: #{org.slug} skipped #{attrs["first_name"]} (#{inspect(cs.errors)})")
+    end
+  end)
 end)
