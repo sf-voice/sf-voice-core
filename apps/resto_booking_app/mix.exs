@@ -62,7 +62,10 @@ defmodule RestoBookingApp.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
-      {:tz, "~> 0.28"}
+      {:tz, "~> 0.28"},
+      # E.164 phone normalization at the /floor_plan boundary so guest input
+      # lines up with what ellie writes when it talks to /api/customers.
+      {:ex_phone_number, "~> 0.4"}
     ]
   end
 
