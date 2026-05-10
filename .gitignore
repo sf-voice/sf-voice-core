@@ -4,6 +4,7 @@ cover/
 deps/
 doc/
 docs/
+TODOS.md
 .fetch
 
 # vm crash dumps
