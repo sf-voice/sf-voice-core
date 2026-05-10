@@ -3,6 +3,7 @@ _build/
 cover/
 deps/
 doc/
+docs/
 .fetch
 
 # vm crash dumps
@@ -52,4 +53,3 @@ node_modules/
 # multi-region planning doc — working draft, not for the public repo yet.
 # move into docs/ and unignore once the design lands.
 multi-region-support.md
-
