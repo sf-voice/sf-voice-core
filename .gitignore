@@ -16,6 +16,13 @@ erl_crash.dump
 # tmp scratch
 /tmp/
 
+# captured artifacts from `priv/dev` — real telnyx webhooks (sensitive)
+# and outbound audio dumps (regenerable). regenerated on demand, no
+# reason to commit either.
+**/priv/dev/captured.json
+**/priv/dev/captured_audio.*
+
+
 # package tarballs
 *-*.tar
 
@@ -54,3 +61,6 @@ node_modules/
 # multi-region planning doc — working draft, not for the public repo yet.
 # move into docs/ and unignore once the design lands.
 multi-region-support.md
+
+
+# sample audio
