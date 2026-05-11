@@ -27,13 +27,9 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
   alias RestoBookingApp.Customers.Customer
   alias RestoBookingApp.Reservations.{Constants, Reservation}
 
-  # display 10:00 → 22:00 so users see the full opening window. the last
-  # three slots (20:30 / 21:00 / 21:30) are shown but disabled — a 2-hour
-  # booking starting then would run past the 22:00 close.
+  # 20:30/21:00/21:30 are shown but disabled — a 2h block from then runs past the 22:00 close.
   @display_start_minutes 10 * 60
   @display_end_minutes 22 * 60
-
-  # ── lifecycle ────────────────────────────────────────────────────────────
 
   @impl true
   def mount(%{"org_slug" => slug}, _session, socket) do
@@ -45,9 +41,6 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
         if connected?(socket), do: Reservations.subscribe(org.id)
 
         today = Clock.today()
-        # render projection in nice layout shape — translate Table rows into
-        # the legacy `%{id, seats, shape, x, y}` map the templates already
-        # iterate over, so the heex below keeps working unchanged.
         tables_view = Enum.map(Tables.all(org.id), &table_view/1)
 
         {:ok,
@@ -76,14 +69,10 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
     %{id: t.slug, seats: t.seats, shape: t.shape, x: t.x, y: t.y}
   end
 
-  # ── token vault ──────────────────────────────────────────────────────────
-
   @impl true
   def handle_event("vault:loaded", %{"tokens" => tokens}, socket) when is_map(tokens) do
     {:noreply, assign(socket, :my_tokens, tokens)}
   end
-
-  # ── date picker ──────────────────────────────────────────────────────────
 
   @impl true
   def handle_event("change_date", %{"date" => date_str}, socket) do
@@ -93,8 +82,7 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
     end
   end
 
-  # chevron arrows on either side of the date picker. `by` is +/- a number of
-  # days as a string (phx-value-* always serialises to strings).
+  # phx-value-* always serialises to strings, hence Integer.parse.
   @impl true
   def handle_event("shift_date", %{"by" => by}, socket) do
     case Integer.parse(by) do
@@ -103,14 +91,11 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
     end
   end
 
-  # ── reserve flow ─────────────────────────────────────────────────────────
-
   @impl true
   def handle_event("open_reserve", %{"table" => table_id, "minutes" => minutes_str}, socket) do
     minutes = String.to_integer(minutes_str)
 
     if minutes > Constants.last_start_minutes() do
-      # 20:30+ would push the 2h block past 22:00 close — refuse politely
       {:noreply, put_flash(socket, :error, "Last booking starts at 20:00 (it's a 2-hour slot).")}
     else
       {:ok, starts_at} = slot_datetime(socket.assigns.selected_date, minutes)
@@ -185,8 +170,6 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
      |> push_event("vault:copy", %{text: text})
      |> put_flash(:info, "Cancel token copied to clipboard.")}
   end
-
-  # ── manage flow ──────────────────────────────────────────────────────────
 
   @impl true
   def handle_event("open_manage", %{"id" => id}, socket) do
@@ -300,15 +283,11 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
      |> assign(:manage_error, nil)}
   end
 
-  # ── pubsub fanout ────────────────────────────────────────────────────────
-
   @impl true
   def handle_info({event, _payload}, socket)
       when event in [:reservation_created, :reservation_updated, :reservation_cancelled] do
     {:noreply, assign(socket, :availability, refresh_availability(socket))}
   end
-
-  # ── render ───────────────────────────────────────────────────────────────
 
   @impl true
   def render(assigns) do
@@ -443,8 +422,6 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
     """
   end
 
-  # ── components ───────────────────────────────────────────────────────────
-
   defp legend(assigns) do
     ~H"""
     <div class="flex flex-wrap items-center gap-4 text-xs px-2">
@@ -552,7 +529,6 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
         <h2 class="font-display text-2xl sm:text-3xl lg:text-base lg:font-medium text-base-content mb-4 lg:mb-2 lg:inline-block lg:mr-3">
           Your reservations
         </h2>
-        <%!-- mobile: full cards. lg: inline pills on the same row as the heading. --%>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 lg:hidden">
           <button
             :for={res <- @mine}
@@ -843,11 +819,7 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
             phx-submit="submit_edit"
             class="space-y-2"
           >
-            <%!--
-              Field order is intentional: people opening the manage modal are
-              almost always tweaking *when* (start time / table / party size).
-              Personal details live in a collapsed disclosure below.
-            --%>
+            <%!-- when-fields first: edit modal users mostly tweak time/table/party size. --%>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <.input
                 field={f[:starts_at]}
@@ -940,7 +912,7 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
           JS.transition({"modal-snap", "opacity-100 scale-100", "opacity-0 scale-95"}, time: 150)
         }
       >
-        <%!-- header is fixed; body scrolls. keeps the close X reachable on long forms. --%>
+        <%!-- fixed header + scrolling body so the close X stays reachable on long forms. --%>
         <div class="flex items-center justify-between px-6 pt-5 pb-3 border-b border-base-300 bg-base-100">
           <div>
             <p class="text-[10px] uppercase tracking-[0.3em] text-primary opacity-70">
@@ -967,8 +939,6 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
     """
   end
 
-  # ── helpers ──────────────────────────────────────────────────────────────
-
   defp build_slots do
     Stream.unfold(@display_start_minutes, fn
       m when m >= @display_end_minutes -> nil
@@ -986,7 +956,7 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
   defp format_dt(nil), do: ""
 
   defp format_dt(%DateTime{} = dt) do
-    # always render local clock time — guests think in PT, not utc
+    # guests think in local time, not utc.
     %{hour: h, minute: m} = Clock.to_local(dt)
     :io_lib.format("~2..0B:~2..0B", [h, m]) |> IO.iodata_to_binary()
   end
@@ -994,15 +964,10 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
   defp pluralize_people(1), do: "person"
   defp pluralize_people(_), do: "people"
 
-  # display name for a reservation, walking through the preloaded customer.
-  # falls back to a placeholder when the assoc isn't preloaded — should not
-  # happen for floor-plan reads but keeps the UI from crashing if it does.
+  # fallback clause guards against an unloaded :customer assoc so the UI can't crash mid-render.
   defp guest_label(%Reservation{customer: %Customer{} = c}), do: Customer.display_name(c)
   defp guest_label(_), do: "Guest"
 
-  # the value of the contact pinned to a reservation, when its kind matches
-  # what the caller asked for. returns nil otherwise — the caller's :if
-  # guard hides the row.
   defp contact_value(%Reservation{contact: %{kind: kind, value: value}}, kind), do: value
   defp contact_value(_, _), do: nil
 
@@ -1028,8 +993,7 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
     h = div(slot_minutes, 60)
     m = rem(slot_minutes, 60)
     {:ok, time} = Time.new(h, m, 0)
-    # the slot grid is local-time labels (06:00–22:00). build the local
-    # datetime, then convert to utc for storage/comparison parity.
+    # slot labels are local; storage/comparison is utc.
     {:ok, Clock.local_to_utc(date, time)}
   end
 
@@ -1062,17 +1026,14 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
     |> to_form(as: "reservation")
   end
 
-  # the form sends the guest fields + party_size; table_id and starts_at come
-  # from the modal context (set when the user clicked the cell)
+  # table_id and starts_at come from the click context, not the form.
   defp merge_context(params, %{table_id: table_id, starts_at: starts_at}) do
     params
     |> Map.put_new("table_id", table_id)
     |> Map.put_new("starts_at", DateTime.to_iso8601(starts_at))
   end
 
-  # build the {label, value} options for the start-time select used in edit.
-  # only the bookable slots (≤ 20:00) make it into the dropdown — picking a
-  # 20:30 start would just bounce off the schema's opening-hours check.
+  # cap at last_start so the dropdown can't offer a slot the schema rejects.
   defp start_time_options(date, slots) do
     last_start = Constants.last_start_minutes()
 
