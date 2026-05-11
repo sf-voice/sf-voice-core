@@ -3,8 +3,14 @@ defmodule EllieAi.Telnyx.MediaStreamingSocket do
 
   - **inbound** is raw μ-law: telnyx delivers
   codec bytes directly, no RTP header.
-  - **outbound** is RTP-wrapped:
-  `stream_bidirectional_mode: "rtp"` only governs what we send back.
+  - **outbound** is currently raw μ-law too (testing). previous variants
+  (one giant RTP packet per delta; 20ms-chunked RTP at 20ms pacing)
+  both produced audible ticks blended with voice. captured outbound
+  audio plays back clean on its own, ruling out the bytes themselves.
+  hypothesis: telnyx silently ignores `stream_bidirectional_mode: "rtp"`
+  and treats the base64 payload as raw codec bytes both ways. if true,
+  our 12-byte rtp header was being decoded as audio samples, producing
+  the ticks. raw outbound is the test for that.
   """
 
   @behaviour WebSock
@@ -15,6 +21,9 @@ defmodule EllieAi.Telnyx.MediaStreamingSocket do
 
   require Logger
 
+  # TELNYX_CAPTURE=true AUDIO_CAPTURE_OUT=true mr dev
+  @audio_capture_budget_bytes 40_000
+
   @impl true
   def init(_opts) do
     {:ok,
@@ -22,9 +31,16 @@ defmodule EllieAi.Telnyx.MediaStreamingSocket do
        ccid: nil,
        first_media_logged: false,
        outbound_rtp: Rtp.new_outbound_state(),
-
-       inbound_drops: %{}
+       inbound_drops: %{},
+       audio_capture: init_audio_capture()
      }}
+  end
+
+  defp init_audio_capture do
+    case System.get_env("AUDIO_CAPTURE_OUT") do
+      v when v in ["true", "1"] -> %{bytes_left: @audio_capture_budget_bytes, accumulated: []}
+      _ -> nil
+    end
   end
 
   @impl true
@@ -39,15 +55,44 @@ defmodule EllieAi.Telnyx.MediaStreamingSocket do
 
   @impl true
   def handle_info({:outbound_audio, mulaw_bytes}, state) when is_binary(mulaw_bytes) do
-    {rtp_packet, next_rtp} = Rtp.encode(mulaw_bytes, state.outbound_rtp)
-
+    state = maybe_capture_audio(state, mulaw_bytes)
     frame =
       Jason.encode!(%{
         event: "media",
-        media: %{payload: Base.encode64(rtp_packet)}
+        media: %{payload: Base.encode64(mulaw_bytes)}
       })
 
-    {:push, {:text, frame}, %{state | outbound_rtp: next_rtp}}
+    {:push, {:text, frame}, state}
+  end
+
+  # capture-mode disabled: pass through untouched.
+  defp maybe_capture_audio(%{audio_capture: nil} = state, _bytes), do: state
+
+  # capture-mode active: take what we still have budget for, accumulate
+  # in state. when budget hits 0 (or we never quite fill it but call ends),
+  # flush to disk and clear the state to avoid re-flushing.
+  defp maybe_capture_audio(%{audio_capture: cap} = state, bytes) do
+    take = min(cap.bytes_left, byte_size(bytes))
+    slice = binary_part(bytes, 0, take)
+    cap = %{bytes_left: cap.bytes_left - take, accumulated: [cap.accumulated, slice]}
+
+    if cap.bytes_left == 0 do
+      flush_audio_capture(cap.accumulated)
+      %{state | audio_capture: nil}
+    else
+      %{state | audio_capture: cap}
+    end
+  end
+
+  defp flush_audio_capture(iolist) do
+    path = Path.join(:code.priv_dir(:ellie_ai), "dev/captured_audio.ulaw")
+    File.mkdir_p!(Path.dirname(path))
+    File.write!(path, iolist)
+
+    Logger.info(
+      "audio capture: wrote #{@audio_capture_budget_bytes} bytes (5s μ-law @ 8kHz) to #{path}. " <>
+        "play with: ffplay -f mulaw -ar 8000 -ac 1 #{path}"
+    )
   end
 
   def handle_info(msg, state) do
@@ -61,6 +106,16 @@ defmodule EllieAi.Telnyx.MediaStreamingSocket do
       "media_streaming_socket terminate: #{inspect(reason)} ccid=#{state.ccid}" <>
         inbound_drop_summary(state.inbound_drops)
     )
+
+    # short call may end before the 5s capture budget fills — flush what
+    # we have so the partial dump isn't lost.
+    case state.audio_capture do
+      %{accumulated: acc, bytes_left: left} when left < @audio_capture_budget_bytes ->
+        flush_audio_capture(acc)
+
+      _ ->
+        :ok
+    end
 
     if state.ccid do
       Calls.on_hangup(state.ccid)
@@ -189,5 +244,4 @@ defmodule EllieAi.Telnyx.MediaStreamingSocket do
       :error -> {:error, :bad_base64}
     end
   end
-
 end
