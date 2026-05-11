@@ -133,9 +133,14 @@ dir = "apps/resto_booking_app"
 run = "mix ecto.rollback"
 
 [tasks.seed]
-description = "reseed resto_booking_app's rolling 4-day demo window"
-dir = "apps/resto_booking_app"
-run = "mix run priv/repo/seeds.exs"
+description = "reseed both apps' dev dbs (resto's 4-day demo window + ellie's orgs/prompts/settings)"
+run = """
+set -e
+echo "[seed] resto:"
+(cd apps/resto_booking_app && mix run priv/repo/seeds.exs)
+echo "[seed] ellie:"
+(cd apps/ellie_ai && mix run priv/repo/seeds.exs)
+"""
 
 [tasks.console]
 description = "iex console for resto (no server)"
@@ -147,15 +152,28 @@ description = "iex console for ellie_ai (no server)"
 dir = "apps/ellie_ai"
 run = "iex -S mix"
 
-[tasks.reset]
-description = "drop + recreate + migrate + seed resto's dev db (destructive)"
-dir = "apps/resto_booking_app"
-run = [
-  "mix ecto.drop",
-  "mix ecto.create",
-  "mix ecto.migrate",
-  "mix run priv/repo/seeds.exs",
-]
+[tasks."db:reset"]
+description = "drop + recreate + migrate + seed both apps' dev dbs (destructive — wipes resto + ellie)"
+# why both apps: ellie's call rows / customer_summary mirror only make
+# sense alongside the resto state they were derived from. resetting one
+# without the other leaves stale references and orphaned `status:
+# active` call rows in ellie's homepage. keep them in lockstep.
+run = """
+set -e
+echo "[db:reset] resto: drop + create + migrate + seed"
+(cd apps/resto_booking_app && \\
+  mix ecto.drop --force --quiet && \\
+  mix ecto.create --quiet && \\
+  mix ecto.migrate --quiet && \\
+  mix run priv/repo/seeds.exs)
+echo "[db:reset] ellie: drop + create + migrate + seed"
+(cd apps/ellie_ai && \\
+  mix ecto.drop --force --quiet && \\
+  mix ecto.create --quiet && \\
+  mix ecto.migrate --quiet && \\
+  mix run priv/repo/seeds.exs)
+echo "[db:reset] done."
+"""
 
 [tasks.deps]
 description = "fetch + compile deps in every app"
