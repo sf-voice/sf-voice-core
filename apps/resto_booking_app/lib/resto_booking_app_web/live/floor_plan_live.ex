@@ -22,8 +22,10 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
   use RestoBookingAppWeb, :live_view
 
   alias Phoenix.LiveView.JS
-  alias RestoBookingApp.{Clock, Reservations, Tables}
-  alias RestoBookingApp.Reservations.Reservation
+  alias RestoBookingApp.{Bookings, Clock, Orgs, Reservations, Tables}
+  alias RestoBookingApp.Contacts.Constants, as: ContactConstants
+  alias RestoBookingApp.Customers.Customer
+  alias RestoBookingApp.Reservations.{Constants, Reservation}
 
   # display 10:00 → 22:00 so users see the full opening window. the last
   # three slots (20:30 / 21:00 / 21:30) are shown but disabled — a 2-hour
@@ -34,29 +36,44 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
   # ── lifecycle ────────────────────────────────────────────────────────────
 
   @impl true
-  def mount(_params, _session, socket) do
-    if connected?(socket), do: Reservations.subscribe()
+  def mount(%{"org_slug" => slug}, _session, socket) do
+    case Orgs.get_by_slug(slug) do
+      nil ->
+        {:ok, redirect(socket, to: "/")}
 
-    today = Clock.today()
+      org ->
+        if connected?(socket), do: Reservations.subscribe(org.id)
 
-    {:ok,
-     socket
-     |> assign(:tables, Tables.all())
-     |> assign(:slots, build_slots())
-     |> assign(:selected_date, today)
-     |> assign(:date_input, Date.to_iso8601(today))
-     |> assign(:availability, Reservations.availability_for_date(today))
-     |> assign(:my_tokens, %{})
-     |> assign(:modal, nil)
-     |> assign(:reserve_form, nil)
-     |> assign(:reserve_context, nil)
-     |> assign(:saved_reservation, nil)
-     |> assign(:managing, nil)
-     |> assign(:manage_form, nil)
-     |> assign(:manage_mode, :view)
-     |> assign(:manage_token_input, "")
-     |> assign(:manage_error, nil)
-     |> assign(:page_title, "Floor Plan")}
+        today = Clock.today()
+        # render projection in nice layout shape — translate Table rows into
+        # the legacy `%{id, seats, shape, x, y}` map the templates already
+        # iterate over, so the heex below keeps working unchanged.
+        tables_view = Enum.map(Tables.all(org.id), &table_view/1)
+
+        {:ok,
+         socket
+         |> assign(:org, org)
+         |> assign(:tables, tables_view)
+         |> assign(:slots, build_slots())
+         |> assign(:selected_date, today)
+         |> assign(:date_input, Date.to_iso8601(today))
+         |> assign(:availability, Reservations.availability_for_date(org.id, today))
+         |> assign(:my_tokens, %{})
+         |> assign(:modal, nil)
+         |> assign(:reserve_form, nil)
+         |> assign(:reserve_context, nil)
+         |> assign(:saved_reservation, nil)
+         |> assign(:managing, nil)
+         |> assign(:manage_form, nil)
+         |> assign(:manage_mode, :view)
+         |> assign(:manage_token_input, "")
+         |> assign(:manage_error, nil)
+         |> assign(:page_title, "Floor Plan — #{org.name}")}
+    end
+  end
+
+  defp table_view(t) do
+    %{id: t.slug, seats: t.seats, shape: t.shape, x: t.x, y: t.y}
   end
 
   # ── token vault ──────────────────────────────────────────────────────────
@@ -92,17 +109,16 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
   def handle_event("open_reserve", %{"table" => table_id, "minutes" => minutes_str}, socket) do
     minutes = String.to_integer(minutes_str)
 
-    if minutes > Reservation.last_start_minutes() do
+    if minutes > Constants.last_start_minutes() do
       # 20:30+ would push the 2h block past 22:00 close — refuse politely
       {:noreply, put_flash(socket, :error, "Last booking starts at 20:00 (it's a 2-hour slot).")}
     else
       {:ok, starts_at} = slot_datetime(socket.assigns.selected_date, minutes)
-      table = Tables.get(table_id)
+      table = Tables.get(socket.assigns.org.id, table_id)
       default_party = min(2, table.seats)
 
       changeset =
-        %Reservation{}
-        |> Reservation.changeset(%{
+        Bookings.changeset(%{
           "table_id" => table_id,
           "starts_at" => starts_at,
           "party_size" => default_party
@@ -118,27 +134,28 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
          minutes: minutes,
          seats: table.seats
        })
-       |> assign(:reserve_form, to_form(changeset, as: "reservation"))}
+       |> assign(:reserve_form, to_form(changeset, as: "booking"))}
     end
   end
 
   @impl true
-  def handle_event("validate_reserve", %{"reservation" => params}, socket) do
+  def handle_event("validate_reserve", %{"booking" => params}, socket) do
     ctx = socket.assigns.reserve_context
 
     changeset =
-      %Reservation{}
-      |> Reservation.changeset(merge_context(params, ctx))
+      params
+      |> merge_context(ctx)
+      |> Bookings.changeset()
       |> Map.put(:action, :validate)
 
-    {:noreply, assign(socket, :reserve_form, to_form(changeset, as: "reservation"))}
+    {:noreply, assign(socket, :reserve_form, to_form(changeset, as: "booking"))}
   end
 
   @impl true
-  def handle_event("submit_reserve", %{"reservation" => params}, socket) do
+  def handle_event("submit_reserve", %{"booking" => params}, socket) do
     ctx = socket.assigns.reserve_context
 
-    case Reservations.create(merge_context(params, ctx)) do
+    case Bookings.book(socket.assigns.org.id, merge_context(params, ctx)) do
       {:ok, reservation} ->
         {:noreply,
          socket
@@ -149,7 +166,7 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
          |> assign(:availability, refresh_availability(socket))}
 
       {:error, %Ecto.Changeset{} = cs} ->
-        {:noreply, assign(socket, :reserve_form, to_form(cs, as: "reservation"))}
+        {:noreply, assign(socket, :reserve_form, to_form(cs, as: "booking"))}
     end
   end
 
@@ -173,7 +190,7 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
 
   @impl true
   def handle_event("open_manage", %{"id" => id}, socket) do
-    case Reservations.get(id) do
+    case Reservations.get(socket.assigns.org.id, id, preload: [:customer, :contact]) do
       nil ->
         {:noreply, put_flash(socket, :error, "That reservation no longer exists.")}
 
@@ -214,7 +231,7 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
     %{managing: reservation, my_tokens: tokens} = socket.assigns
     token = Map.get(tokens, reservation.id)
 
-    case Reservations.update(reservation.id, token, params) do
+    case Reservations.update(socket.assigns.org.id, reservation.id, token, params) do
       {:ok, _updated} ->
         {:noreply,
          socket
@@ -249,7 +266,7 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
     %{managing: reservation, my_tokens: tokens} = socket.assigns
     token = Map.get(tokens, reservation.id)
 
-    case Reservations.delete(reservation.id, token) do
+    case Reservations.delete(socket.assigns.org.id, reservation.id, token) do
       :ok ->
         {:noreply,
          socket
@@ -352,7 +369,7 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
                     :for={slot <- @slots}
                     class={[
                       "text-center font-mono font-semibold opacity-70",
-                      slot > Reservation.last_start_minutes() && "opacity-30"
+                      slot > Constants.last_start_minutes() && "opacity-30"
                     ]}
                   >
                     {format_slot(slot)}
@@ -389,7 +406,7 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
                           res -> Map.has_key?(@my_tokens, res.id)
                         end
                       }
-                      bookable?={slot <= Reservation.last_start_minutes()}
+                      bookable?={slot <= Constants.last_start_minutes()}
                     />
                   </td>
                 </tr>
@@ -482,7 +499,7 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
   end
 
   defp slot_cell(%{reservation: _res} = assigns) do
-    guest = Reservation.display_name(assigns.reservation)
+    guest = guest_label(assigns.reservation)
 
     label =
       "#{guest}, party of #{assigns.reservation.party_size}, table #{assigns.table.id} at #{format_slot(assigns.minutes)}"
@@ -545,7 +562,7 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
             class="text-left rounded-2xl bg-base-100 border border-base-300 p-4 hover:border-secondary hover:shadow-md transition-all cursor-pointer"
           >
             <div class="flex items-center justify-between gap-2">
-              <span class="font-bold">{Reservation.display_name(res)}</span>
+              <span class="font-bold">{guest_label(res)}</span>
               <span class="text-[10px] font-mono opacity-60">{res.table_id}</span>
             </div>
             <div class="mt-1 text-sm opacity-80 font-mono">
@@ -570,10 +587,10 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
             phx-click="open_manage"
             phx-value-id={res.id}
             class="inline-flex items-center gap-2 rounded-full bg-base-100 border border-base-300 px-3 py-1 text-xs hover:border-secondary cursor-pointer"
-            title={"#{Reservation.display_name(res)} · #{res.table_id} · party of #{res.party_size}"}
+            title={"#{guest_label(res)} · #{res.table_id} · party of #{res.party_size}"}
           >
             <span class="font-mono opacity-60">{res.table_id}</span>
-            <span class="font-semibold">{Reservation.display_name(res)}</span>
+            <span class="font-semibold">{guest_label(res)}</span>
             <span class="font-mono opacity-70">{format_dt(res.starts_at)}</span>
           </button>
         </div>
@@ -610,13 +627,19 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
           field={@form[:salutation]}
           type="select"
           label="Salutation"
-          options={[{"—", ""} | Enum.map(Reservation.salutations(), &{&1, &1})]}
+          options={[{"—", ""} | Enum.map(Customer.salutations(), &{&1, &1})]}
         />
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <.input field={@form[:first_name]} type="text" label="First name *" required />
           <.input field={@form[:last_name]} type="text" label="Last name *" required />
         </div>
-        <.input field={@form[:tel]} type="tel" label="Telephone *" required />
+        <.input
+          field={@form[:phone]}
+          type="tel"
+          label="Telephone *"
+          placeholder="+14155550100"
+          required
+        />
         <.input field={@form[:email]} type="email" label="Email *" required />
         <.input
           field={@form[:party_size]}
@@ -665,7 +688,7 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
       <div class="rounded-2xl bg-base-200 p-4 mb-4 space-y-1 text-sm">
         <div>
           <span class="opacity-60">Name:</span>
-          <span class="font-bold">{Reservation.full_name(@reservation)}</span>
+          <span class="font-bold">{guest_label(@reservation)}</span>
         </div>
         <div>
           <span class="opacity-60">Party:</span>
@@ -683,11 +706,9 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
             {format_dt(@reservation.starts_at)} → {format_dt(@reservation.ends_at)}
           </span>
         </div>
-        <div>
-          <span class="opacity-60">Tel:</span> <span class="font-mono">{@reservation.tel}</span>
-        </div>
-        <div>
-          <span class="opacity-60">Email:</span> <span class="font-mono">{@reservation.email}</span>
+        <div :if={contact_value(@reservation, ContactConstants.phone())}>
+          <span class="opacity-60">Tel:</span>
+          <span class="font-mono">{contact_value(@reservation, ContactConstants.phone())}</span>
         </div>
         <div :if={@reservation.special_requests}>
           <span class="opacity-60">Special requests:</span>
@@ -746,7 +767,7 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
       <div class="rounded-2xl bg-accent/30 px-4 py-3 mb-4 text-sm space-y-1">
         <div>
           <span class="opacity-60">Name:</span>
-          <span class="font-bold">{Reservation.full_name(@reservation)}</span>
+          <span class="font-bold">{guest_label(@reservation)}</span>
         </div>
         <div>
           <span class="opacity-60">Party:</span>
@@ -860,26 +881,6 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
               label="Remarks"
             />
 
-            <details class="rounded-xl border border-base-300 px-3 py-2 mt-2">
-              <summary class="cursor-pointer text-xs uppercase tracking-wider opacity-70 font-semibold list-none">
-                Edit guest details
-              </summary>
-              <div class="space-y-2 mt-3">
-                <.input
-                  field={f[:salutation]}
-                  type="select"
-                  label="Salutation"
-                  options={[{"—", ""} | Enum.map(Reservation.salutations(), &{&1, &1})]}
-                />
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <.input field={f[:first_name]} type="text" label="First name" required />
-                  <.input field={f[:last_name]} type="text" label="Last name" required />
-                </div>
-                <.input field={f[:tel]} type="tel" label="Telephone" required />
-                <.input field={f[:email]} type="email" label="Email" required />
-              </div>
-            </details>
-
             <p :if={@token_error} class="text-error text-sm">{@token_error}</p>
 
             <div class="flex items-center justify-between gap-2 pt-3">
@@ -971,7 +972,7 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
   defp build_slots do
     Stream.unfold(@display_start_minutes, fn
       m when m >= @display_end_minutes -> nil
-      m -> {m, m + Reservation.slot_minutes()}
+      m -> {m, m + Constants.slot_minutes()}
     end)
     |> Enum.to_list()
   end
@@ -992,6 +993,18 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
 
   defp pluralize_people(1), do: "person"
   defp pluralize_people(_), do: "people"
+
+  # display name for a reservation, walking through the preloaded customer.
+  # falls back to a placeholder when the assoc isn't preloaded — should not
+  # happen for floor-plan reads but keeps the UI from crashing if it does.
+  defp guest_label(%Reservation{customer: %Customer{} = c}), do: Customer.display_name(c)
+  defp guest_label(_), do: "Guest"
+
+  # the value of the contact pinned to a reservation, when its kind matches
+  # what the caller asked for. returns nil otherwise — the caller's :if
+  # guard hides the row.
+  defp contact_value(%Reservation{contact: %{kind: kind, value: value}}, kind), do: value
+  defp contact_value(_, _), do: nil
 
   defp reservation_at(table_id, slot_minutes, availability, date) do
     {:ok, slot_dt} = slot_datetime(date, slot_minutes)
@@ -1021,14 +1034,14 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
   end
 
   defp refresh_availability(socket) do
-    Reservations.availability_for_date(socket.assigns.selected_date)
+    Reservations.availability_for_date(socket.assigns.org.id, socket.assigns.selected_date)
   end
 
   defp set_date(socket, %Date{} = date) do
     socket
     |> assign(:selected_date, date)
     |> assign(:date_input, Date.to_iso8601(date))
-    |> assign(:availability, Reservations.availability_for_date(date))
+    |> assign(:availability, Reservations.availability_for_date(socket.assigns.org.id, date))
   end
 
   defp open_manage_modal(socket, reservation) do
@@ -1061,7 +1074,7 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
   # only the bookable slots (≤ 20:00) make it into the dropdown — picking a
   # 20:30 start would just bounce off the schema's opening-hours check.
   defp start_time_options(date, slots) do
-    last_start = Reservation.last_start_minutes()
+    last_start = Constants.last_start_minutes()
 
     for minutes <- slots, minutes <= last_start do
       {:ok, dt} = slot_datetime(date, minutes)
