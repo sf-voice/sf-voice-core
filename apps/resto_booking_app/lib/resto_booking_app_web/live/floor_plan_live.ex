@@ -292,7 +292,7 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} org={@org} active={:floor_plan}>
       <div id="token-vault" phx-hook="TokenVault" class="hidden"></div>
 
       <section class="mb-6 lg:mb-3">
