@@ -41,11 +41,32 @@ defmodule EllieAi.MixProject do
     [
       {:phoenix, "~> 1.8.5"},
       {:phoenix_ecto, "~> 4.5"},
-      # liveview for the staff ui (homepage + call detail). vendored js
-      # served from priv/static/assets; tailwind comes from cdn — no
-      # esbuild/tailwind dep dance for v0.
+      # liveview for the staff ui. assets are bundled by esbuild + tailwind
+      # v4 (see config/config.exs). vendor dir is for things we don't pull
+      # from hex — currently just heroicons + topbar.
       {:phoenix_live_view, "~> 1.0"},
+      {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:phoenix_html, "~> 4.1"},
+      # asset pipeline — runtime: :dev means the binaries only install in
+      # the dev image; assets.deploy bakes the static output for prod.
+      {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
+      {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
+      # heroicons via @plugin so we can use `hero-x-mark` etc in heex.
+      # `app: false, compile: false` — we only want the svg sources, not
+      # the elixir app it ships with.
+      {:heroicons,
+       github: "tailwindlabs/heroicons",
+       tag: "v2.2.0",
+       sparse: "optimized",
+       app: false,
+       compile: false,
+       depth: 1},
+      # shadcn-style component kit. `mix salad.setup` runs igniter to wire
+      # tailwind, hooks, and tw_merge in one shot; `mix salad.add <name>`
+      # copies individual components into lib/ellie_ai_web/components/ui/.
+      # pinned to beta because the install story is meaningfully cleaner
+      # than 0.14's manual setup.
+      {:salad_ui, "~> 1.0.0-beta.3"},
       {:ecto_sql, "~> 3.13"},
       {:ecto_sqlite3, ">= 0.0.0"},
       {:telemetry_metrics, "~> 1.0"},
@@ -68,6 +89,13 @@ defmodule EllieAi.MixProject do
       {:ortex, "~> 0.1.10"},
       # tiny http server for testing the resto client without a real network.
       {:bypass, "~> 2.1", only: :test},
+      # s3 client for call audio archival. ExAws because it has the
+      # multipart upload story baked in; switching the http adapter to
+      # `hackney` because Req hasn't been blessed as an ExAws backend.
+      {:ex_aws, "~> 2.5"},
+      {:ex_aws_s3, "~> 2.5"},
+      {:hackney, "~> 1.20"},
+      {:sweet_xml, "~> 0.7"},
       # liveview test helpers parse rendered html — required dep for
       # `Phoenix.LiveViewTest.live/2`.
       {:lazy_html, ">= 0.1.0", only: :test}
@@ -82,10 +110,17 @@ defmodule EllieAi.MixProject do
   # See the documentation for `Mix` for more info on aliases.
   defp aliases do
     [
-      setup: ["deps.get", "ecto.setup"],
+      setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
       "ecto.setup": ["ecto.create", "ecto.migrate"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
+      "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
+      "assets.build": ["compile", "tailwind ellie_ai", "esbuild ellie_ai"],
+      "assets.deploy": [
+        "tailwind ellie_ai --minify",
+        "esbuild ellie_ai --minify",
+        "phx.digest"
+      ],
       precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]
     ]
   end
