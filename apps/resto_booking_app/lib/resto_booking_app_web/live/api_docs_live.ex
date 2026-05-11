@@ -1,7 +1,5 @@
 defmodule RestoBookingAppWeb.ApiDocsLive do
   @moduledoc """
-  developer-facing http api reference. lives at /api so it stays out of
-  the way of guests landing on / to book a table.
   """
 
   use RestoBookingAppWeb, :live_view
@@ -28,18 +26,31 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
             HTTP API reference
           </h1>
           <p class="text-sm opacity-70 mt-3 max-w-2xl leading-relaxed">
-            Everything the website does is also available over HTTP. The
-            endpoints below are the same surface the floor plan uses — public,
-            unauthenticated, and stable.
+            Everything the website does is also available over HTTP. Every
+            <code>/api/*</code> endpoint is gated by a single shared bearer
+            token (<code>INTERNAL_API_TOKEN</code>) — the voice orchestrator
+            (ellie_ai) is the only legitimate caller in v1.
           </p>
+        </div>
+
+        <div class="rounded-2xl bg-primary/10 border border-primary/40 p-4 mb-6 text-sm">
+          <div class="font-bold mb-1">Authentication</div>
+          <p class="opacity-90 leading-relaxed">
+            Every request to <code>/api/*</code> must carry
+            <code>Authorization: Bearer $INTERNAL_API_TOKEN</code>. Missing or
+            wrong token returns <code>401 Unauthorized</code>. The token is
+            shared via env between resto and ellie; rotate it by setting the
+            new value on both services and restarting (no code change needed).
+          </p>
+          <pre class="rounded-xl bg-base-300/60 p-3 mt-2 text-[11px] overflow-x-auto font-mono">{auth_curl_example()}</pre>
         </div>
 
         <div class="rounded-2xl bg-secondary/20 border border-secondary/40 p-4 mb-6 text-sm">
           <div class="font-bold mb-1">How cancel tokens work</div>
           <p class="opacity-90 leading-relaxed">
-            There are no accounts, no API keys, no logins. The only way to prove
-            you own a reservation is to hold the <code>cancel_token</code> the
-            server returned at booking time.
+            Bearer auth says "you're allowed to use the API at all." The
+            <code>cancel_token</code> says "you specifically own this
+            reservation." Both are required to mutate or delete a reservation.
           </p>
           <ol class="list-decimal pl-5 mt-2 space-y-1 opacity-90">
             <li>
@@ -55,8 +66,9 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
             </li>
             <li>
               There's no token recovery and no admin override. Lose it and the
-              booking is read-only forever — anyone can <code>GET</code> it, but
-              only the holder of the original token can mutate or cancel it.
+              booking is read-only forever — anyone with the bearer can
+              <code>GET</code> it, but only the holder of the cancel_token can
+              mutate or cancel it.
             </li>
           </ol>
           <div class="mt-3 text-xs opacity-80">
@@ -99,11 +111,107 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
 
           <.api_card
             method="GET"
-            path="/api/reservations[?date=YYYY-MM-DD]"
-            desc="List reservations, optionally filtered to a single calendar day."
+            path="/api/customers"
+            desc="List customers, newest activity first. Default limit 500, max 1000."
+          >
+            <:params>
+              <li><code>limit</code> — optional positive integer, max 1000.</li>
+            </:params>
+            <:response>{customers_index_example()}</:response>
+          </.api_card>
+
+          <.api_card
+            method="GET"
+            path="/api/customers/:id"
+            desc="Fetch one customer by id."
+          >
+            <:params>
+              <li><code>:id</code> — customer UUID.</li>
+            </:params>
+            <:response>{customer_show_example()}</:response>
+            <:errors>
+              <li><code>404</code> — no customer with that id.</li>
+            </:errors>
+          </.api_card>
+
+          <.api_card
+            method="GET"
+            path="/api/customers/by_phone/:phone"
+            desc="Look up a customer by E.164 phone number — the natural key. Walks contacts.value → customer. Used by ellie's lookup-customer waterfall when a call comes in."
+          >
+            <:params>
+              <li>
+                <code>:phone</code> — E.164 string (URL-encode the leading <code>+</code> as <code>%2B</code>).
+              </li>
+            </:params>
+            <:response>{customer_show_example()}</:response>
+            <:errors>
+              <li><code>404</code> — no contact with that phone number.</li>
+            </:errors>
+          </.api_card>
+
+          <.api_card
+            method="POST"
+            path="/api/customers"
+            desc="Idempotent on phone. Creates a new customer + phone contact if the phone is unseen, otherwise returns the existing customer. If email is provided and the customer has no email contact, adds one. Safe to retry."
+          >
+            <:params>
+              <li><code>phone</code> — required, E.164 string.</li>
+              <li><code>first_name</code>, <code>last_name</code> — optional.</li>
+              <li>
+                <code>salutation</code> — optional, one of <code>Mr</code>, <code>Mrs</code>, <code>Ms</code>.
+              </li>
+              <li>
+                <code>email</code> — optional. When provided and unseen, creates a preferred email contact.
+              </li>
+              <li><code>notes</code> — optional staff free text.</li>
+            </:params>
+            <:request>{customer_create_request_example()}</:request>
+            <:response>{customer_show_example()}</:response>
+            <:errors>
+              <li><code>400 Missing phone</code> — request body had no <code>phone</code>.</li>
+              <li>
+                <code>422 phone must be in E.164 format</code> — leading <code>+</code>, then 7..15 digits, first non-zero.
+              </li>
+              <li><code>422 must look like an email address</code>.</li>
+            </:errors>
+          </.api_card>
+
+          <.api_card
+            method="PATCH"
+            path="/api/customers/:id"
+            desc="Update a customer's name, email, salutation, or notes. tel is the natural key — change it via a new POST instead."
+          >
+            <:params>
+              <li><code>:id</code> — customer UUID.</li>
+            </:params>
+            <:request>{customer_patch_request_example()}</:request>
+            <:response>{customer_show_example()}</:response>
+            <:errors>
+              <li><code>404 Not Found</code>.</li>
+              <li><code>422</code> — same validation family as POST.</li>
+            </:errors>
+          </.api_card>
+
+          <.api_card
+            method="GET"
+            path="/api/customers/:customer_id/reservations"
+            desc="List one customer's reservations, oldest first. Same JSON shape as /api/reservations."
+          >
+            <:params>
+              <li><code>:customer_id</code> — customer UUID.</li>
+            </:params>
+            <:response>{list_example()}</:response>
+          </.api_card>
+
+          <.api_card
+            method="GET"
+            path="/api/reservations[?date=YYYY-MM-DD][&customer_id=UUID]"
+            desc="List reservations, optionally filtered to a single calendar day or a single customer."
           >
             <:params>
               <li><code>date</code> — optional, ISO date.</li>
+              <li><code>customer_id</code> — optional UUID.</li>
             </:params>
             <:response>{list_example()}</:response>
             <:errors>
@@ -128,21 +236,17 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
           <.api_card
             method="POST"
             path="/api/reservations"
-            desc="Create a reservation. Bookings are 2 hours, anchored to a 30-min boundary, between 10:00 and 20:00 local time (the restaurant closes at 22:00). The cancel_token in the response is the only way to mutate the reservation later — store it!"
+            desc="Create a reservation. Bookings are 2 hours, anchored to a 30-min boundary, between 10:00 and 20:00 local time (the restaurant closes at 22:00). The cancel_token in the response is the only way to mutate the reservation later — store it! Customer must already exist; create them via POST /api/customers first."
           >
             <:params>
               <li><code>table_id</code> — required, one of T1..T9.</li>
               <li>
                 <code>starts_at</code> — required, ISO datetime on a :00 or :30 boundary, local hour 10..20.
               </li>
-              <li><code>first_name</code> — required.</li>
-              <li><code>last_name</code> — required.</li>
-              <li><code>tel</code> — required.</li>
-              <li><code>email</code> — required.</li>
-              <li><code>party_size</code> — required integer, 1..table seats.</li>
               <li>
-                <code>salutation</code> — optional, one of <code>Mr</code>, <code>Mrs</code>, <code>Ms</code>.
+                <code>customer_id</code> — required UUID.  See <code>POST /api/customers</code>.
               </li>
+              <li><code>party_size</code> — required integer, 1..table seats.</li>
               <li><code>special_requests</code> — optional free text.</li>
               <li><code>remarks</code> — optional free text.</li>
             </:params>
@@ -158,7 +262,9 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
               </li>
               <li><code>422 must be between 10:00 and 20:00</code> — outside opening hours.</li>
               <li><code>422 table is already booked for this time slot</code> — overlap.</li>
-              <li><code>422 must look like an email address</code> — bad <code>email</code>.</li>
+              <li>
+                <code>422 does not exist</code> — <code>customer_id</code> doesn't match any customer.
+              </li>
               <li><code>422 must be greater than 0</code> — non-positive <code>party_size</code>.</li>
               <li><code>422 is more than the table's N seats</code> — too many for this table.</li>
               <li><code>422 can't be blank</code> — missing required field.</li>
@@ -318,6 +424,13 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
   # ── example payloads ─────────────────────────────────────────────────────
   # plain strings so the docs render verbatim, not as fake json
 
+  defp auth_curl_example do
+    """
+    curl -sH "authorization: Bearer $INTERNAL_API_TOKEN" \\
+      https://resto-demo.sf-voice.sh/api/customers
+    """
+  end
+
   defp menu_example do
     """
     {
@@ -363,14 +476,17 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
               "table_id": "T1",
               "starts_at": "2026-05-07T15:00:00Z",
               "ends_at":   "2026-05-07T17:00:00Z",
-              "salutation": "Ms",
-              "first_name": "Avery",
-              "last_name":  "Chen",
-              "tel":        "+1-415-555-0142",
-              "email":      "avery.chen@example.com",
               "party_size": 2,
               "special_requests": "gluten free",
-              "remarks": null }
+              "remarks": null,
+              "customer_id": "cust-uuid",
+              "customer": { "id": "cust-uuid",
+                            "salutation": "Ms",
+                            "first_name": "Avery", "last_name": "Chen",
+                            "...": "..." },
+              "contact_id": "contact-uuid",
+              "contact": { "id": "contact-uuid", "kind": "phone",
+                           "value": "+14155550142", "preferred": true } }
           ]
         },
         { "table_id": "T2", "reservations": [] },
@@ -388,14 +504,14 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
           "table_id": "T1",
           "starts_at": "2026-05-07T15:00:00Z",
           "ends_at":   "2026-05-07T17:00:00Z",
-          "salutation": "Ms",
-          "first_name": "Avery",
-          "last_name":  "Chen",
-          "tel":        "+1-415-555-0142",
-          "email":      "avery.chen@example.com",
           "party_size": 2,
           "special_requests": "gluten free",
-          "remarks": null },
+          "remarks": null,
+          "customer_id": "cust-uuid",
+          "customer": { "id": "cust-uuid", "first_name": "Avery",
+                        "last_name": "Chen", "...": "..." },
+          "contact_id": "contact-uuid",
+          "contact": { "kind": "phone", "value": "+14155550142", "...": "..." } },
         ...
       ]
     }
@@ -410,15 +526,91 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
         "table_id": "T1",
         "starts_at": "2026-05-07T15:00:00Z",
         "ends_at":   "2026-05-07T17:00:00Z",
-        "salutation": "Ms",
-        "first_name": "Avery",
-        "last_name":  "Chen",
-        "tel":        "+1-415-555-0142",
-        "email":      "avery.chen@example.com",
         "party_size": 2,
         "special_requests": "gluten free",
-        "remarks": null
+        "remarks": null,
+        "customer_id": "cust-uuid",
+        "customer": { "id": "cust-uuid",
+                      "salutation": "Ms",
+                      "first_name": "Avery", "last_name": "Chen",
+                      "notes": null,
+                      "first_seen_at": "2026-04-12T19:00:00Z",
+                      "last_seen_at":  "2026-05-07T15:00:00Z",
+                      "contacts": null },
+        "contact_id": "contact-uuid",
+        "contact": { "id": "contact-uuid",
+                     "customer_id": "cust-uuid",
+                     "kind": "phone",
+                     "value": "+14155550142",
+                     "label": null,
+                     "preferred": true }
       }
+    }
+    """
+  end
+
+  defp customers_index_example do
+    """
+    {
+      "customers": [
+        { "id": "cust-uuid",
+          "salutation": "Ms",
+          "first_name": "Lois",
+          "last_name": "Tester",
+          "notes": null,
+          "first_seen_at": "2026-04-12T19:00:00Z",
+          "last_seen_at":  "2026-05-08T18:00:00Z",
+          "contacts": [
+            { "id": "c1", "kind": "phone", "value": "+14155550100",
+              "label": null, "preferred": true },
+            { "id": "c2", "kind": "email", "value": "lois@example.com",
+              "label": null, "preferred": true }
+          ] },
+        ...
+      ]
+    }
+    """
+  end
+
+  defp customer_show_example do
+    """
+    {
+      "customer": {
+        "id": "cust-uuid",
+        "salutation": "Ms",
+        "first_name": "Lois",
+        "last_name": "Tester",
+        "notes": "regular — vegan",
+        "first_seen_at": "2026-04-12T19:00:00Z",
+        "last_seen_at":  "2026-05-08T18:00:00Z",
+        "contacts": [
+          { "id": "c1", "kind": "phone", "value": "+14155550100",
+            "label": "mobile", "preferred": true },
+          { "id": "c2", "kind": "email", "value": "lois@example.com",
+            "label": null, "preferred": true }
+        ]
+      }
+    }
+    """
+  end
+
+  defp customer_create_request_example do
+    """
+    {
+      "phone": "+14155550100",
+      "salutation": "Ms",
+      "first_name": "Lois",
+      "last_name": "Tester",
+      "email": "lois@example.com"
+    }
+    """
+  end
+
+  defp customer_patch_request_example do
+    """
+    {
+      "email": "lois.tester@example.com",
+      "notes": "allergic to peanuts"
     }
     """
   end
@@ -428,11 +620,7 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
     {
       "table_id": "T5",
       "starts_at": "2026-05-08T18:00:00Z",
-      "salutation": "Ms",
-      "first_name": "Lois",
-      "last_name": "Tester",
-      "tel": "+1-415-555-0100",
-      "email": "lois@example.com",
+      "customer_id": "cust-uuid",
       "party_size": 3,
       "special_requests": "vegan tasting menu"
     }
@@ -448,14 +636,11 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
         "table_id": "T5",
         "starts_at": "2026-05-08T18:00:00Z",
         "ends_at":   "2026-05-08T20:00:00Z",
-        "salutation": "Ms",
-        "first_name": "Lois",
-        "last_name":  "Tester",
-        "tel":        "+1-415-555-0100",
-        "email":      "lois@example.com",
         "party_size": 3,
         "special_requests": "vegan tasting menu",
-        "remarks": null
+        "remarks": null,
+        "customer_id": "cust-uuid",
+        "customer": { "id": "cust-uuid", "tel": "+14155550100", "...": "..." }
       }
     }
     """
@@ -479,14 +664,11 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
         "table_id": "T5",
         "starts_at": "2026-05-08T19:00:00Z",
         "ends_at":   "2026-05-08T21:00:00Z",
-        "salutation": "Ms",
-        "first_name": "Lois",
-        "last_name":  "Tester",
-        "tel":        "+1-415-555-0100",
-        "email":      "lois@example.com",
         "party_size": 4,
         "special_requests": "vegan + nut allergy",
-        "remarks": null
+        "remarks": null,
+        "customer_id": "cust-uuid",
+        "customer": { "id": "cust-uuid", "...": "..." }
       }
     }
     """
@@ -497,11 +679,7 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
     {
       "table_id": "T5",
       "starts_at": "2026-05-08T19:00:00Z",
-      "salutation": "Ms",
-      "first_name": "Lois",
-      "last_name": "Tester",
-      "tel": "+1-415-555-0100",
-      "email": "lois@example.com",
+      "customer_id": "cust-uuid",
       "party_size": 4,
       "special_requests": "vegan + nut allergy"
     }
@@ -516,14 +694,11 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
         "table_id": "T5",
         "starts_at": "2026-05-08T19:00:00Z",
         "ends_at":   "2026-05-08T21:00:00Z",
-        "salutation": "Ms",
-        "first_name": "Lois",
-        "last_name":  "Tester",
-        "tel":        "+1-415-555-0100",
-        "email":      "lois@example.com",
         "party_size": 4,
         "special_requests": "vegan + nut allergy",
-        "remarks": null
+        "remarks": null,
+        "customer_id": "cust-uuid",
+        "customer": { "id": "cust-uuid", "...": "..." }
       }
     }
     """
@@ -531,31 +706,36 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
 
   defp create_curl_example do
     """
-    # the response prints both id and cancel_token — capture them:
-    curl -sX POST localhost:4000/api/reservations \\
+    # 1. ensure the customer exists (idempotent on phone) and grab the id
+    CUST_ID=$(curl -sX POST localhost:4000/api/customers \\
+      -H "authorization: Bearer $INTERNAL_API_TOKEN" \\
       -H 'content-type: application/json' \\
-      -d '{
-        "table_id": "T5",
-        "starts_at": "2026-05-08T18:00:00Z",
-        "salutation": "Ms",
-        "first_name": "Lois",
-        "last_name": "Tester",
-        "tel": "+1-415-555-0100",
-        "email": "lois@example.com",
-        "party_size": 3,
-        "special_requests": "vegan"
-      }'
+      -d '{"phone":"+14155550100","first_name":"Lois","last_name":"Tester","email":"lois@example.com"}' \\
+      | jq -r .customer.id)
+
+    # 2. book — capture both id and cancel_token from the response
+    curl -sX POST localhost:4000/api/reservations \\
+      -H "authorization: Bearer $INTERNAL_API_TOKEN" \\
+      -H 'content-type: application/json' \\
+      -d "{
+        \\"table_id\\": \\"T5\\",
+        \\"starts_at\\": \\"2026-05-08T18:00:00Z\\",
+        \\"customer_id\\": \\"$CUST_ID\\",
+        \\"party_size\\": 3,
+        \\"special_requests\\": \\"vegan\\"
+      }"
     # → { "reservation": { "id": "...", "cancel_token": "...", ... } }
     """
   end
 
   defp patch_curl_example do
     """
-    # ID and TOKEN come from the POST response above
+    # ID and TOKEN come from the POST /api/reservations response above
     ID="69f3b15c-d7b4-42ea-a319-d99a2f766fd8"
     TOKEN="QMyYa1Iv4c5Rs7Itx3VPtg"
 
     curl -sX PATCH "localhost:4000/api/reservations/$ID?token=$TOKEN" \\
+      -H "authorization: Bearer $INTERNAL_API_TOKEN" \\
       -H 'content-type: application/json' \\
       -d '{ "party_size": 4, "special_requests": "vegan + nut allergy" }'
     """
@@ -565,25 +745,23 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
     """
     # PUT requires all the required fields. ID and TOKEN are still from POST.
     curl -sX PUT "localhost:4000/api/reservations/$ID?token=$TOKEN" \\
+      -H "authorization: Bearer $INTERNAL_API_TOKEN" \\
       -H 'content-type: application/json' \\
-      -d '{
-        "table_id": "T5",
-        "starts_at": "2026-05-08T19:00:00Z",
-        "salutation": "Ms",
-        "first_name": "Lois",
-        "last_name": "Tester",
-        "tel": "+1-415-555-0100",
-        "email": "lois@example.com",
-        "party_size": 4,
-        "special_requests": "vegan + nut allergy"
-      }'
+      -d "{
+        \\"table_id\\": \\"T5\\",
+        \\"starts_at\\": \\"2026-05-08T19:00:00Z\\",
+        \\"customer_id\\": \\"$CUST_ID\\",
+        \\"party_size\\": 4,
+        \\"special_requests\\": \\"vegan + nut allergy\\"
+      }"
     """
   end
 
   defp delete_curl_example do
     """
     # same TOKEN as PATCH/PUT — there's only ever one per reservation
-    curl -i -X DELETE "localhost:4000/api/reservations/$ID?token=$TOKEN"
+    curl -i -X DELETE "localhost:4000/api/reservations/$ID?token=$TOKEN" \\
+      -H "authorization: Bearer $INTERNAL_API_TOKEN"
     # → HTTP/1.1 204 No Content
     """
   end
