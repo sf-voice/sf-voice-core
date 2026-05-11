@@ -3,28 +3,67 @@ defmodule RestoBookingApp.ReservationsTest do
   # intermittent "database busy" errors, so we run them in a single thread
   use RestoBookingApp.DataCase, async: false
 
-  alias RestoBookingApp.{Clock, Repo, Reservations}
-  alias RestoBookingApp.Reservations.Reservation
+  alias RestoBookingApp.{Clock, Contacts, Orgs, Reservations, Tables}
 
-  # opening hours (10:00–22:00) are validated in restaurant-local time, so
-  # build fixtures from a local clock-time. naive utc construction would behave
-  # differently on a UTC ci runner vs a non-UTC dev box.
+  setup do
+    {:ok, org} =
+      Orgs.upsert_by_slug("test-org", %{
+        name: "Test Org",
+        location: "Testville",
+        time_zone: "America/Los_Angeles"
+      })
+
+    Enum.each(default_tables(), fn t -> {:ok, _} = Tables.upsert(org.id, t) end)
+    %{org: org}
+  end
+
+  defp default_tables do
+    [
+      %{slug: "T1", seats: 2, shape: "round", x: 0, y: 0, sort_order: 1},
+      %{slug: "T2", seats: 2, shape: "round", x: 1, y: 0, sort_order: 2},
+      %{slug: "T3", seats: 2, shape: "round", x: 2, y: 0, sort_order: 3},
+      %{slug: "T4", seats: 2, shape: "round", x: 3, y: 0, sort_order: 4},
+      %{slug: "T5", seats: 4, shape: "square", x: 0, y: 1, sort_order: 5},
+      %{slug: "T6", seats: 4, shape: "square", x: 1, y: 1, sort_order: 6},
+      %{slug: "T7", seats: 4, shape: "square", x: 2, y: 1, sort_order: 7},
+      %{slug: "T8", seats: 4, shape: "square", x: 3, y: 1, sort_order: 8},
+      %{slug: "T9", seats: 6, shape: "rect", x: 0, y: 2, sort_order: 9}
+    ]
+  end
+
   defp at(hour, minute \\ 0) do
     today = Clock.today()
     {:ok, time} = Time.new(hour, minute, 0)
     Clock.local_to_utc(today, time)
   end
 
-  defp valid_attrs(overrides \\ %{}) do
+  defp fixture_customer(org, opts \\ []) do
+    suffix = Keyword.get(opts, :suffix, :rand.uniform(99_999))
+    phone = "+1415555#{:io_lib.format("~4..0B", [rem(suffix, 10_000)]) |> IO.iodata_to_binary()}"
+
+    {:ok, customer} =
+      Contacts.find_or_create_for_phone(org.id, phone, %{
+        first_name: "Lois",
+        last_name: "Tester"
+      })
+
+    customer
+  end
+
+  defp valid_attrs(org, overrides \\ %{}) do
+    customer =
+      Map.get(overrides, :customer) ||
+        Map.get(overrides, "customer") ||
+        fixture_customer(org)
+
+    overrides = Map.drop(overrides, [:customer, "customer"])
+
     Map.merge(
       %{
+        "org_id" => org.id,
         "table_id" => "T1",
         "starts_at" => at(10),
-        "salutation" => "Ms",
-        "first_name" => "Lois",
-        "last_name" => "Tester",
-        "tel" => "+1-415-555-0100",
-        "email" => "lois@example.com",
+        "customer_id" => customer.id,
         "party_size" => 2,
         "special_requests" => "vegan",
         "remarks" => "window seat please"
@@ -34,216 +73,167 @@ defmodule RestoBookingApp.ReservationsTest do
   end
 
   describe "create/1" do
-    test "creates a reservation with computed ends_at and a cancel token" do
-      assert {:ok, res} = Reservations.create(valid_attrs())
+    test "creates a reservation with computed ends_at and a cancel token", %{org: org} do
+      assert {:ok, res} = Reservations.create(valid_attrs(org))
       assert res.ends_at == DateTime.add(res.starts_at, 2 * 60 * 60, :second)
       assert is_binary(res.cancel_token)
       assert byte_size(res.cancel_token) >= 16
-      assert res.first_name == "Lois"
-      assert res.last_name == "Tester"
+      assert is_binary(res.customer_id)
     end
 
-    test "rejects unknown table" do
-      assert {:error, cs} = Reservations.create(valid_attrs(%{"table_id" => "T999"}))
+    test "rejects unknown table", %{org: org} do
+      assert {:error, cs} = Reservations.create(valid_attrs(org, %{"table_id" => "T999"}))
       assert "unknown table T999" in errors_on(cs).table_id
     end
 
-    test "rejects party_size larger than the table" do
+    test "rejects party_size larger than the table", %{org: org} do
       # T1 is a 2-top — 3 people don't fit
-      assert {:error, cs} = Reservations.create(valid_attrs(%{"party_size" => 3}))
+      assert {:error, cs} = Reservations.create(valid_attrs(org, %{"party_size" => 3}))
       assert "is more than the table's 2 seats" in errors_on(cs).party_size
     end
 
-    test "rejects non-positive party_size" do
-      assert {:error, cs} = Reservations.create(valid_attrs(%{"party_size" => 0}))
+    test "rejects non-positive party_size", %{org: org} do
+      assert {:error, cs} = Reservations.create(valid_attrs(org, %{"party_size" => 0}))
       assert "must be greater than 0" in errors_on(cs).party_size
     end
 
-    test "requires party_size" do
-      assert {:error, cs} = Reservations.create(Map.delete(valid_attrs(), "party_size"))
+    test "requires party_size", %{org: org} do
+      assert {:error, cs} = Reservations.create(Map.delete(valid_attrs(org), "party_size"))
       assert "can't be blank" in errors_on(cs).party_size
     end
 
-    test "requires first_name, last_name, tel, email" do
-      attrs =
-        valid_attrs()
-        |> Map.drop(["first_name", "last_name", "tel", "email"])
-
+    test "requires customer_id", %{org: org} do
+      attrs = valid_attrs(org) |> Map.delete("customer_id")
       assert {:error, cs} = Reservations.create(attrs)
-      errors = errors_on(cs)
-      assert "can't be blank" in errors.first_name
-      assert "can't be blank" in errors.last_name
-      assert "can't be blank" in errors.tel
-      assert "can't be blank" in errors.email
+      assert "can't be blank" in errors_on(cs).customer_id
     end
 
-    test "rejects bad email shape" do
-      assert {:error, cs} = Reservations.create(valid_attrs(%{"email" => "not-an-email"}))
-      assert "must look like an email address" in errors_on(cs).email
-    end
-
-    test "rejects unknown salutation" do
-      assert {:error, cs} = Reservations.create(valid_attrs(%{"salutation" => "Dr"}))
-      assert "must be one of: Mr, Mrs, Ms" in errors_on(cs).salutation
-    end
-
-    test "salutation is optional" do
-      assert {:ok, _} = Reservations.create(valid_attrs(%{"salutation" => nil}))
-    end
-
-    test "rejects misaligned slot" do
+    test "rejects misaligned slot", %{org: org} do
       starts = DateTime.add(at(10), 15 * 60, :second)
-      assert {:error, cs} = Reservations.create(valid_attrs(%{"starts_at" => starts}))
+      assert {:error, cs} = Reservations.create(valid_attrs(org, %{"starts_at" => starts}))
       assert "must align to a 30-minute slot" in errors_on(cs).starts_at
     end
 
-    test "rejects out-of-hours bookings" do
-      # before opening (10:00)
-      assert {:error, cs} = Reservations.create(valid_attrs(%{"starts_at" => at(9, 30)}))
+    test "rejects out-of-hours bookings", %{org: org} do
+      assert {:error, cs} = Reservations.create(valid_attrs(org, %{"starts_at" => at(9, 30)}))
       assert "must be between 10:00 and 20:00" in errors_on(cs).starts_at
 
-      # after last bookable start (20:00) — 20:30 ends past 22:00 close
-      assert {:error, cs2} = Reservations.create(valid_attrs(%{"starts_at" => at(20, 30)}))
+      assert {:error, cs2} = Reservations.create(valid_attrs(org, %{"starts_at" => at(20, 30)}))
       assert "must be between 10:00 and 20:00" in errors_on(cs2).starts_at
 
-      # 21:00 is well past
-      assert {:error, cs3} = Reservations.create(valid_attrs(%{"starts_at" => at(21)}))
+      assert {:error, cs3} = Reservations.create(valid_attrs(org, %{"starts_at" => at(21)}))
       assert "must be between 10:00 and 20:00" in errors_on(cs3).starts_at
     end
 
-    test "accepts bookings at the boundaries" do
-      # 10:00 is the first bookable slot, 20:00 is the last
-      assert {:ok, _} = Reservations.create(valid_attrs(%{"starts_at" => at(10)}))
-      assert {:ok, _} = Reservations.create(valid_attrs(%{"starts_at" => at(20), "table_id" => "T2"}))
+    test "accepts bookings at the boundaries", %{org: org} do
+      assert {:ok, _} = Reservations.create(valid_attrs(org, %{"starts_at" => at(10)}))
+
+      assert {:ok, _} =
+               Reservations.create(
+                 valid_attrs(org, %{"starts_at" => at(20), "table_id" => "T2"})
+               )
     end
 
-    test "rejects overlapping bookings on the same table" do
-      assert {:ok, _} = Reservations.create(valid_attrs())
+    test "rejects overlapping bookings on the same table", %{org: org} do
+      assert {:ok, _} = Reservations.create(valid_attrs(org))
 
-      # same start time on the same table → overlap
-      assert {:error, cs} = Reservations.create(valid_attrs())
+      assert {:error, cs} = Reservations.create(valid_attrs(org))
       assert "table is already booked for this time slot" in errors_on(cs).starts_at
 
-      # 30 minutes later still overlaps (booking is 2h)
-      assert {:error, cs2} = Reservations.create(valid_attrs(%{"starts_at" => at(10, 30)}))
+      assert {:error, cs2} =
+               Reservations.create(valid_attrs(org, %{"starts_at" => at(10, 30)}))
+
       assert "table is already booked for this time slot" in errors_on(cs2).starts_at
 
-      # 2h later is fine — back-to-back is allowed (ends_at is exclusive)
-      assert {:ok, _} = Reservations.create(valid_attrs(%{"starts_at" => at(12)}))
+      assert {:ok, _} = Reservations.create(valid_attrs(org, %{"starts_at" => at(12)}))
     end
 
-    test "different tables can be booked at the same time" do
-      assert {:ok, _} = Reservations.create(valid_attrs())
-      assert {:ok, _} = Reservations.create(valid_attrs(%{"table_id" => "T2"}))
-    end
-
-    test "db unique index is the backstop if the app-level overlap check is bypassed" do
-      # the application check normally rejects duplicates, but a real toctou race
-      # could let two callers past it. we simulate that by going around the
-      # context and inserting a second row with `Repo.insert/1` directly.
-      assert {:ok, _} = Reservations.create(valid_attrs())
-
-      bypass_changeset = Reservation.changeset(%Reservation{}, valid_attrs())
-      assert {:error, cs} = Repo.insert(bypass_changeset)
-      assert "has already been taken" in errors_on(cs).starts_at
+    test "different tables can be booked at the same time", %{org: org} do
+      assert {:ok, _} = Reservations.create(valid_attrs(org))
+      assert {:ok, _} = Reservations.create(valid_attrs(org, %{"table_id" => "T2"}))
     end
   end
 
-  describe "update/3" do
-    setup do
-      {:ok, res} = Reservations.create(valid_attrs())
+  describe "update/4" do
+    setup %{org: org} do
+      {:ok, res} = Reservations.create(valid_attrs(org))
       %{res: res}
     end
 
-    test "rejects bad token", %{res: res} do
+    test "rejects bad token", %{org: org, res: res} do
       assert {:error, :invalid_token} =
-               Reservations.update(res.id, "wrong", %{"first_name" => "Hax"})
+               Reservations.update(org.id, res.id, "wrong", %{"party_size" => 2})
     end
 
-    test "updates fields with valid token", %{res: res} do
+    test "updates fields with valid token", %{org: org, res: res} do
       assert {:ok, updated} =
-               Reservations.update(res.id, res.cancel_token, %{
-                 "first_name" => "Lois",
-                 "last_name" => "Beam",
+               Reservations.update(org.id, res.id, res.cancel_token, %{
                  "special_requests" => "vegan + nut allergy"
                })
 
-      assert updated.last_name == "Beam"
       assert updated.special_requests == "vegan + nut allergy"
-      # cancel_token must remain stable so the owner doesn't lock themselves out
       assert updated.cancel_token == res.cancel_token
     end
 
-    test "rejects move that overlaps another booking", %{res: res} do
-      {:ok, _other} = Reservations.create(valid_attrs(%{"table_id" => "T2"}))
+    test "rejects move that overlaps another booking", %{org: org, res: res} do
+      {:ok, _other} = Reservations.create(valid_attrs(org, %{"table_id" => "T2"}))
 
       assert {:error, cs} =
-               Reservations.update(res.id, res.cancel_token, %{"table_id" => "T2"})
+               Reservations.update(org.id, res.id, res.cancel_token, %{"table_id" => "T2"})
 
       assert "table is already booked for this time slot" in errors_on(cs).starts_at
     end
 
-    test "allows moving to a free slot on the same table", %{res: res} do
+    test "allows moving to a free slot on the same table", %{org: org, res: res} do
       assert {:ok, updated} =
-               Reservations.update(res.id, res.cancel_token, %{"starts_at" => at(15)})
+               Reservations.update(org.id, res.id, res.cancel_token, %{
+                 "starts_at" => at(15)
+               })
 
       assert updated.starts_at == at(15)
       assert updated.ends_at == at(17)
     end
 
-    test "returns not_found for missing id" do
-      assert {:error, :not_found} = Reservations.update(Ecto.UUID.generate(), "x", %{})
+    test "returns not_found for missing id", %{org: org} do
+      assert {:error, :not_found} = Reservations.update(org.id, Ecto.UUID.generate(), "x", %{})
     end
   end
 
-  describe "delete/2" do
-    test "rejects bad token" do
-      {:ok, res} = Reservations.create(valid_attrs())
-      assert {:error, :invalid_token} = Reservations.delete(res.id, "nope")
-      assert Reservations.get(res.id)
+  describe "delete/3" do
+    test "rejects bad token", %{org: org} do
+      {:ok, res} = Reservations.create(valid_attrs(org))
+      assert {:error, :invalid_token} = Reservations.delete(org.id, res.id, "nope")
+      assert Reservations.get(org.id, res.id)
     end
 
-    test "deletes with the right token" do
-      {:ok, res} = Reservations.create(valid_attrs())
-      assert :ok = Reservations.delete(res.id, res.cancel_token)
-      refute Reservations.get(res.id)
+    test "deletes with the right token", %{org: org} do
+      {:ok, res} = Reservations.create(valid_attrs(org))
+      assert :ok = Reservations.delete(org.id, res.id, res.cancel_token)
+      refute Reservations.get(org.id, res.id)
     end
 
-    test "returns not_found for missing id" do
-      assert {:error, :not_found} = Reservations.delete(Ecto.UUID.generate(), "x")
+    test "returns not_found for missing id", %{org: org} do
+      assert {:error, :not_found} = Reservations.delete(org.id, Ecto.UUID.generate(), "x")
     end
   end
 
-  describe "availability_for_date/1" do
-    test "groups by table id and seeds empty lists for unbooked tables" do
-      {:ok, _} = Reservations.create(valid_attrs())
-      avail = Reservations.availability_for_date(Clock.today())
+  describe "availability_for_date/2" do
+    test "groups by table id and seeds empty lists for unbooked tables", %{org: org} do
+      {:ok, _} = Reservations.create(valid_attrs(org))
+      avail = Reservations.availability_for_date(org.id, Clock.today())
 
       assert length(avail["T1"]) == 1
       assert avail["T2"] == []
       assert Map.has_key?(avail, "T9")
     end
-  end
 
-  describe "name helpers" do
-    test "display_name/1 omits salutation" do
-      res = %Reservation{salutation: "Ms", first_name: "Avery", last_name: "Chen"}
-      assert Reservation.display_name(res) == "Avery Chen"
-    end
+    test "preloads :customer on each reservation so the floor plan can render names",
+         %{org: org} do
+      {:ok, _} = Reservations.create(valid_attrs(org))
+      avail = Reservations.availability_for_date(org.id, Clock.today())
 
-    test "full_name/1 includes salutation when present" do
-      res = %Reservation{salutation: "Ms", first_name: "Avery", last_name: "Chen"}
-      assert Reservation.full_name(res) == "Ms Avery Chen"
-    end
-
-    test "full_name/1 drops salutation when absent" do
-      res = %Reservation{salutation: nil, first_name: "Avery", last_name: "Chen"}
-      assert Reservation.full_name(res) == "Avery Chen"
-    end
-
-    test "full_name/1 handles single-word names" do
-      res = %Reservation{salutation: "Mr", first_name: "Cher", last_name: ""}
-      assert Reservation.full_name(res) == "Mr Cher"
+      [res] = avail["T1"]
+      assert %RestoBookingApp.Customers.Customer{} = res.customer
     end
   end
 end

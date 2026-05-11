@@ -363,8 +363,6 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
     """
   end
 
-  # ── api card ─────────────────────────────────────────────────────────────
-
   attr :method, :string, required: true
   attr :path, :string, required: true
   attr :desc, :string, required: true
@@ -421,8 +419,7 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
     """
   end
 
-  # ── example payloads ─────────────────────────────────────────────────────
-  # plain strings so the docs render verbatim, not as fake json
+  # payloads are plain strings so the docs render verbatim, not as parsed json.
 
   defp auth_curl_example do
     """

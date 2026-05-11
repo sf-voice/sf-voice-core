@@ -7,7 +7,12 @@ defmodule RestoBookingAppWeb.AvailabilityController do
 
   def index(conn, params) do
     with {:ok, date} <- parse_date(params["date"]) do
-      render(conn, :index, date: date, availability: Reservations.availability_for_date(date))
+      org_id = conn.assigns.org_id
+
+      render(conn, :index,
+        date: date,
+        availability: Reservations.availability_for_date(org_id, date)
+      )
     end
   end
 

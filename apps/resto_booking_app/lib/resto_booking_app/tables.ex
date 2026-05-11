@@ -1,39 +1,64 @@
 defmodule RestoBookingApp.Tables do
   @moduledoc """
-  static floor-plan layout. nine tables, thirty seats total.
+  per-org floor-plan layout.
 
-  the layout is code, not data — the restaurant is fixed, only the
-  reservations on top of it change.
+  every public function takes an `org_id`
   """
 
-  # {id, seats, shape, x, y} — x/y are grid hints for the floor plan render
-  @tables [
-    %{id: "T1", seats: 2, shape: "round", x: 0, y: 0},
-    %{id: "T2", seats: 2, shape: "round", x: 1, y: 0},
-    %{id: "T3", seats: 2, shape: "round", x: 2, y: 0},
-    %{id: "T4", seats: 2, shape: "round", x: 3, y: 0},
-    %{id: "T5", seats: 4, shape: "square", x: 0, y: 1},
-    %{id: "T6", seats: 4, shape: "square", x: 1, y: 1},
-    %{id: "T7", seats: 4, shape: "square", x: 2, y: 1},
-    %{id: "T8", seats: 4, shape: "square", x: 3, y: 1},
-    %{id: "T9", seats: 6, shape: "rect", x: 0, y: 2}
-  ]
+  import Ecto.Query
 
-  @table_ids Enum.map(@tables, & &1.id)
-  @seat_total Enum.reduce(@tables, 0, &(&1.seats + &2))
+  alias RestoBookingApp.Repo
+  alias RestoBookingApp.Tables.Table
 
-  @doc "all tables in the floor plan"
-  def all, do: @tables
+  @doc "all tables for an org, ordered for consistent rendering."
+  def all(org_id) when is_binary(org_id) do
+    from(t in Table, where: t.org_id == ^org_id, order_by: [asc: t.sort_order, asc: t.slug])
+    |> Repo.all()
+  end
 
-  @doc "list of valid table ids — used by the changeset to reject unknown tables"
-  def ids, do: @table_ids
+  @doc "list of valid table slugs for an org — used by the changeset."
+  def slugs(org_id) when is_binary(org_id) do
+    from(t in Table, where: t.org_id == ^org_id, select: t.slug)
+    |> Repo.all()
+  end
 
-  @doc "look up a single table by id, nil if not found"
-  def get(id), do: Enum.find(@tables, &(&1.id == id))
+  @doc "look up a single table by slug within an org. nil if missing."
+  def get(org_id, slug) when is_binary(org_id) and is_binary(slug) do
+    Repo.get_by(Table, org_id: org_id, slug: slug)
+  end
 
-  @doc "total seat count across the whole restaurant (always thirty)"
-  def seat_total, do: @seat_total
+  @doc "total seat count across an org's floor plan."
+  def seat_total(org_id) when is_binary(org_id) do
+    from(t in Table, where: t.org_id == ^org_id, select: sum(t.seats))
+    |> Repo.one()
+    |> Kernel.||(0)
+  end
 
-  @doc "true if the given id matches a real table"
-  def valid?(id), do: id in @table_ids
+  @doc "true if `slug` is a real table within `org_id`."
+  def valid?(org_id, slug) when is_binary(org_id) and is_binary(slug) do
+    from(t in Table, where: t.org_id == ^org_id and t.slug == ^slug, select: 1)
+    |> Repo.one()
+    |> is_integer()
+  end
+
+  @doc """
+  upsert a single table by `(org_id, slug)`. used by seeds.exs to
+  rebuild floor plans idempotently across deploys.
+  """
+  def upsert(org_id, attrs) when is_binary(org_id) and is_map(attrs) do
+    attrs = Map.put(attrs, :org_id, org_id)
+    slug = Map.fetch!(attrs, :slug)
+
+    case get(org_id, slug) do
+      nil ->
+        %Table{}
+        |> Table.changeset(attrs)
+        |> Repo.insert()
+
+      %Table{} = existing ->
+        existing
+        |> Table.changeset(attrs)
+        |> Repo.update()
+    end
+  end
 end
