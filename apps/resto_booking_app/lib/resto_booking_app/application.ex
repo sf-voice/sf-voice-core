@@ -7,6 +7,10 @@ defmodule RestoBookingApp.Application do
 
   @impl true
   def start(_type, _args) do
+    # halt early with a clean banner if any required env var is missing.
+    # skipped in :test so the suite doesn't have to set bogus values.
+    RestoBookingApp.EnvCheck.validate!()
+
     children = [
       RestoBookingAppWeb.Telemetry,
       RestoBookingApp.Repo,

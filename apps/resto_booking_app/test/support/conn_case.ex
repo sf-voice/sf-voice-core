@@ -19,12 +19,10 @@ defmodule RestoBookingAppWeb.ConnCase do
 
   using do
     quote do
-      # The default endpoint for testing
       @endpoint RestoBookingAppWeb.Endpoint
 
       use RestoBookingAppWeb, :verified_routes
 
-      # Import conveniences for testing with connections
       import Plug.Conn
       import Phoenix.ConnTest
       import RestoBookingAppWeb.ConnCase

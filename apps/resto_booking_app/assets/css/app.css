@@ -1,18 +1,10 @@
-/* See the Tailwind configuration guide for advanced usage
-   https://tailwindcss.com/docs/configuration */
-
 @import "tailwindcss" source(none);
 @source "../css";
 @source "../js";
 @source "../../lib/resto_booking_app_web";
 
-/* A Tailwind plugin that makes "hero-#{ICON}" classes available.
-   The heroicons installation itself is managed by your mix.exs */
 @plugin "../vendor/heroicons";
 
-/* daisyUI Tailwind Plugin. You can update this file by fetching the latest version with:
-   curl -sLO https://github.com/saadeghi/daisyui/releases/latest/download/daisyui.js
-   Make sure to look at the daisyUI changelog: https://daisyui.com/docs/changelog/ */
 @plugin "../vendor/daisyui" {
   themes: false;
 }
@@ -91,12 +83,10 @@
   --noise: 0;
 }
 
-/* Add variants based on LiveView classes */
 @custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
 @custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);
 @custom-variant phx-change-loading (.phx-change-loading&, .phx-change-loading &);
 
-/* Use the data attribute for dark mode  */
 @custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 
 /* Make LiveView wrapper divs transparent for layout */
@@ -268,5 +258,3 @@ body {
 [data-theme=dark] .api-method-patch  { background: oklch(30% 0.060 75);  color: oklch(88% 0.080 80);  }
 [data-theme=dark] .api-method-put    { background: oklch(30% 0.060 75);  color: oklch(88% 0.080 80);  }
 [data-theme=dark] .api-method-delete { background: oklch(30% 0.080 25);  color: oklch(88% 0.100 25);  }
-
-/* This file is for your main application CSS */

@@ -27,12 +27,25 @@ defmodule RestoBookingAppWeb.Layouts do
     default: nil,
     doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
 
+  attr :org, :any,
+    default: nil,
+    doc:
+      "the org currently in scope (set by floor_plan / menu views). when nil, " <>
+        "the org-scoped nav links (Floor plan, Menu) are hidden — used on the " <>
+        "landing + /api pages which have no single restaurant context."
+
+  attr :active, :atom,
+    default: nil,
+    doc:
+      "marker for which org-scoped nav link should render as active. one of " <>
+        "`:floor_plan`, `:menu`, or `nil`."
+
   slot :inner_block, required: true
 
   def app(assigns) do
     ~H"""
     <header class="px-4 sm:px-6 lg:px-10 pt-6 lg:pt-3">
-      <nav class="mx-auto max-w-7xl flex items-center justify-between">
+      <nav class="mx-auto max-w-7xl flex items-center justify-between gap-3 flex-wrap">
         <a href="/" class="flex flex-col leading-none">
           <span class="font-display text-2xl sm:text-3xl lg:text-2xl uppercase tracking-[0.2em] text-primary">
             The Seasons
@@ -42,6 +55,20 @@ defmodule RestoBookingAppWeb.Layouts do
           </span>
         </a>
         <div class="flex items-center gap-2">
+          <%= if @org do %>
+            <.link
+              href={"/#{@org.slug}/floor_plan"}
+              class={nav_link_class(@active == :floor_plan)}
+            >
+              Floor plan
+            </.link>
+            <.link
+              href={"/#{@org.slug}/menu"}
+              class={nav_link_class(@active == :menu)}
+            >
+              Menu
+            </.link>
+          <% end %>
           <.link
             href="/api"
             class="btn btn-ghost btn-sm uppercase tracking-widest text-xs"
@@ -71,6 +98,16 @@ defmodule RestoBookingAppWeb.Layouts do
     <.flash_group flash={@flash} />
     """
   end
+
+  # active state = same button as the inactive one but with `text-primary`
+  # so the current page is obviously the current page without breaking the
+  # button's tap target or alignment. low-tech users notice colour, not
+  # weight or underline.
+  defp nav_link_class(true),
+    do: "btn btn-ghost btn-sm uppercase tracking-widest text-xs text-primary font-bold"
+
+  defp nav_link_class(false),
+    do: "btn btn-ghost btn-sm uppercase tracking-widest text-xs"
 
   @doc """
   Shows the flash group with standard titles and content.

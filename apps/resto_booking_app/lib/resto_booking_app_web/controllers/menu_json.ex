@@ -1,5 +1,7 @@
 defmodule RestoBookingAppWeb.MenuJSON do
-  @moduledoc "shapes the menu module into json-friendly maps"
+  @moduledoc "shapes per-org menu rows into json-friendly maps."
+
+  alias RestoBookingApp.MenuItems.MenuItem
 
   def index(%{menu: menu}) do
     %{
@@ -13,7 +15,11 @@ defmodule RestoBookingAppWeb.MenuJSON do
     }
   end
 
-  defp item(%{name: name, price_cents: price, dietary: dietary}) do
-    %{name: name, price_cents: price, dietary: dietary}
+  defp item(%MenuItem{} = mi) do
+    %{
+      name: mi.name,
+      price_cents: mi.price_cents,
+      dietary: MenuItem.dietary_list(mi)
+    }
   end
 end

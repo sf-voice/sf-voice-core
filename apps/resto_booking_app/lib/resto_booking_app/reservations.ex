@@ -1,33 +1,41 @@
 defmodule RestoBookingApp.Reservations do
   @moduledoc """
-  reservations context. full crud over the single reservations table, plus
-  the availability projection used by the live floor plan.
+  reservations context. multi-tenant: every public function takes
+  `org_id` as its first argument so cross-org reads/writes are
+  impossible. controllers resolve `org_id` from the path
+  (`/api/orgs/:org_slug/...`) via the `OrgScope` plug.
 
-  every mutating function broadcasts on the `"floor_plan"` pubsub topic so
-  the live view re-renders without a refresh.
+  every mutating function broadcasts on the `"floor_plan:<org_id>"`
+  pubsub topic so the live view re-renders without a refresh — note
+  the topic is per-org so different orgs don't interfere.
   """
 
   import Ecto.Query
 
-  alias RestoBookingApp.{Clock, Repo}
+  alias RestoBookingApp.{Clock, Contacts, Repo, Tables}
   alias RestoBookingApp.Reservations.Reservation
   alias Phoenix.PubSub
 
-  @topic "floor_plan"
   @pubsub RestoBookingApp.PubSub
 
   # ── reads ────────────────────────────────────────────────────────────────
 
   @doc """
-  list reservations. accepts `:date` to filter to a single calendar day in
-  the restaurant's local timezone — handy for the floor plan and the api's
-  `?date=` filter.
+  list reservations within an org. accepts `:date`, `:customer_id`, and
+  `:preload`.
   """
-  def list(opts \\ []) do
+  def list(org_id, opts \\ []) when is_binary(org_id) do
     Reservation
+    |> scope_to_org(org_id)
     |> filter_by_date(opts[:date])
+    |> filter_by_customer(opts[:customer_id])
     |> order_by([r], asc: r.starts_at)
     |> Repo.all()
+    |> maybe_preload(opts[:preload])
+  end
+
+  defp scope_to_org(query, org_id) do
+    from r in query, where: r.org_id == ^org_id
   end
 
   defp filter_by_date(query, nil), do: query
@@ -41,31 +49,53 @@ defmodule RestoBookingApp.Reservations do
     from r in query, where: r.starts_at >= ^day_start and r.starts_at < ^day_end
   end
 
-  @doc "fetch one reservation by id, nil if missing"
-  def get(id), do: Repo.get(Reservation, id)
+  defp filter_by_customer(query, nil), do: query
+
+  defp filter_by_customer(query, customer_id) when is_binary(customer_id) do
+    from r in query, where: r.customer_id == ^customer_id
+  end
+
+  defp maybe_preload(nil, _), do: nil
+  defp maybe_preload(reservations, nil), do: reservations
+  defp maybe_preload(reservations, preload), do: Repo.preload(reservations, preload)
+
+  @doc """
+  fetch one reservation by id, scoped to org. nil if missing or
+  belonging to another org. accepts `:preload`.
+  """
+  def get(org_id, id, opts \\ []) when is_binary(org_id) do
+    Reservation
+    |> scope_to_org(org_id)
+    |> Repo.get(id)
+    |> maybe_preload(opts[:preload])
+  end
 
   # ── writes ───────────────────────────────────────────────────────────────
 
   @doc """
-  create a reservation. returns `{:ok, reservation}` or `{:error, changeset}`.
+  create a reservation. attrs must include `org_id`.
 
-  the transaction runs in `:immediate` mode so the reserved write lock is
-  taken at `BEGIN`, not lazily at first `INSERT`. with the default `:deferred`
-  mode the overlap-check `SELECT` runs without any lock, and two parallel
-  callers can both decide the slot is free before either tries to write —
-  classic toctou. immediate mode forces them to serialise at `BEGIN`, so the
-  loser sees the winner's row in its own select. paired with a db-level
-  unique index on `(table_id, starts_at)` for defence in depth.
+  two shapes are accepted:
+
+    * legacy — `customer_id` points at an existing customer row. used by
+      the resto-side booking form and existing tests.
+    * inline — `customer: %{id, phone, first_name, last_name, ...}`.
+      ellie's path: resto upserts the customer (find_or_create_for_phone
+      keyed on phone) inside the same transaction, then inserts the
+      reservation. atomic — a failed booking never leaves a half-created
+      customer behind.
+
+  transaction runs in `:immediate` mode for the same toctou reasons as before.
   """
   def create(attrs) do
     Repo.transaction(
       fn ->
-        changeset = Reservation.changeset(%Reservation{}, attrs)
-
-        with {:ok, prepared} <- apply_action_for_overlap_check(changeset),
+        with {:ok, attrs} <- maybe_upsert_customer(attrs),
+             changeset = Reservation.changeset(%Reservation{}, attrs),
+             {:ok, prepared} <- apply_action_for_overlap_check(changeset),
              :ok <- check_no_overlap(prepared, exclude_id: nil),
              {:ok, reservation} <- Repo.insert(changeset) do
-          broadcast({:reservation_created, reservation})
+          broadcast(reservation.org_id, {:reservation_created, reservation})
           reservation
         else
           {:error, %Ecto.Changeset{} = cs} -> Repo.rollback(cs)
@@ -76,13 +106,46 @@ defmodule RestoBookingApp.Reservations do
     )
   end
 
+  # if `customer` is present in attrs, upsert it via Contacts and rewrite
+  # attrs to carry the resulting `customer_id`. existing reservations
+  # that already pass `customer_id` skip this entirely.
+  defp maybe_upsert_customer(%{"customer" => %{} = customer} = attrs),
+    do: do_upsert_customer(attrs, customer)
+
+  defp maybe_upsert_customer(%{customer: %{} = customer} = attrs),
+    do: do_upsert_customer(attrs, customer)
+
+  defp maybe_upsert_customer(attrs), do: {:ok, attrs}
+
+  defp do_upsert_customer(attrs, customer) do
+    org_id = attrs["org_id"] || attrs[:org_id]
+    phone = customer["phone"] || customer[:phone]
+
+    if is_binary(org_id) and is_binary(phone) and phone != "" do
+      case Contacts.find_or_create_for_phone(org_id, phone, customer) do
+        {:ok, %{id: id}} ->
+          rewritten =
+            attrs
+            |> Map.drop(["customer", :customer])
+            |> Map.put("customer_id", id)
+
+          {:ok, rewritten}
+
+        {:error, _} = err ->
+          err
+      end
+    else
+      {:error, {:invalid_customer, "customer.phone and org_id are required"}}
+    end
+  end
+
   @doc """
-  update an existing reservation. requires the cancel_token returned at
-  creation. returns `{:ok, reservation}`, `{:error, :invalid_token}`,
-  `{:error, :not_found}`, or `{:error, changeset}`.
+  update an existing reservation. `org_id` scopes the lookup;
+  `cancel_token` proves ownership. returns the same shape as before
+  plus `:not_found` when the id belongs to another org.
   """
-  def update(id, token, attrs) do
-    case get(id) do
+  def update(org_id, id, token, attrs) do
+    case get(org_id, id) do
       nil ->
         {:error, :not_found}
 
@@ -95,8 +158,6 @@ defmodule RestoBookingApp.Reservations do
     end
   end
 
-  # `:immediate` mode for the same reason as create/1 — moving a reservation's
-  # time/table can race against a concurrent create on the destination slot.
   defp do_update(reservation, attrs) do
     Repo.transaction(
       fn ->
@@ -105,7 +166,7 @@ defmodule RestoBookingApp.Reservations do
         with {:ok, prepared} <- apply_action_for_overlap_check(changeset),
              :ok <- check_no_overlap(prepared, exclude_id: reservation.id),
              {:ok, updated} <- Repo.update(changeset) do
-          broadcast({:reservation_updated, updated})
+          broadcast(updated.org_id, {:reservation_updated, updated})
           updated
         else
           {:error, %Ecto.Changeset{} = cs} -> Repo.rollback(cs)
@@ -117,18 +178,18 @@ defmodule RestoBookingApp.Reservations do
   end
 
   @doc """
-  delete a reservation. requires the cancel_token. returns `:ok`,
-  `{:error, :invalid_token}`, or `{:error, :not_found}`.
+  delete a reservation. `org_id` scopes the lookup; `cancel_token`
+  proves ownership.
   """
-  def delete(id, token) do
-    case get(id) do
+  def delete(org_id, id, token) do
+    case get(org_id, id) do
       nil ->
         {:error, :not_found}
 
       %Reservation{cancel_token: actual} = reservation ->
         if secure_compare(actual, token) do
           {:ok, _} = Repo.delete(reservation)
-          broadcast({:reservation_cancelled, reservation.id})
+          broadcast(reservation.org_id, {:reservation_cancelled, reservation.id})
           :ok
         else
           {:error, :invalid_token}
@@ -139,16 +200,17 @@ defmodule RestoBookingApp.Reservations do
   # ── availability projection (live view fuel) ─────────────────────────────
 
   @doc """
-  for a given date, group reservations by table id. returns a map keyed by
-  every known table id (including ones with zero bookings) so the live view
-  can iterate without worrying about missing keys.
+  for a given date and org, group reservations by table id. returns
+  a map keyed by every known table id (including ones with zero
+  bookings) so the live view can iterate without worrying about
+  missing keys.
   """
-  def availability_for_date(%Date{} = date) do
-    base = Map.new(RestoBookingApp.Tables.ids(), &{&1, []})
+  def availability_for_date(org_id, %Date{} = date) when is_binary(org_id) do
+    table_slugs = Tables.slugs(org_id)
+    base = Map.new(table_slugs, &{&1, []})
 
-    # prepend while reducing (O(1) per step), then reverse once per table at
-    # the end. preserves the asc-by-starts_at order that list/1 hands us.
-    list(date: date)
+    org_id
+    |> list(date: date, preload: [:customer, :contact])
     |> Enum.reduce(base, fn res, acc ->
       Map.update(acc, res.table_id, [res], &[res | &1])
     end)
@@ -157,16 +219,23 @@ defmodule RestoBookingApp.Reservations do
 
   # ── pubsub ───────────────────────────────────────────────────────────────
 
-  @doc "subscribe to live floor plan updates — used by the live view on mount"
-  def subscribe, do: PubSub.subscribe(@pubsub, @topic)
+  @doc """
+  subscribe to a single org's floor plan updates — used by the live
+  view on mount. each org has its own topic so live views don't
+  receive cross-org broadcasts.
+  """
+  def subscribe(org_id) when is_binary(org_id) do
+    PubSub.subscribe(@pubsub, topic(org_id))
+  end
 
-  defp broadcast(message), do: PubSub.broadcast(@pubsub, @topic, message)
+  defp broadcast(org_id, message) when is_binary(org_id) do
+    PubSub.broadcast(@pubsub, topic(org_id), message)
+  end
+
+  defp topic(org_id), do: "floor_plan:" <> org_id
 
   # ── helpers ──────────────────────────────────────────────────────────────
 
-  # we run the changeset through `apply_action(:insert)` to compute ends_at
-  # without hitting the db. that gives us a fully-validated struct to feed
-  # the overlap query.
   defp apply_action_for_overlap_check(changeset) do
     case Ecto.Changeset.apply_action(changeset, :insert) do
       {:ok, struct} -> {:ok, struct}
@@ -174,14 +243,14 @@ defmodule RestoBookingApp.Reservations do
     end
   end
 
-  # overlap rule: two reservations on the same table overlap iff
-  # `a.starts_at < b.ends_at AND a.ends_at > b.starts_at`. when updating, we
-  # must exclude the row being updated from the search.
+  # overlap rule: two reservations on the same table within the same org
+  # overlap iff `a.starts_at < b.ends_at AND a.ends_at > b.starts_at`.
   defp check_no_overlap(%Reservation{} = res, exclude_id: exclude_id) do
     query =
       from r in Reservation,
         where:
-          r.table_id == ^res.table_id and
+          r.org_id == ^res.org_id and
+            r.table_id == ^res.table_id and
             r.starts_at < ^res.ends_at and
             r.ends_at > ^res.starts_at
 
@@ -205,7 +274,6 @@ defmodule RestoBookingApp.Reservations do
     end
   end
 
-  # constant-time string compare so a bad token can't be timing-side-channeled
   defp secure_compare(a, b) when is_binary(a) and is_binary(b) do
     Plug.Crypto.secure_compare(a, b)
   end
