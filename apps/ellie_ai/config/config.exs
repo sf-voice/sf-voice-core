@@ -26,4 +26,26 @@ config :logger, :default_formatter,
 
 config :phoenix, :json_library, Jason
 
+# asset pipeline — mirrors resto's tailwind v4 + esbuild setup so the two
+# apps stay legible side by side. tailwind config and entry point live
+# under apps/ellie_ai/assets/.
+config :esbuild,
+  version: "0.25.4",
+  ellie_ai: [
+    args:
+      ~w(js/app.js --bundle --target=es2022 --outdir=../priv/static/assets/js --external:/fonts/* --external:/images/* --alias:@=.),
+    cd: Path.expand("../assets", __DIR__),
+    env: %{"NODE_PATH" => [Path.expand("../deps", __DIR__), Mix.Project.build_path()]}
+  ]
+
+config :tailwind,
+  version: "4.1.12",
+  ellie_ai: [
+    args: ~w(
+      --input=assets/css/app.css
+      --output=priv/static/assets/css/app.css
+    ),
+    cd: Path.expand("..", __DIR__)
+  ]
+
 import_config "#{config_env()}.exs"
