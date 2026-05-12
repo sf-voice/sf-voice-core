@@ -19,12 +19,10 @@ defmodule EllieAiWeb.ConnCase do
 
   using do
     quote do
-      # The default endpoint for testing
       @endpoint EllieAiWeb.Endpoint
 
       use EllieAiWeb, :verified_routes
 
-      # Import conveniences for testing with connections
       import Plug.Conn
       import Phoenix.ConnTest
       import EllieAiWeb.ConnCase
