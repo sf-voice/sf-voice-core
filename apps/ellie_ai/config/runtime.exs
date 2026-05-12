@@ -33,6 +33,13 @@ internal_api_token =
 
 config :ellie_ai, :internal_api_token, internal_api_token
 
+config :ex_aws,
+  access_key_id: [{:system, "AWS_ACCESS_KEY_ID"}, :instance_role],
+  secret_access_key: [{:system, "AWS_SECRET_ACCESS_KEY"}, :instance_role],
+  region: System.get_env("AWS_REGION", "us-west-1")
+
+config :ex_aws, :hackney_opts, recv_timeout: 30_000
+
 if config_env() == :prod do
   database_path =
     System.get_env("DATABASE_PATH") ||
