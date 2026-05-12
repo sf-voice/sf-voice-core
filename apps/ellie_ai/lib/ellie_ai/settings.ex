@@ -96,7 +96,7 @@ defmodule EllieAi.Settings do
             %Setting{} = s -> Setting.parsed(s)
           end
 
-        cache_put(org_id, key, value || :sentinel_nil)
+        cache_put(org_id, key, if(is_nil(value), do: :sentinel_nil, else: value))
         if is_nil(value), do: default, else: value
     end
   end
