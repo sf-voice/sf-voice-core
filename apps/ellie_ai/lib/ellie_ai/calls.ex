@@ -123,7 +123,7 @@ defmodule EllieAi.Calls do
   "make this stop now". if telnyx's API is unreachable we still tear
   down our side so the AI stops responding.
   """
-  @spec end_call(String.t()) :: :ok
+  `@spec` end_call(String.t()) :: :ok
   def end_call(ccid) when is_binary(ccid) do
     case EllieAi.Telnyx.Client.hangup(ccid) do
       :ok ->
@@ -134,6 +134,12 @@ defmodule EllieAi.Calls do
     end
 
     finish_call(ccid, Constants.status_ended(), "ended_by_staff")
+
+    case get_by_ccid(ccid) do
+      %Call{id: call_id} -> EllieAi.Calls.Summarizer.summarize_async(call_id)
+      nil -> :ok
+    end
+
     terminate_tree(ccid)
   end
 
