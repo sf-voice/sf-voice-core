@@ -211,10 +211,9 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
 
   @impl true
   def handle_event("submit_edit", %{"reservation" => params}, socket) do
-    %{managing: reservation, my_tokens: tokens} = socket.assigns
-    token = Map.get(tokens, reservation.id)
+    %{managing: reservation} = socket.assigns
 
-    case Reservations.update(socket.assigns.org.id, reservation.id, token, params) do
+    case Reservations.update(socket.assigns.org.id, reservation.id, params) do
       {:ok, _updated} ->
         {:noreply,
          socket
@@ -225,9 +224,6 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
 
       {:error, %Ecto.Changeset{} = cs} ->
         {:noreply, assign(socket, :manage_form, to_form(cs, as: "reservation"))}
-
-      {:error, :invalid_token} ->
-        {:noreply, assign(socket, :manage_error, "Token rejected — please re-enter.")}
 
       {:error, :not_found} ->
         {:noreply, put_flash(socket, :error, "That reservation no longer exists.")}
@@ -246,10 +242,9 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
 
   @impl true
   def handle_event("delete_reservation", _params, socket) do
-    %{managing: reservation, my_tokens: tokens} = socket.assigns
-    token = Map.get(tokens, reservation.id)
+    %{managing: reservation} = socket.assigns
 
-    case Reservations.delete(socket.assigns.org.id, reservation.id, token) do
+    case Reservations.delete(socket.assigns.org.id, reservation.id) do
       :ok ->
         {:noreply,
          socket
@@ -259,9 +254,6 @@ defmodule RestoBookingAppWeb.FloorPlanLive do
          |> push_event("vault:remove", %{id: reservation.id})
          |> assign(:availability, refresh_availability(socket))
          |> put_flash(:info, "Reservation cancelled.")}
-
-      {:error, :invalid_token} ->
-        {:noreply, assign(socket, :manage_error, "Token rejected — please re-enter.")}
 
       {:error, :not_found} ->
         {:noreply, put_flash(socket, :error, "That reservation no longer exists.")}
