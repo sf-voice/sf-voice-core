@@ -17,6 +17,8 @@ import "./ui/components/select.js"
 import "./ui/components/tabs.js"
 import "./ui/components/tooltip.js"
 
+import PromptEditor from "./hooks/prompt_editor.js"
+
 const csrfToken = document
   .querySelector("meta[name='csrf-token']")
   ?.getAttribute("content")
@@ -38,7 +40,7 @@ const Toast = {
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: { _csrf_token: csrfToken },
-  hooks: { SaladUI: SaladUI.SaladUIHook, Toast },
+  hooks: { SaladUI: SaladUI.SaladUIHook, Toast, PromptEditor },
 })
 
 liveSocket.connect()

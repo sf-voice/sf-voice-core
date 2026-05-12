@@ -1,6 +1,6 @@
 defmodule EllieAi.Prompts.Prompt do
   @moduledoc """
-body is EEx-templated;
+  body is EEx-templated.
   """
 
   use Ecto.Schema

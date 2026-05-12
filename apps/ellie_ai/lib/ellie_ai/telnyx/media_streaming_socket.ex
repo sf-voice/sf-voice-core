@@ -21,7 +21,8 @@ defmodule EllieAi.Telnyx.MediaStreamingSocket do
 
   require Logger
 
-  # TELNYX_CAPTURE=true AUDIO_CAPTURE_OUT=true mr dev
+  # AUDIO_CAPTURE_OUT=true mr dev → writes the first 5s of inbound
+  # μ-law to priv/dev/captured_audio.ulaw for offline inspection.
   @audio_capture_budget_bytes 40_000
 
   @impl true
@@ -65,6 +66,11 @@ defmodule EllieAi.Telnyx.MediaStreamingSocket do
     {:push, {:text, frame}, state}
   end
 
+  def handle_info(msg, state) do
+    Logger.debug("media_streaming_socket unhandled info: #{inspect(msg)}")
+    {:ok, state}
+  end
+
   # capture-mode disabled: pass through untouched.
   defp maybe_capture_audio(%{audio_capture: nil} = state, _bytes), do: state
 
@@ -93,11 +99,6 @@ defmodule EllieAi.Telnyx.MediaStreamingSocket do
       "audio capture: wrote #{@audio_capture_budget_bytes} bytes (5s μ-law @ 8kHz) to #{path}. " <>
         "play with: ffplay -f mulaw -ar 8000 -ac 1 #{path}"
     )
-  end
-
-  def handle_info(msg, state) do
-    Logger.debug("media_streaming_socket unhandled info: #{inspect(msg)}")
-    {:ok, state}
   end
 
   @impl true
