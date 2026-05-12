@@ -23,6 +23,12 @@ orgs_spec = [
     name: "The Seasons",
     location: "Los Angeles, CA",
     time_zone: "America/Los_Angeles"
+  },
+  %{
+    slug: "seasons-ny",
+    name: "The Seasons",
+    location: "New York, NY",
+    time_zone: "America/New_York"
   }
 ]
 
@@ -176,6 +182,35 @@ defmodule SeedHelpers do
       }
     ]
   end
+
+  def fixtures(date, day_index, :seasons_ny) do
+    base_hour = 12 + rem(day_index, 3)
+
+    [
+      %{
+        "table_id" => "T3",
+        "starts_at" => at(date, base_hour, 0),
+        "salutation" => "Mr",
+        "first_name" => "Sam",
+        "last_name" => "Okafor",
+        "phone" => "+12125550155",
+        "email" => "sam.okafor@example.com",
+        "party_size" => 2,
+        "special_requests" => "quiet corner if possible"
+      },
+      %{
+        "table_id" => "T6",
+        "starts_at" => at(date, 19, 30),
+        "salutation" => "Ms",
+        "first_name" => "Eleanor",
+        "last_name" => "Park",
+        "phone" => "+12125550188",
+        "email" => "eleanor.park@example.com",
+        "party_size" => 4,
+        "remarks" => "out-of-town guests"
+      }
+    ]
+  end
 end
 
 deleted =
@@ -186,7 +221,11 @@ deleted =
 
 IO.puts("seed: cleared #{elem(deleted, 0)} reservation rows in window")
 
-org_keys = %{"seasons-sf" => :seasons_sf, "seasons-la" => :seasons_la}
+org_keys = %{
+  "seasons-sf" => :seasons_sf,
+  "seasons-la" => :seasons_la,
+  "seasons-ny" => :seasons_ny
+}
 
 Enum.each(orgs, fn org ->
   key = Map.fetch!(org_keys, org.slug)

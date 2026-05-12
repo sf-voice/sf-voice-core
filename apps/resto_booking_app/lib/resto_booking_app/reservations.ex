@@ -140,21 +140,14 @@ defmodule RestoBookingApp.Reservations do
   end
 
   @doc """
-  update an existing reservation. `org_id` scopes the lookup;
-  `cancel_token` proves ownership. returns the same shape as before
-  plus `:not_found` when the id belongs to another org.
+  update an existing reservation. `org_id` scopes the lookup. trust is
+  established at the api boundary (bearer auth) — no per-reservation
+  token check.
   """
-  def update(org_id, id, token, attrs) do
+  def update(org_id, id, attrs) do
     case get(org_id, id) do
-      nil ->
-        {:error, :not_found}
-
-      %Reservation{cancel_token: actual} = reservation ->
-        if secure_compare(actual, token) do
-          do_update(reservation, attrs)
-        else
-          {:error, :invalid_token}
-        end
+      nil -> {:error, :not_found}
+      %Reservation{} = reservation -> do_update(reservation, attrs)
     end
   end
 
@@ -178,22 +171,18 @@ defmodule RestoBookingApp.Reservations do
   end
 
   @doc """
-  delete a reservation. `org_id` scopes the lookup; `cancel_token`
-  proves ownership.
+  delete a reservation. `org_id` scopes the lookup. trust is established
+  at the api boundary.
   """
-  def delete(org_id, id, token) do
+  def delete(org_id, id) do
     case get(org_id, id) do
       nil ->
         {:error, :not_found}
 
-      %Reservation{cancel_token: actual} = reservation ->
-        if secure_compare(actual, token) do
-          {:ok, _} = Repo.delete(reservation)
-          broadcast(reservation.org_id, {:reservation_cancelled, reservation.id})
-          :ok
-        else
-          {:error, :invalid_token}
-        end
+      %Reservation{} = reservation ->
+        {:ok, _} = Repo.delete(reservation)
+        broadcast(reservation.org_id, {:reservation_cancelled, reservation.id})
+        :ok
     end
   end
 
@@ -274,9 +263,4 @@ defmodule RestoBookingApp.Reservations do
     end
   end
 
-  defp secure_compare(a, b) when is_binary(a) and is_binary(b) do
-    Plug.Crypto.secure_compare(a, b)
-  end
-
-  defp secure_compare(_, _), do: false
 end

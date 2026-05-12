@@ -40,22 +40,17 @@ defmodule RestoBookingAppWeb.ReservationController do
   def update(conn, %{"id" => id} = params) do
     attrs = Map.drop(params, ["id", "org_slug", "token"])
 
-    with {:ok, token} <- fetch_token(params),
-         {:ok, reservation} <- Reservations.update(conn.assigns.org_id, id, token, attrs) do
+    with {:ok, reservation} <- Reservations.update(conn.assigns.org_id, id, attrs) do
       reservation = RestoBookingApp.Repo.preload(reservation, [:customer, :contact])
       render(conn, :show, reservation: reservation)
     end
   end
 
-  def delete(conn, %{"id" => id} = params) do
-    with {:ok, token} <- fetch_token(params),
-         :ok <- Reservations.delete(conn.assigns.org_id, id, token) do
+  def delete(conn, %{"id" => id}) do
+    with :ok <- Reservations.delete(conn.assigns.org_id, id) do
       send_resp(conn, :no_content, "")
     end
   end
-
-  defp fetch_token(%{"token" => token}) when is_binary(token) and token != "", do: {:ok, token}
-  defp fetch_token(_), do: {:error, :missing_token}
 
   defp parse_optional_date(nil), do: {:ok, nil}
 
