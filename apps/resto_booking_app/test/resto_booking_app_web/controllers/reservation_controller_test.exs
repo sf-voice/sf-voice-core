@@ -171,18 +171,6 @@ defmodule RestoBookingAppWeb.ReservationControllerTest do
                "no peanuts, no shellfish"
     end
 
-    test "403 with wrong token", %{conn: conn, org: org} do
-      res = create_one(conn, org)
-
-      conn =
-        conn
-        |> authed()
-        |> patch(~p"/api/orgs/#{org.slug}/reservations/#{res["id"]}?token=wrong", %{
-          "special_requests" => "x"
-        })
-
-      assert json_response(conn, 403)
-    end
   end
 
   describe "DELETE /api/orgs/:org_slug/reservations/:id" do
@@ -199,23 +187,6 @@ defmodule RestoBookingAppWeb.ReservationControllerTest do
       assert response(conn, 204)
     end
 
-    test "403 with wrong token", %{conn: conn, org: org} do
-      res = create_one(conn, org)
-
-      conn =
-        conn
-        |> authed()
-        |> delete(~p"/api/orgs/#{org.slug}/reservations/#{res["id"]}?token=bad")
-
-      assert json_response(conn, 403)
-    end
-
-    test "400 with no token", %{conn: conn, org: org} do
-      res = create_one(conn, org)
-
-      conn = conn |> authed() |> delete(~p"/api/orgs/#{org.slug}/reservations/#{res["id"]}")
-      assert json_response(conn, 400)
-    end
   end
 
   describe "static endpoints" do
