@@ -14,15 +14,11 @@ defmodule EllieAi.Calls.Call do
   @foreign_key_type :binary_id
 
   schema "calls" do
-    # our own grouping key: `tel_<caller>_<callee>`. ties voice + sms
-    # for the same number pair together when we eventually want to view
-    # them as one thread.
+    # grouping key tel_<caller>_<callee> — ties voice + sms for the same number pair.
     field :channel_id, :string
-    # which telephony provider this call came through. for now always
-    # "telnyx"; future-proofs a switch without renaming the column.
+    # provider is "telnyx" today; column future-proofs a switch.
     field :provider, :string, default: "telnyx"
-    # whatever durable id the provider hands back per call. for telnyx
-    # this is the call_control_id we use as a Registry key.
+    # telnyx's call_control_id; used as the Registry key.
     field :provider_id, :string
     field :from_phone, :string
     field :to_phone, :string
@@ -31,12 +27,10 @@ defmodule EllieAi.Calls.Call do
     field :started_at, :utc_datetime
     field :ended_at, :utc_datetime
     field :sentiment_score, :float
-    # set by Archivist after finalising the WAV upload to S3. nil means
-    # no audio is available yet — UI gates the player on this.
+    # nil until Archivist finalises the wav upload; UI gates the player on this.
     field :audio_s3_key, :string
     field :audio_duration_ms, :integer
-    # 1-2 sentence post-call summary from gpt-4o-mini. nil while the call
-    # is in flight or summarization failed.
+    # nil while in-flight or if summarization failed.
     field :summary, :string
 
     belongs_to :org, Org

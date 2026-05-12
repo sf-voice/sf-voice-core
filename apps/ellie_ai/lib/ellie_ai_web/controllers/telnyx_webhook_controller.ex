@@ -1,22 +1,9 @@
 defmodule EllieAiWeb.TelnyxWebhookController do
   @moduledoc """
-  inbound webhook from telnyx. signature is already verified by the
-  pipeline plug — by the time we get here, the body is trustworthy.
-
-  the events we care about for v0:
-
-    * `call.initiated` — telnyx asks us whether to answer. we look up the
-      org by dialed number, ack, and tell telnyx to answer the call.
-    * `call.answered` — telnyx confirms the leg is up. we kick off media
-      streaming (telnyx connects back to our wss:// endpoint with audio).
-    * `call.hangup`   — caller (or we) ended the call. tear down state.
-
-  every other event is logged and 200'd so telnyx doesn't retry forever.
-
-  ⚠️ idempotency: telnyx retries webhooks on non-2xx and may double-deliver
-  on flaky networks. spawning the call tree is gated by a registry lookup
-  inside `EllieAi.Calls.spawn_or_noop/2` (see plan OV-4) — duplicate
-  call.initiated events become 5-line no-ops, not duplicate sessions.
+  inbound telnyx call webhooks. signature is verified upstream by
+  `EllieAi.Telnyx.SignaturePlug`. v0 handles `call.initiated`,
+  `call.answered`, `call.hangup`; everything else is logged and 200'd.
+  idempotency comes from `EllieAi.Calls.spawn_or_noop/2`.
   """
 
   use EllieAiWeb, :controller
@@ -26,10 +13,6 @@ defmodule EllieAiWeb.TelnyxWebhookController do
 
   require Logger
 
-  @doc """
-  single endpoint: POST /telnyx/webhook. telnyx wraps the actual event
-  inside `data.event_type` + `data.payload`.
-  """
   def handle(conn, %{"data" => %{"event_type" => event_type, "payload" => payload} = data}) do
     Logger.info("telnyx webhook: #{event_type}")
     log_full_payload(event_type, data)
@@ -38,8 +21,7 @@ defmodule EllieAiWeb.TelnyxWebhookController do
   end
 
   def handle(conn, params) do
-    # unexpected shape IS rare + actionable — keep the full param dump
-    # so we know exactly what telnyx sent us when this fires.
+    # unexpected shape is rare + actionable — dump everything so we can see what telnyx sent.
     Logger.warning(
       "telnyx webhook with unexpected shape — ignoring. params=#{inspect(params, pretty: true, limit: :infinity, printable_limit: :infinity)}"
     )
@@ -47,12 +29,6 @@ defmodule EllieAiWeb.TelnyxWebhookController do
     send_resp(conn, 200, "")
   end
 
-  # full-fidelity webhook log at :debug. info already shows the one-line
-  # summary ("telnyx webhook: <event_type>"); this is the pretty-printed
-  # `data` block (event_type + payload + metadata like `occurred_at`,
-  # `record_type`). useful for diagnosing field-level questions ("did
-  # telnyx echo our codec choice?", "what hangup_cause did we get?") —
-  # flip Logger to :debug for the next call when you need it.
   defp log_full_payload(event_type, data) do
     Logger.debug("""
     telnyx webhook payload: #{event_type}
@@ -60,9 +36,6 @@ defmodule EllieAiWeb.TelnyxWebhookController do
     """)
   end
 
-  # call.initiated arrives the instant a caller dials the telnyx number.
-  # we resolve org by dialed number ("to"), then tell telnyx to answer.
-  # everything from there flows through call.answered → streaming_start.
   defp handle_event("call.initiated", %{"call_control_id" => ccid, "to" => to} = payload) do
     cond do
       EllieAi.Drain.draining?() ->
@@ -75,19 +48,11 @@ defmodule EllieAiWeb.TelnyxWebhookController do
     end
   end
 
-  # call.answered means the call leg is up and audio can flow. we kick
-  # off bidirectional media streaming so telnyx connects back to our
-  # wss:// endpoint. the stream URL is built from the public host (set
-  # by mise's dev task to the ngrok https url, or by prod's PHX_HOST).
   defp handle_event("call.answered", %{"call_control_id" => ccid}) do
-    # if this is a staff leg the escalator dialed, bridge it back to the
-    # caller — no streaming on staff legs. on a real inbound caller leg
-    # the escalator returns :ok (no pairing) and we fall through to the
-    # normal streaming_start path.
+    # staff legs the escalator dialed get bridged back to the caller — no streaming on them.
     case EllieAi.Calls.Escalator.on_staff_answered(ccid) do
       :ok ->
         if EllieAi.Calls.Escalator.escalation_leg?(ccid) do
-          # staff leg — don't open a media stream on it.
           :ok
         else
           stream_url = media_streaming_url()
@@ -112,9 +77,6 @@ defmodule EllieAiWeb.TelnyxWebhookController do
     :ok
   end
 
-  # extracted from handle_event/2 so the drain wrapper stays small and all
-  # handle_event clauses stay contiguous (no warning about ungrouped
-  # function clauses).
   defp do_call_initiated(ccid, to, payload) do
     case Orgs.get_by_telnyx_number(to) do
       nil ->
@@ -122,16 +84,30 @@ defmodule EllieAiWeb.TelnyxWebhookController do
           "telnyx call to #{to} but no org has that number provisioned — rejecting"
         )
 
-        # no Client.reject here yet — rejecting an inbound call is a v0+1
-        # task. for now we just don't answer; telnyx will time out and
-        # play its default failover. logged so it's visible in dev.
+        # no Client.reject yet — rejecting inbound is v0+1. telnyx times out into its default failover.
         :ok
 
       org ->
+        # canonicalize From at the boundary. SIP relays (esp. Google Voice) send things like
+        # `+1442070817673@152.189.4.248:5060` — SIP-suffixed and prefix-mangled. Phones.to_e164
+        # strips the suffix, retries without the spurious +1, then falls back through GB/AU/IN/CA.
+        # on failure we keep the raw string so staff can still see the unparseable value.
+        from_canonical =
+          case EllieAi.Phones.to_e164(payload["from"]) do
+            {:ok, e164} ->
+              e164
+
+            {:error, reason} ->
+              Logger.warning(
+                "call.initiated: could not normalize From=#{inspect(payload["from"])} (#{inspect(reason)}); storing raw"
+              )
+
+              EllieAi.Phones.clean(payload["from"])
+          end
+
+        payload = Map.put(payload, "from", from_canonical)
         Logger.info("call.initiated for org=#{org.slug} ccid=#{ccid} from=#{payload["from"]}")
-        # spawn (or no-op) the per-call supervision tree, then tell
-        # telnyx to answer. webhook retries → spawn_or_noop returns the
-        # same pid, so this stays idempotent (plan OV-4).
+
         case Calls.spawn_or_noop(org, ccid, payload) do
           {:ok, _pid} ->
             Calls.record_system_event(
@@ -150,9 +126,7 @@ defmodule EllieAiWeb.TelnyxWebhookController do
     end
   end
 
-  # build the wss:// URL telnyx connects to for media streaming. dev uses
-  # the ngrok tunnel url that `mise run dev` writes back into root .env.
-  # prod uses PHX_HOST.
+  # dev uses the ngrok url written into root .env by `mise run dev`; prod uses PHX_HOST.
   defp media_streaming_url do
     base =
       System.get_env("NGROK_URL") ||

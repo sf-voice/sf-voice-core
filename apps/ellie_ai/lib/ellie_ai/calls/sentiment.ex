@@ -1,17 +1,10 @@
 defmodule EllieAi.Calls.Sentiment do
   @moduledoc """
-  per-turn sentiment scoring with gpt-4o-mini. user transcript turns
-  get scored asynchronously; the score lands on `transcript_turns.sentiment_score`
-  (0.0 = very negative, 1.0 = very positive). the rolling call-level
-  EMA lives on `calls.sentiment_score`; when it drops below the
-  threshold (per-org `sentiment_threshold` setting, default 0.3), we
-  fire off an escalation.
-
-  the design review picked 0.3 as a placeholder. operators can tune
-  per-org via the /settings UI without redeploying.
-
-  scoring is fire-and-forget — failed requests log and move on rather
-  than letting model drift block the call.
+  per-turn sentiment scoring (gpt-4o-mini). user turns get an async
+  0..1 score on transcript_turns.sentiment_score; the rolling EMA lives
+  on calls.sentiment_score. EMA below per-org `sentiment_threshold`
+  (default 0.3) fires an escalation. fire-and-forget; failures log and
+  move on.
   """
 
   import Ecto.Query
@@ -24,24 +17,16 @@ defmodule EllieAi.Calls.Sentiment do
   @model "gpt-4o-mini"
   @ema_alpha 0.4
 
-  @doc "default EMA threshold for auto-escalation when no per-org setting exists. 0.0–1.0."
   def default_threshold, do: 0.3
 
-  @doc """
-  fire-and-forget scoring of one transcript turn. reads org context from
-  `Flag` (set up by the calling process — typically AudioBridge), and
-  propagates that context into the spawned task so escalation calls can
-  also read `Memory.staff_phone/0` etc.
-  """
+  @doc "fire-and-forget scoring; propagates Memory context into the task."
   @spec score_async(TranscriptTurn.t()) :: :ok
   def score_async(%TranscriptTurn{role: "user"} = turn) do
     Memory.async(fn -> score_and_persist(turn) end)
     :ok
   end
 
-  # only score user turns. the assistant's tone is constrained by the
-  # prompt; scoring it would just measure how well we follow the
-  # template, not how the caller feels.
+  # assistant tone is prompt-constrained; scoring it measures the template, not the caller.
   def score_async(_turn), do: :ok
 
   defp score_and_persist(%TranscriptTurn{} = turn) do
@@ -71,13 +56,9 @@ defmodule EllieAi.Calls.Sentiment do
     |> Repo.update()
   end
 
-  # exponential moving average so a single grumpy line doesn't trip
-  # escalation, but a sustained drop does. the update is one atomic
-  # sql statement so two concurrent user turns can't read the same
-  # prior and clobber each other's contribution — the second turn
-  # reads the value the first turn just wrote. read-back is a separate
-  # statement; if a third turn lands between the update and the read,
-  # we just see its (also valid) ema.
+  # one atomic sql update so concurrent user turns can't clobber each
+  # other's contribution. read-back is separate; a third turn racing
+  # between update+read just gives us its (also valid) ema.
   defp update_call_ema(call_id, latest_score) do
     alpha = @ema_alpha
     one_minus_alpha = 1 - @ema_alpha

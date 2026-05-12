@@ -1,12 +1,7 @@
 defmodule EllieAi.Calls.Summarizer do
   @moduledoc """
-  post-call summary via gpt-4o-mini. one short sentence about what
-  happened ("booked party of 4 for friday at 7pm" / "asked for hours
-  then hung up" / "transferred to staff for allergy question").
-
-  fire-and-forget — failed requests log and move on. summary lands on
-  `calls.summary` via `Calls.set_summary/2` and the UI shows it on
-  /customers/:id call dividers + sidebar entries.
+  post-call one-sentence summary (gpt-4o-mini). fire-and-forget; failures
+  log and move on. lands on calls.summary; UI shows it on /customers/:id.
   """
 
   alias EllieAi.{Calls, Medium, Repo}
@@ -19,7 +14,6 @@ defmodule EllieAi.Calls.Summarizer do
   @model "gpt-4o-mini"
   @max_chars 240
 
-  @doc "kick off async summarization for `call_id`. always returns :ok."
   @spec summarize_async(Ecto.UUID.t()) :: :ok
   def summarize_async(call_id) when is_binary(call_id) do
     Task.start(fn -> summarize(call_id) end)

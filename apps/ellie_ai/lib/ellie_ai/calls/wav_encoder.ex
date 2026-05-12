@@ -12,12 +12,7 @@ defmodule EllieAi.Calls.WavEncoder do
   @byte_rate @sample_rate * @num_channels * div(@bits_per_sample, 8)
   @block_align @num_channels * div(@bits_per_sample, 8)
 
-  @doc """
-  encode inbound + outbound μ-law into a stereo wav file (iodata).
-
-  inbound goes to the left channel, outbound to the right. shorter stream
-  is padded with silence so the file ends at max(inbound, outbound) length.
-  """
+  @doc "encode inbound (left) + outbound (right) μ-law into a stereo wav. shorter side zero-padded."
   @spec encode_stereo(binary(), binary()) :: {iodata(), pos_integer()}
   def encode_stereo(inbound_ulaw, outbound_ulaw)
       when is_binary(inbound_ulaw) and is_binary(outbound_ulaw) do
@@ -31,8 +26,7 @@ defmodule EllieAi.Calls.WavEncoder do
     {[header, interleaved], duration_ms}
   end
 
-  # walk both binaries in lockstep, decoding each byte to int16 and
-  # emitting <left, right> pairs. when one runs out, substitute 0.
+  # walk both binaries in lockstep; pad with 0 when one runs out.
   defp interleave(left, right, n) do
     do_interleave(left, right, n, [])
   end
@@ -49,8 +43,7 @@ defmodule EllieAi.Calls.WavEncoder do
   defp pop_sample(<<b, rest::binary>>), do: {Ulaw.decode_byte(b), rest}
   defp pop_sample(<<>>), do: {0, <<>>}
 
-  # riff/wav header. all little-endian. data_size is the byte length of the
-  # interleaved sample payload (not counting the header itself).
+  # data_size = interleaved payload bytes, header not included.
   defp riff_header(data_size) do
     chunk_size = 36 + data_size
 
@@ -71,6 +64,5 @@ defmodule EllieAi.Calls.WavEncoder do
     >>
   end
 
-  @doc "sample rate the encoder writes (for tests and callers)."
   def sample_rate, do: @sample_rate
 end

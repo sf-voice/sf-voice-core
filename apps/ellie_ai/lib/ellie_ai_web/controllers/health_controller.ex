@@ -1,12 +1,9 @@
 defmodule EllieAiWeb.HealthController do
   @moduledoc """
-  health endpoints for the blue-green deploy script.
-
-    * GET /health        — 200 if the app is up. no auth.
-    * GET /health/active_calls — number of running call trees, plus the
-                                 drain flag. used by the deploy script to
-                                 wait for in-flight calls to finish before
-                                 stopping the blue container.
+  health endpoints for the blue-green deploy script. `/health` is a
+  liveness check; `/health/active_calls` returns the running call count
+  + drain flag so the script can wait for in-flight calls before stopping
+  the blue container.
   """
 
   use EllieAiWeb, :controller

@@ -1,17 +1,9 @@
 defmodule EllieAiWeb.TelnyxMessageWebhookController do
   @moduledoc """
-  inbound webhook for telnyx sms (message.received + delivery receipts).
-  signature is verified by the same `EllieAi.Telnyx.SignaturePlug`
-  pipeline as call webhooks — by the time we get here, the body is
-  trustworthy.
-
-  v1 only cares about `message.received`. delivery receipts (sent /
-  finalized) are 200'd and ignored — we don't track per-message status
-  in the UI yet.
-
-  dedup: telnyx retries webhooks on non-2xx. we keep a 5-minute ETS
-  cache of message ids we've already inserted (see `Calls.SmsDedup`).
-  retries that land within the TTL become no-ops.
+  inbound telnyx sms webhooks. signature is verified upstream by
+  `EllieAi.Telnyx.SignaturePlug`. v1 only handles `message.received`;
+  delivery receipts are 200'd and ignored. dedup via `Calls.SmsDedup`
+  (5-minute ETS cache) absorbs telnyx's retry-on-non-2xx behaviour.
   """
 
   use EllieAiWeb, :controller
@@ -47,16 +39,21 @@ defmodule EllieAiWeb.TelnyxMessageWebhookController do
   end
 
   defp handle_event(other, _payload) do
-    # `message.sent` / `message.finalized` etc. — log and drop. when we
-    # surface delivery status in the UI we'll grow handlers for these.
+    # `message.sent` / `message.finalized` etc. — log and drop until we surface delivery status in the UI.
     Logger.debug("telnyx sms webhook: ignoring event=#{other}")
     :ok
   end
 
   defp ingest_received(message_id, payload) do
     text = payload["text"] || ""
-    from = get_in(payload, ["from", "phone_number"])
-    to = first_to_number(payload["to"])
+    raw_from = get_in(payload, ["from", "phone_number"])
+    raw_to = first_to_number(payload["to"])
+
+    # canonicalize at the boundary, same shape as call.initiated. matches
+    # whatever calls.from_phone was stamped with so channel_id lookups
+    # collide on the right row.
+    from = normalize(raw_from)
+    to = normalize(raw_to)
 
     with {:ok, org} <- resolve_org(to),
          from when is_binary(from) <- from,
@@ -65,7 +62,7 @@ defmodule EllieAiWeb.TelnyxMessageWebhookController do
       :ok
     else
       {:error, :no_parent_call} ->
-        # already logged inside Calls.ingest_inbound_sms/3
+        # already logged inside Calls.ingest_inbound_sms/4
         :ok
 
       {:error, reason} ->
@@ -73,8 +70,28 @@ defmodule EllieAiWeb.TelnyxMessageWebhookController do
         :ok
 
       nil ->
-        Logger.warning("sms ingest dropped id=#{message_id}: missing from.phone_number")
+        Logger.warning(
+          "sms ingest dropped id=#{message_id}: missing from.phone_number (raw=#{inspect(raw_from)})"
+        )
+
         :ok
+    end
+  end
+
+  # phone normalization at the SMS webhook boundary. on failure we keep
+  # the cleaned raw so resolve_org / channel_id can still try a match —
+  # better to attempt the lookup than drop the message because of a parse
+  # gripe.
+  defp normalize(nil), do: nil
+
+  defp normalize(raw) do
+    case EllieAi.Phones.to_e164(raw) do
+      {:ok, e164} ->
+        e164
+
+      {:error, reason} ->
+        Logger.warning("sms normalize: #{inspect(raw)} → #{inspect(reason)}; using cleaned raw")
+        EllieAi.Phones.clean(raw)
     end
   end
 

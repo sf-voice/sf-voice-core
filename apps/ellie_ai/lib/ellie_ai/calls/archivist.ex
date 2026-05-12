@@ -1,18 +1,9 @@
 defmodule EllieAi.Calls.Archivist do
   @moduledoc """
-  per-call audio recorder. streams inbound (caller) and outbound (ai)
-  μ-law bytes to two append-only files under `/tmp/calls/<call_id>/`
-  for the duration of the call.
-
-  on terminate: merges the two streams into a stereo wav, uploads it
-  to s3 under `orgs/<org_id>/calls/<call_id>/<upload_id>.wav`, and
-  persists the key + duration on the calls row so the staff /calls/:id
-  page renders an audio player. the per-upload `upload_id` lets a
-  future replay produce a fresh object without overwriting the
-  original recording.
-
-  if s3 creds are missing (dev without aws), the wav stays on disk at
-  the same /tmp path and the controller serves it locally.
+  per-call audio recorder. streams inbound + outbound μ-law to two files
+  under `/tmp/calls/<call_id>/`. on terminate: merges to stereo wav,
+  uploads to s3 (or leaves on disk if no creds), persists key + duration
+  on the calls row. per-upload `upload_id` avoids overwriting on replay.
   """
 
   use GenServer
@@ -36,11 +27,9 @@ defmodule EllieAi.Calls.Archivist do
     GenServer.start_link(__MODULE__, args, name: CallRegistry.via_archivist(ccid))
   end
 
-  @doc "feed a μ-law chunk from the caller side (inbound)."
   def feed_inbound(ccid, bytes) when is_binary(ccid) and is_binary(bytes),
     do: CallRegistry.cast_to_archivist(ccid, {:inbound, bytes})
 
-  @doc "feed a μ-law chunk from the ai side (outbound)."
   def feed_outbound(ccid, bytes) when is_binary(ccid) and is_binary(bytes),
     do: CallRegistry.cast_to_archivist(ccid, {:outbound, bytes})
 

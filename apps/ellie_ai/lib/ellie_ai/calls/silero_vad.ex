@@ -9,17 +9,12 @@ defmodule EllieAi.Calls.SileroVad do
   @model_relpath "silero_vad/silero_vad.onnx"
   @model_sha256 "1a153a22f4509e292a94e67d6f9b85e8deb25b4988682b7e174c65279d8788e3"
 
-  # compile-time override. set in `config/{env}.exs` if a release ships
-  # the model file in a different location, e.g. mounted in a container
-  # at /opt/ellie/silero_vad.onnx. defaults to priv/silero_vad/.
+  # override in config/{env}.exs when the release ships the model elsewhere.
   @model_path_override Application.compile_env(:ellie_ai, :silero_model_path, nil)
 
   @persist_key __MODULE__
 
-  @doc """
-  load + verify the model. call once at app boot. raises on missing file
-  or sha256 mismatch.
-  """
+  @doc "load + verify the model. call once at app boot. raises on missing file or sha mismatch."
   def load! do
     path = full_path()
 
@@ -49,22 +44,12 @@ defmodule EllieAi.Calls.SileroVad do
     :ok
   end
 
-  @doc """
-  initial recurrent state. f32 tensor of shape {2, 1, 128} filled with
-  zeros. each VadGate process keeps its own copy and threads it forward.
-  """
+  @doc "initial recurrent state — f32 zeros of shape {2, 1, 128}. each VadGate threads its own."
   def initial_state do
     Nx.broadcast(Nx.tensor(0.0, type: :f32), {2, 1, 128})
   end
 
-  @doc """
-  run one inference window. returns `{prob, new_state}` where prob is a
-  float in [0, 1] and new_state is the recurrent state to pass to the
-  next call.
-
-    * `samples` — list of float32 in [-1, 1], length 256 (for 8khz)
-    * `state`   — Nx.tensor of shape {2, 1, 128}, f32
-  """
+  @doc "run one inference. samples = 256 floats in [-1,1] (for 8khz); state = f32 {2,1,128}."
   def infer(samples, state) when is_list(samples) do
     model = :persistent_term.get(@persist_key)
 

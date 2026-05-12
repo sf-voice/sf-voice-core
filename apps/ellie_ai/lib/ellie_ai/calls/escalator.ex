@@ -1,11 +1,8 @@
 defmodule EllieAi.Calls.Escalator do
   @moduledoc """
-  hands a call from the ai to a human via telnyx: dial staff → bridge
-  the two legs on staff's `call.answered` → mark the call escalated.
-
-  best-effort. no voicemail in v1. staff number resolves from the
-  org's `staff_phone_e164` setting (Settings table), falling back to
-  the `STAFF_PHONE_E164` env var.
+  hand a call from ai to human via telnyx: dial staff → bridge legs on
+  `call.answered` → mark escalated. best-effort; no voicemail in v1.
+  staff number from org's `staff_phone_e164` setting or env fallback.
   """
 
   alias EllieAi.Calls
@@ -14,12 +11,7 @@ defmodule EllieAi.Calls.Escalator do
 
   require Logger
 
-  @doc """
-  kick off an escalation. fire-and-forget — the actual bridge happens on
-  the staff leg's `call.answered` webhook, which the telnyx webhook
-  controller dispatches via `on_staff_answered/2`. returns `:ok | {:error,
-  reason}` based on the initial dial attempt only.
-  """
+  @doc "kick off escalation. fire-and-forget; bridge happens on staff's call.answered webhook."
   @spec escalate(Org.t(), String.t()) :: :ok | {:error, term()}
   def escalate(%Org{} = org, ccid) when is_binary(ccid) do
     with {:ok, staff_to} <- staff_phone(org),
@@ -59,16 +51,12 @@ defmodule EllieAi.Calls.Escalator do
     end
   end
 
-  @doc """
-  resolve which caller leg this staff leg is supposed to bridge into,
-  then bridge them. called from the webhook controller when the staff
-  leg's `call.answered` webhook arrives.
-  """
+  @doc "resolve the caller leg paired with this staff leg, then bridge them."
   @spec on_staff_answered(String.t()) :: :ok | {:error, term()}
   def on_staff_answered(staff_ccid) when is_binary(staff_ccid) do
     case lookup_pairing(staff_ccid) do
       nil ->
-        # not a leg we initiated for escalation — let normal flow handle it.
+        # not an escalation leg — let normal flow handle it.
         :ok
 
       caller_ccid ->
@@ -108,8 +96,7 @@ defmodule EllieAi.Calls.Escalator do
     end
   end
 
-  # ets map of staff_ccid → caller_ccid. vm-local; escalations are
-  # seconds-long and v1 doesn't survive container crashes.
+  # vm-local pairings — escalations are seconds-long, v1 doesn't survive crashes.
   @table :ellie_escalator_pairings
 
   defp ensure_table do
@@ -132,7 +119,7 @@ defmodule EllieAi.Calls.Escalator do
     end
   end
 
-  @doc "true if this ccid is a staff leg we dialed for an escalation."
+  @doc "true if this ccid is a staff leg we dialed for escalation."
   @spec escalation_leg?(String.t()) :: boolean()
   def escalation_leg?(ccid) when is_binary(ccid) do
     ensure_table()
