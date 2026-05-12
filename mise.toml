@@ -106,6 +106,17 @@ wait
 description = "run tests across every app in the workspace"
 run = "mix workspace.run -t test"
 
+[tasks.ci]
+description = "simulate the CI run locally (format-check → compile → test)"
+# invokes mix directly rather than `mise run <task>` because mise glob-
+# matches `test` against `test.watch`, which would drag the watcher into
+# the run and fail.
+run = [
+  "mix workspace.run -t format -- --check-formatted",
+  "mix workspace.run -t compile -- --warnings-as-errors",
+  "mix workspace.run -t test",
+]
+
 [tasks."test.watch"]
 description = "watch tests for resto (the app with the bigger suite)"
 dir = "apps/resto_booking_app"

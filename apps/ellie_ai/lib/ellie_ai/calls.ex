@@ -190,8 +190,24 @@ defmodule EllieAi.Calls do
           })
           |> Repo.insert()
 
-        broadcast_call_changed(result)
-        result
+        case result do
+          {:ok, _} = ok ->
+            broadcast_call_changed(ok)
+            ok
+
+          {:error, %Ecto.Changeset{errors: errors}} = err ->
+            # race: a parallel webhook retry won the insert between our
+            # get_by_ccid/1 miss and Repo.insert. re-fetch and return the
+            # winner's row. no broadcast — the winner already fired one.
+            if Keyword.has_key?(errors, :provider_id) do
+              case get_by_ccid(ccid) do
+                %Call{} = existing -> {:ok, existing}
+                nil -> err
+              end
+            else
+              err
+            end
+        end
 
       %Call{} = existing ->
         {:ok, existing}
@@ -206,36 +222,32 @@ defmodule EllieAi.Calls do
   """
   @spec update_status(String.t(), String.t()) :: :ok
   def update_status(ccid, status) when is_binary(ccid) and is_binary(status) do
-    case get_by_ccid(ccid) do
-      nil ->
+    prev_call = get_by_ccid(ccid)
+    now = now()
+
+    # atomic conditional write: the `is_nil(ended_at)` guard lives in the
+    # WHERE clause so an out-of-order media_started after hangup can't
+    # revert a finished call. rowcount tells us which branch we took.
+    {count, _} =
+      from(c in Call, where: c.provider_id == ^ccid and is_nil(c.ended_at))
+      |> Repo.update_all(set: [status: status, updated_at: now])
+
+    case {prev_call, count} do
+      {nil, _} ->
         :ok
 
-      %Call{ended_at: ended_at, status: prev} = call when is_nil(ended_at) ->
-        result =
-          call
-          |> Call.changeset(%{status: status})
-          |> Repo.update()
+      {%Call{status: prev}, 1} ->
+        log_status_change(ccid, prev, status, :update_status)
+        broadcast_call_changed({:ok, get_by_ccid(ccid)})
 
-        case result do
-          {:ok, _} ->
-            log_status_change(ccid, prev, status, :update_status)
-            broadcast_call_changed(result)
-
-          {:error, _} ->
-            :ok
-        end
-
-        :ok
-
-      %Call{status: prev} ->
-        require Logger
-
+      {%Call{status: prev}, 0} ->
         Logger.info(
-          "call status change refused — call already ended ccid=#{ccid} attempted=#{status} stored=#{prev}"
+          "call status change refused — call already ended " <>
+            "ccid=#{ccid} attempted=#{status} stored=#{prev}"
         )
-
-        :ok
     end
+
+    :ok
   end
 
   defp log_status_change(ccid, prev, new, source) do
@@ -246,37 +258,36 @@ defmodule EllieAi.Calls do
   @doc "no-op if the call doesn't exist (cleanup race)."
   @spec finish_call(String.t(), String.t(), String.t() | nil) :: :ok
   def finish_call(ccid, status, hangup_reason) when is_binary(ccid) and is_binary(status) do
-    case get_by_ccid(ccid) do
-      nil ->
+    prev_call = get_by_ccid(ccid)
+    now = now()
+
+    # atomic conditional finish: the `is_nil(ended_at)` guard lives in the
+    # WHERE clause so a webhook retry or duplicate stop event can't
+    # double-finish (and overwrite hangup_reason / ended_at).
+    {count, _} =
+      from(c in Call, where: c.provider_id == ^ccid and is_nil(c.ended_at))
+      |> Repo.update_all(
+        set: [
+          status: status,
+          hangup_reason: hangup_reason,
+          ended_at: now,
+          updated_at: now
+        ]
+      )
+
+    case {prev_call, count} do
+      {nil, _} ->
         :ok
 
-      %Call{ended_at: nil, status: prev} = call ->
-        result =
-          call
-          |> Call.changeset(%{
-            status: status,
-            hangup_reason: hangup_reason,
-            ended_at: now()
-          })
-          |> Repo.update()
+      {%Call{status: prev}, 1} ->
+        log_status_change(ccid, prev, status, :finish_call)
+        broadcast_call_changed({:ok, get_by_ccid(ccid)})
 
-        case result do
-          {:ok, _} ->
-            log_status_change(ccid, prev, status, :finish_call)
-            broadcast_call_changed(result)
-
-          {:error, _} ->
-            :ok
-        end
-
-        :ok
-
-      %Call{} ->
-        # already finished — webhook retry or duplicate stop event.
-        require Logger
+      {%Call{}, 0} ->
         Logger.debug("finish_call no-op — already ended ccid=#{ccid}")
-        :ok
     end
+
+    :ok
   end
 
   @doc """
@@ -294,17 +305,17 @@ defmodule EllieAi.Calls do
       %Call{id: call_id} ->
         ts = now()
 
+        # canonical fields win over `attrs` — callers can pass extras (e.g.
+        # provider metadata) but cannot override the call_id, role, text, or
+        # timestamps that this function is responsible for.
         merged =
-          Map.merge(
-            %{
-              call_id: call_id,
-              role: role,
-              text: text,
-              started_at: ts,
-              ended_at: ts
-            },
-            attrs
-          )
+          Map.merge(attrs, %{
+            call_id: call_id,
+            role: role,
+            text: text,
+            started_at: ts,
+            ended_at: ts
+          })
 
         result =
           %TranscriptTurn{}
@@ -547,19 +558,17 @@ defmodule EllieAi.Calls do
          %Call{} = call <- Repo.get(Call, original.call_id),
          call = Repo.preload(call, :org),
          module when not is_nil(module) <-
-           EllieAi.Tools.Catalog.find(original.tool_name) do
-      args = if is_map(args_override), do: args_override, else: original.arguments
-      ccid = call.provider_id
-
-      {:ok, new_row} =
-        start_tool_call(call.id, %{
-          type: original.type,
-          tool_name: original.tool_name,
-          arguments: args,
-          openai_call_id: nil,
-          replayed_from_id: original.id
-        })
-
+           EllieAi.Tools.Catalog.find(original.tool_name),
+         args = if(is_map(args_override), do: args_override, else: original.arguments),
+         ccid = call.provider_id,
+         {:ok, new_row} <-
+           start_tool_call(call.id, %{
+             type: original.type,
+             tool_name: original.tool_name,
+             arguments: args,
+             openai_call_id: nil,
+             replayed_from_id: original.id
+           }) do
       started_at = System.monotonic_time(:millisecond)
 
       outcome =

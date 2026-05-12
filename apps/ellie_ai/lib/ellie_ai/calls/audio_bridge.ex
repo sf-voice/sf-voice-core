@@ -77,6 +77,12 @@ defmodule EllieAi.Calls.AudioBridge do
         Logger.error("audio_bridge cannot start: no call context for ccid=#{ccid}")
         :ignore
 
+      {_, {:error, :openai_api_key_missing}} ->
+        # expected in dev/test where the key isn't set. prod boot is
+        # gated by EnvCheck so this can't fire silently in prod.
+        Logger.info("audio_bridge skipped: openai api key missing")
+        :ignore
+
       {_, {:error, reason}} ->
         Logger.error("audio_bridge cannot start: #{inspect(reason)}")
         :ignore
