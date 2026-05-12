@@ -1,8 +1,5 @@
 defmodule EllieAi.Settings do
   @moduledoc """
-  per-org runtime configuration. read-through cache lives in the
-  realtime session config; writes here take effect on the next call
-  (or when the cache TTL expires — see EllieAi.Calls config helper).
   """
 
   import Ecto.Query
@@ -11,8 +8,7 @@ defmodule EllieAi.Settings do
   alias EllieAi.Settings.Setting
 
   # 30s read-through cache, keyed by {org_id, key}, lazily populated on
-  # first miss. ttl is short enough that operator changes via /settings
-  # land within a normal call without us needing to broadcast on writes.
+  # first miss.
   @cache_table :ellie_settings_cache
   @cache_ttl_ms 30_000
 
