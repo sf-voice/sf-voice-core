@@ -1,7 +1,6 @@
 defmodule RestoBookingApp.Repo.Migrations.CreateContacts do
   use Ecto.Migration
 
-
   def up do
     create table(:contacts, primary_key: false) do
       add :id, :binary_id, primary_key: true

@@ -14,8 +14,10 @@ defmodule RestoBookingApp.EnvCheck do
   # → placeholder) are :prod-only here so dev boots without ceremony.
   @vars [
     {"INTERNAL_API_TOKEN", :prod, "shared bearer between resto and ellie."},
-    {"SECRET_KEY_BASE", :prod, "phoenix endpoint signing key. generate with `mix phx.gen.secret`."},
-    {"DATABASE_PATH", :prod, "absolute path to resto's sqlite file (e.g. /etc/resto_booking_app/resto_booking_app.db)."},
+    {"SECRET_KEY_BASE", :prod,
+     "phoenix endpoint signing key. generate with `mix phx.gen.secret`."},
+    {"DATABASE_PATH", :prod,
+     "absolute path to resto's sqlite file (e.g. /etc/resto_booking_app/resto_booking_app.db)."},
     {"PHX_HOST", :prod, "public hostname (e.g. resto-demo.sf-voice.sh)."}
   ]
 

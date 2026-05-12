@@ -71,12 +71,9 @@ defmodule EllieAi.Telnyx.MediaStreamingSocket do
     {:ok, state}
   end
 
-  # capture-mode disabled: pass through untouched.
   defp maybe_capture_audio(%{audio_capture: nil} = state, _bytes), do: state
 
-  # capture-mode active: take what we still have budget for, accumulate
-  # in state. when budget hits 0 (or we never quite fill it but call ends),
-  # flush to disk and clear the state to avoid re-flushing.
+  # clear capture state on flush so we don't re-flush on terminate.
   defp maybe_capture_audio(%{audio_capture: cap} = state, bytes) do
     take = min(cap.bytes_left, byte_size(bytes))
     slice = binary_part(bytes, 0, take)
@@ -195,13 +192,7 @@ defmodule EllieAi.Telnyx.MediaStreamingSocket do
 
     {:ok, state}
   end
-
-  #   The payload contains a base64-encoded RTP payload (no headers).
-  #    The RTP mode distinction applies to outbound messages you send,
-  #    not how Telnyx frames inbound audio to us.
-  #
-  #   https://developers.telnyx.com/docs/voice/programmable-voice/media-streaming
-
+# https://developers.telnyx.com/docs/voice/programmable-voice/media-streaming
   defp handle_inbound_media(b64, state) do
     case decode_b64(b64) do
       {:ok, mulaw} ->

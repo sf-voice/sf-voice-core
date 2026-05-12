@@ -95,7 +95,9 @@ defmodule RestoBookingAppWeb.CustomerControllerTest do
     end
 
     test "400 when phone is missing", %{conn: conn, org: org} do
-      conn = conn |> authed() |> post(~p"/api/orgs/#{org.slug}/customers", %{"first_name" => "Lois"})
+      conn =
+        conn |> authed() |> post(~p"/api/orgs/#{org.slug}/customers", %{"first_name" => "Lois"})
+
       json = json_response(conn, 400)
       assert json["errors"]["detail"] =~ "phone"
     end
