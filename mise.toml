@@ -117,11 +117,11 @@ run = "mix workspace.run -t format"
 
 [tasks."format.check"]
 description = "ci-style formatting check (fails on diffs)"
-run = "mix workspace.run -t -- format --check-formatted"
+run = "mix workspace.run -t format -- --check-formatted"
 
 [tasks.compile]
 description = "compile every app with --warnings-as-errors"
-run = "mix workspace.run -t -- compile --warnings-as-errors"
+run = "mix workspace.run -t compile -- --warnings-as-errors"
 
 [tasks.migrate]
 description = "run pending migrations across every app"

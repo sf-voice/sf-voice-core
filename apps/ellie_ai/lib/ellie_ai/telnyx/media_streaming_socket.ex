@@ -67,6 +67,7 @@ defmodule EllieAi.Telnyx.MediaStreamingSocket do
 
   defp maybe_capture_audio(%{audio_capture: nil} = state, _bytes), do: state
 
+  # clear capture state on flush so we don't re-flush on terminate.
   defp maybe_capture_audio(%{audio_capture: cap} = state, bytes) do
     take = min(cap.bytes_left, byte_size(bytes))
     slice = binary_part(bytes, 0, take)
@@ -183,7 +184,7 @@ defmodule EllieAi.Telnyx.MediaStreamingSocket do
 
     {:ok, state}
   end
-
+# https://developers.telnyx.com/docs/voice/programmable-voice/media-streaming
   defp handle_inbound_media(b64, state) do
     case decode_b64(b64) do
       {:ok, mulaw} ->
