@@ -25,6 +25,13 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends build-essential git \
   && rm -rf /var/lib/apt/lists/*
 
+# install rust toolchain for rustler-based deps (ortex)
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends curl ca-certificates \
+  && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal \
+  && rm -rf /var/lib/apt/lists/*
+ENV PATH="/root/.cargo/bin:${PATH}"
+
 # prepare build dir
 WORKDIR /app
 
