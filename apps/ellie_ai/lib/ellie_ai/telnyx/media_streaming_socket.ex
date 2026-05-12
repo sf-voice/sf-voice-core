@@ -1,16 +1,9 @@
 defmodule EllieAi.Telnyx.MediaStreamingSocket do
   @moduledoc """
-
-  - **inbound** is raw μ-law: telnyx delivers
-  codec bytes directly, no RTP header.
-  - **outbound** is currently raw μ-law too (testing). previous variants
-  (one giant RTP packet per delta; 20ms-chunked RTP at 20ms pacing)
-  both produced audible ticks blended with voice. captured outbound
-  audio plays back clean on its own, ruling out the bytes themselves.
-  hypothesis: telnyx silently ignores `stream_bidirectional_mode: "rtp"`
-  and treats the base64 payload as raw codec bytes both ways. if true,
-  our 12-byte rtp header was being decoded as audio samples, producing
-  the ticks. raw outbound is the test for that.
+  websock handler for telnyx media streaming. inbound + outbound are both
+  raw μ-law bytes, base64-encoded inside the json frame — telnyx ignores
+  `stream_bidirectional_mode: "rtp"` for these and frames everything as
+  raw codec bytes.
   """
 
   @behaviour WebSock
@@ -57,6 +50,7 @@ defmodule EllieAi.Telnyx.MediaStreamingSocket do
   @impl true
   def handle_info({:outbound_audio, mulaw_bytes}, state) when is_binary(mulaw_bytes) do
     state = maybe_capture_audio(state, mulaw_bytes)
+
     frame =
       Jason.encode!(%{
         event: "media",
@@ -141,9 +135,7 @@ defmodule EllieAi.Telnyx.MediaStreamingSocket do
     encoding = get_in(start, ["media_format", "encoding"])
     sample_rate = get_in(start, ["media_format", "sample_rate"])
 
-    Logger.info(
-      "telnyx media streaming start ccid=#{ccid} codec=#{encoding} rate=#{sample_rate}"
-    )
+    Logger.info("telnyx media streaming start ccid=#{ccid} codec=#{encoding} rate=#{sample_rate}")
 
     case Registry.register(CallRegistry.name(), {:media_socket, ccid}, nil) do
       {:ok, _} ->
@@ -198,9 +190,7 @@ defmodule EllieAi.Telnyx.MediaStreamingSocket do
       {:ok, mulaw} ->
         state =
           if not state.first_media_logged do
-            Logger.info(
-              "telnyx first media frame: ccid=#{state.ccid} bytes=#{byte_size(mulaw)}"
-            )
+            Logger.info("telnyx first media frame: ccid=#{state.ccid} bytes=#{byte_size(mulaw)}")
 
             %{state | first_media_logged: true}
           else
