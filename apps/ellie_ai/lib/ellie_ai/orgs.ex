@@ -34,16 +34,9 @@ defmodule EllieAi.Orgs do
   end
 
   defp normalize(number) do
-    case ExPhoneNumber.parse(number, "US") do
-      {:ok, parsed} ->
-        if ExPhoneNumber.Validation.is_possible_number?(parsed) do
-          {:ok, ExPhoneNumber.format(parsed, :e164)}
-        else
-          :error
-        end
-
-      _ ->
-        :error
+    case EllieAi.Phones.to_e164(number) do
+      {:ok, e164} -> {:ok, e164}
+      {:error, _} -> :error
     end
   end
 
