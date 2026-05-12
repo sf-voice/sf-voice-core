@@ -154,66 +154,51 @@ defmodule RestoBookingApp.ReservationsTest do
     end
   end
 
-  describe "update/4" do
+  describe "update/3" do
     setup %{org: org} do
       {:ok, res} = Reservations.create(valid_attrs(org))
       %{res: res}
     end
 
-    test "rejects bad token", %{org: org, res: res} do
-      assert {:error, :invalid_token} =
-               Reservations.update(org.id, res.id, "wrong", %{"party_size" => 2})
-    end
-
-    test "updates fields with valid token", %{org: org, res: res} do
+    test "updates fields", %{org: org, res: res} do
       assert {:ok, updated} =
-               Reservations.update(org.id, res.id, res.cancel_token, %{
+               Reservations.update(org.id, res.id, %{
                  "special_requests" => "vegan + nut allergy"
                })
 
       assert updated.special_requests == "vegan + nut allergy"
-      assert updated.cancel_token == res.cancel_token
     end
 
     test "rejects move that overlaps another booking", %{org: org, res: res} do
       {:ok, _other} = Reservations.create(valid_attrs(org, %{"table_id" => "T2"}))
 
-      assert {:error, cs} =
-               Reservations.update(org.id, res.id, res.cancel_token, %{"table_id" => "T2"})
+      assert {:error, cs} = Reservations.update(org.id, res.id, %{"table_id" => "T2"})
 
       assert "table is already booked for this time slot" in errors_on(cs).starts_at
     end
 
     test "allows moving to a free slot on the same table", %{org: org, res: res} do
       assert {:ok, updated} =
-               Reservations.update(org.id, res.id, res.cancel_token, %{
-                 "starts_at" => at(15)
-               })
+               Reservations.update(org.id, res.id, %{"starts_at" => at(15)})
 
       assert updated.starts_at == at(15)
       assert updated.ends_at == at(17)
     end
 
     test "returns not_found for missing id", %{org: org} do
-      assert {:error, :not_found} = Reservations.update(org.id, Ecto.UUID.generate(), "x", %{})
+      assert {:error, :not_found} = Reservations.update(org.id, Ecto.UUID.generate(), %{})
     end
   end
 
-  describe "delete/3" do
-    test "rejects bad token", %{org: org} do
+  describe "delete/2" do
+    test "deletes", %{org: org} do
       {:ok, res} = Reservations.create(valid_attrs(org))
-      assert {:error, :invalid_token} = Reservations.delete(org.id, res.id, "nope")
-      assert Reservations.get(org.id, res.id)
-    end
-
-    test "deletes with the right token", %{org: org} do
-      {:ok, res} = Reservations.create(valid_attrs(org))
-      assert :ok = Reservations.delete(org.id, res.id, res.cancel_token)
+      assert :ok = Reservations.delete(org.id, res.id)
       refute Reservations.get(org.id, res.id)
     end
 
     test "returns not_found for missing id", %{org: org} do
-      assert {:error, :not_found} = Reservations.delete(org.id, Ecto.UUID.generate(), "x")
+      assert {:error, :not_found} = Reservations.delete(org.id, Ecto.UUID.generate())
     end
   end
 
