@@ -5,48 +5,51 @@ defmodule RestoBookingAppWeb.ReservationController do
 
   action_fallback RestoBookingAppWeb.FallbackController
 
-  # GET /api/reservations[?date=YYYY-MM-DD]
   def index(conn, params) do
     with {:ok, date_opt} <- parse_optional_date(params["date"]) do
-      reservations =
-        case date_opt do
-          nil -> Reservations.list()
-          date -> Reservations.list(date: date)
-        end
+      opts =
+        []
+        |> maybe_put(:date, date_opt)
+        |> maybe_put(:customer_id, params["customer_id"])
+        |> Keyword.put(:preload, [:customer, :contact])
 
+      reservations = Reservations.list(conn.assigns.org_id, opts)
       render(conn, :index, reservations: reservations)
     end
   end
 
-  # GET /api/reservations/:id
   def show(conn, %{"id" => id}) do
-    case Reservations.get(id) do
+    case Reservations.get(conn.assigns.org_id, id, preload: [:customer, :contact]) do
       nil -> {:error, :not_found}
-      reservation -> render(conn, :show, reservation: reservation, full: true)
+      reservation -> render(conn, :show, reservation: reservation)
     end
   end
 
-  # POST /api/reservations
   def create(conn, params) do
-    with {:ok, reservation} <- Reservations.create(params) do
+    attrs = params |> Map.drop(["org_slug"]) |> Map.put("org_id", conn.assigns.org_id)
+
+    with {:ok, reservation} <- Reservations.create(attrs) do
+      reservation = RestoBookingApp.Repo.preload(reservation, [:customer, :contact])
+
       conn
       |> put_status(:created)
-      |> render(:show, reservation: reservation, full: true, with_token: true)
+      |> render(:show, reservation: reservation, with_token: true)
     end
   end
 
-  # PATCH/PUT /api/reservations/:id?token=...
   def update(conn, %{"id" => id} = params) do
+    attrs = Map.drop(params, ["id", "org_slug", "token"])
+
     with {:ok, token} <- fetch_token(params),
-         {:ok, reservation} <- Reservations.update(id, token, params) do
-      render(conn, :show, reservation: reservation, full: true)
+         {:ok, reservation} <- Reservations.update(conn.assigns.org_id, id, token, attrs) do
+      reservation = RestoBookingApp.Repo.preload(reservation, [:customer, :contact])
+      render(conn, :show, reservation: reservation)
     end
   end
 
-  # DELETE /api/reservations/:id?token=...
   def delete(conn, %{"id" => id} = params) do
     with {:ok, token} <- fetch_token(params),
-         :ok <- Reservations.delete(id, token) do
+         :ok <- Reservations.delete(conn.assigns.org_id, id, token) do
       send_resp(conn, :no_content, "")
     end
   end
@@ -62,4 +65,8 @@ defmodule RestoBookingAppWeb.ReservationController do
       {:error, _} -> {:error, :bad_date}
     end
   end
+
+  defp maybe_put(opts, _key, nil), do: opts
+  defp maybe_put(opts, _key, ""), do: opts
+  defp maybe_put(opts, key, value), do: Keyword.put(opts, key, value)
 end

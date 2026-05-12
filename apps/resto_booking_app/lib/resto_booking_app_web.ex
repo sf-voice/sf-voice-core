@@ -46,6 +46,12 @@ defmodule RestoBookingAppWeb do
     end
   end
 
+  def json do
+    quote do
+      import RestoBookingApp.Utils.DateTime, only: [iso8601: 1]
+    end
+  end
+
   def live_view do
     quote do
       use Phoenix.LiveView

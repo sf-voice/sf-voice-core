@@ -39,4 +39,16 @@ defmodule RestoBookingAppWeb.FallbackController do
     |> put_status(:bad_request)
     |> json(%{errors: %{detail: "Invalid date — expected YYYY-MM-DD"}})
   end
+
+  def call(conn, {:error, :missing_phone}) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{errors: %{detail: "Missing phone (E.164) in body"}})
+  end
+
+  def call(conn, {:error, {:invalid_customer, message}}) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{errors: %{detail: "Invalid customer: #{message}"}})
+  end
 end

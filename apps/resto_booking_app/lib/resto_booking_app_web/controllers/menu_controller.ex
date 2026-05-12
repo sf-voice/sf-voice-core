@@ -4,6 +4,6 @@ defmodule RestoBookingAppWeb.MenuController do
   alias RestoBookingApp.Menu
 
   def index(conn, _params) do
-    render(conn, :index, menu: Menu.all())
+    render(conn, :index, menu: Menu.all(conn.assigns.org_id))
   end
 end

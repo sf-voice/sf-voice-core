@@ -4,6 +4,7 @@ defmodule RestoBookingAppWeb.TableController do
   alias RestoBookingApp.Tables
 
   def index(conn, _params) do
-    render(conn, :index, tables: Tables.all(), seat_total: Tables.seat_total())
+    org_id = conn.assigns.org_id
+    render(conn, :index, tables: Tables.all(org_id), seat_total: Tables.seat_total(org_id))
   end
 end
