@@ -146,10 +146,6 @@ defmodule EllieAi.Calls do
     terminate_tree(ccid)
   end
 
-  # take down the whole per-call tree. each child's `terminate/2` runs in
-  # reverse-start order, so Archivist (last) gets its 15s shutdown window
-  # to flush the wav + upload to s3 before the supervisor force-kills it.
-  # also drops the shared context row so the ETS table doesn't leak.
   defp terminate_tree(ccid) when is_binary(ccid) do
     result =
       case :global.whereis_name({CallTree, ccid}) do
@@ -165,7 +161,6 @@ defmodule EllieAi.Calls do
     result
   end
 
-  # ── persistence ─────────────────────────────────────────────────────────
 
   @doc """
   idempotent — duplicate ccid (telnyx webhook retry) returns the
