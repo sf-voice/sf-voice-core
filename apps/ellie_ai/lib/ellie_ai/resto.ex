@@ -5,6 +5,7 @@ defmodule EllieAi.Resto do
   require Logger
 
   alias EllieAi.Orgs.Org
+  alias EllieAi.Utils
 
   def get_customer_by_phone(%Org{} = org, phone) when is_binary(phone) do
     with {:ok, e164} <- normalize_phone(phone),
@@ -19,7 +20,7 @@ defmodule EllieAi.Resto do
     phone = Map.get(attrs, :phone) || Map.get(attrs, "phone")
 
     with {:ok, e164} <- normalize_phone(phone),
-         body = attrs |> stringify_keys() |> Map.put("phone", e164),
+         body = attrs |> Utils.stringify_keys() |> Map.put("phone", e164),
          url = endpoint(org, "/customers"),
          {:ok, resp} <- request(:post, url, json: body) do
       handle_get_response(resp, "customer")
@@ -40,7 +41,7 @@ defmodule EllieAi.Resto do
 
   def create_reservation(%Org{} = org, attrs) when is_map(attrs) do
     url = endpoint(org, "/reservations")
-    body = stringify_keys(attrs)
+    body = Utils.stringify_keys(attrs)
 
     case request(:post, url, json: body) do
       {:ok, %{status: 201, body: %{"reservation" => res}}} -> {:ok, res}
@@ -55,7 +56,7 @@ defmodule EllieAi.Resto do
   def update_reservation(%Org{} = org, id, attrs)
       when is_binary(id) and is_map(attrs) do
     url = endpoint(org, "/reservations/#{id}")
-    body = stringify_keys(attrs)
+    body = Utils.stringify_keys(attrs)
 
     case request(:put, url, json: body) do
       {:ok, %{status: 200, body: %{"reservation" => res}}} -> {:ok, res}
@@ -217,27 +218,13 @@ defmodule EllieAi.Resto do
     Application.get_env(:ellie_ai, __MODULE__, [])[:receive_timeout] || 5_000
   end
 
-  defp normalize_phone(nil), do: {:error, {:permanent, "phone is required"}}
-  defp normalize_phone(""), do: {:error, {:permanent, "phone is required"}}
-
-  defp normalize_phone(phone) when is_binary(phone) do
-    case ExPhoneNumber.parse(phone, "US") do
-      {:ok, parsed} ->
-        if ExPhoneNumber.is_valid_number?(parsed) do
-          {:ok, ExPhoneNumber.format(parsed, :e164)}
-        else
-          {:error, {:permanent, "invalid phone number"}}
-        end
-
-      {:error, reason} ->
-        {:error, {:permanent, reason}}
+  defp normalize_phone(phone) when is_binary(phone) and phone != "" do
+    case EllieAi.Phones.to_e164(phone) do
+      {:ok, e164} -> {:ok, e164}
+      {:error, reason} -> {:error, {:permanent, reason}}
     end
   end
 
-  defp stringify_keys(map) when is_map(map) do
-    Map.new(map, fn
-      {k, v} when is_atom(k) -> {Atom.to_string(k), v}
-      {k, v} -> {k, v}
-    end)
-  end
+  defp normalize_phone(_), do: {:error, {:permanent, "phone is required"}}
+
 end
