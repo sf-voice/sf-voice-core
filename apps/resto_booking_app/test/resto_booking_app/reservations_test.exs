@@ -129,9 +129,7 @@ defmodule RestoBookingApp.ReservationsTest do
       assert {:ok, _} = Reservations.create(valid_attrs(org, %{"starts_at" => at(10)}))
 
       assert {:ok, _} =
-               Reservations.create(
-                 valid_attrs(org, %{"starts_at" => at(20), "table_id" => "T2"})
-               )
+               Reservations.create(valid_attrs(org, %{"starts_at" => at(20), "table_id" => "T2"}))
     end
 
     test "rejects overlapping bookings on the same table", %{org: org} do
