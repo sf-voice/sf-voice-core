@@ -9,8 +9,11 @@ defmodule EllieAi.Calls.SentimentTest do
     bypass = Bypass.open()
     base = "http://localhost:#{bypass.port}"
 
-    prev_openai = Application.get_env(:ellie_ai, Sentiment, [])
-    Application.put_env(:ellie_ai, Sentiment, base_url: base)
+    # Sentiment goes through Medium.Chat → Providers.OpenAI.chat, which
+    # reads base_url from Application.get_env(:ellie_ai, EllieAi.Providers.OpenAI).
+    # the env key needs to match that lookup or bypass never fires.
+    prev_openai = Application.get_env(:ellie_ai, EllieAi.Providers.OpenAI, [])
+    Application.put_env(:ellie_ai, EllieAi.Providers.OpenAI, base_url: base)
 
     System.put_env("OPENAI_API_KEY", "test-key")
 
@@ -18,7 +21,7 @@ defmodule EllieAi.Calls.SentimentTest do
     Application.put_env(:ellie_ai, EllieAi.Telnyx.Client, base_url: base, api_key: "test-key")
 
     on_exit(fn ->
-      Application.put_env(:ellie_ai, Sentiment, prev_openai)
+      Application.put_env(:ellie_ai, EllieAi.Providers.OpenAI, prev_openai)
       Application.put_env(:ellie_ai, EllieAi.Telnyx.Client, prev_telnyx)
       System.delete_env("OPENAI_API_KEY")
     end)

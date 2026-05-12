@@ -26,8 +26,8 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
             HTTP API reference
           </h1>
           <p class="text-sm opacity-70 mt-3 max-w-2xl leading-relaxed">
-            Everything the website does is also available over HTTP. Every
-            <code>/api/*</code> endpoint is gated by a single shared bearer
+            Everything the website does is also available over HTTP. Every <code>/api/*</code>
+            endpoint is gated by a single shared bearer
             token (<code>INTERNAL_API_TOKEN</code>) — the voice orchestrator
             (ellie_ai) is the only legitimate caller in v1.
           </p>
@@ -36,8 +36,8 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
         <div class="rounded-2xl bg-primary/10 border border-primary/40 p-4 mb-6 text-sm">
           <div class="font-bold mb-1">Authentication</div>
           <p class="opacity-90 leading-relaxed">
-            Every request to <code>/api/*</code> must carry
-            <code>Authorization: Bearer $INTERNAL_API_TOKEN</code>. Missing or
+            Every request to <code>/api/*</code>
+            must carry <code>Authorization: Bearer $INTERNAL_API_TOKEN</code>. Missing or
             wrong token returns <code>401 Unauthorized</code>. The token is
             shared via env between resto and ellie; rotate it by setting the
             new value on both services and restarting (no code change needed).
@@ -48,8 +48,8 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
         <div class="rounded-2xl bg-secondary/20 border border-secondary/40 p-4 mb-6 text-sm">
           <div class="font-bold mb-1">How cancel tokens work</div>
           <p class="opacity-90 leading-relaxed">
-            Bearer auth says "you're allowed to use the API at all." The
-            <code>cancel_token</code> says "you specifically own this
+            Bearer auth says "you're allowed to use the API at all." The <code>cancel_token</code>
+            says "you specifically own this
             reservation." Both are required to mutate or delete a reservation.
           </p>
           <ol class="list-decimal pl-5 mt-2 space-y-1 opacity-90">
@@ -66,8 +66,8 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
             </li>
             <li>
               There's no token recovery and no admin override. Lose it and the
-              booking is read-only forever — anyone with the bearer can
-              <code>GET</code> it, but only the holder of the cancel_token can
+              booking is read-only forever — anyone with the bearer can <code>GET</code>
+              it, but only the holder of the cancel_token can
               mutate or cancel it.
             </li>
           </ol>
@@ -141,7 +141,9 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
           >
             <:params>
               <li>
-                <code>:phone</code> — E.164 string (URL-encode the leading <code>+</code> as <code>%2B</code>).
+                <code>:phone</code>
+                — E.164 string (URL-encode the leading <code>+</code>
+                as <code>%2B</code>).
               </li>
             </:params>
             <:response>{customer_show_example()}</:response>
@@ -159,10 +161,12 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
               <li><code>phone</code> — required, E.164 string.</li>
               <li><code>first_name</code>, <code>last_name</code> — optional.</li>
               <li>
-                <code>salutation</code> — optional, one of <code>Mr</code>, <code>Mrs</code>, <code>Ms</code>.
+                <code>salutation</code>
+                — optional, one of <code>Mr</code>, <code>Mrs</code>, <code>Ms</code>.
               </li>
               <li>
-                <code>email</code> — optional. When provided and unseen, creates a preferred email contact.
+                <code>email</code>
+                — optional. When provided and unseen, creates a preferred email contact.
               </li>
               <li><code>notes</code> — optional staff free text.</li>
             </:params>
@@ -171,7 +175,8 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
             <:errors>
               <li><code>400 Missing phone</code> — request body had no <code>phone</code>.</li>
               <li>
-                <code>422 phone must be in E.164 format</code> — leading <code>+</code>, then 7..15 digits, first non-zero.
+                <code>422 phone must be in E.164 format</code>
+                — leading <code>+</code>, then 7..15 digits, first non-zero.
               </li>
               <li><code>422 must look like an email address</code>.</li>
             </:errors>
@@ -241,7 +246,8 @@ defmodule RestoBookingAppWeb.ApiDocsLive do
             <:params>
               <li><code>table_id</code> — required, one of T1..T9.</li>
               <li>
-                <code>starts_at</code> — required, ISO datetime on a :00 or :30 boundary, local hour 10..20.
+                <code>starts_at</code>
+                — required, ISO datetime on a :00 or :30 boundary, local hour 10..20.
               </li>
               <li>
                 <code>customer_id</code> — required UUID.  See <code>POST /api/customers</code>.

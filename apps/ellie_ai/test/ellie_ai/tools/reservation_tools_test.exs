@@ -118,15 +118,29 @@ defmodule EllieAi.Tools.ReservationToolsTest do
       %{bypass: bypass, org: org, ccid: ccid} = ctx
       :ok = satisfy_preconditions(ctx)
 
+      # tool looks the reservation up via Memory by (party_size, starts_at).
+      # seed one row so find_one/3 has something to match on.
+      starts_at = "2026-06-01T19:00:00-07:00"
+      new_starts_at = "2026-06-01T20:00:00-07:00"
+
+      :ok =
+        EllieAi.Calls.Memory.put_call_context(ccid, %{
+          reservations: [%{id: "r1", party_size: 2, starts_at: starts_at}]
+        })
+
       Bypass.stub(bypass, "PUT", "/api/orgs/seasons-sf/reservations/r1", fn conn ->
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
-        |> Plug.Conn.resp(200, ~s({"reservation":{"id":"r1","party_size":3}}))
+        |> Plug.Conn.resp(200, ~s({"reservation":{"id":"r1","starts_at":"#{new_starts_at}"}}))
       end)
 
-      assert {:ok, %{reservation: %{"id" => "r1", "party_size" => 3}}} =
+      assert {:ok, %{reservation: %{"id" => "r1"}}} =
                ModifyReservation.execute(
-                 %{"reservation_id" => "r1", "token" => "tok1", "party_size" => 3},
+                 %{
+                   "party_size" => 2,
+                   "starts_at" => starts_at,
+                   "new_starts_at" => new_starts_at
+                 },
                  %{org: org, ccid: ccid}
                )
     end
@@ -145,13 +159,20 @@ defmodule EllieAi.Tools.ReservationToolsTest do
       %{bypass: bypass, org: org, ccid: ccid} = ctx
       :ok = satisfy_preconditions(ctx)
 
+      starts_at = "2026-06-01T19:00:00-07:00"
+
+      :ok =
+        EllieAi.Calls.Memory.put_call_context(ccid, %{
+          reservations: [%{id: "r1", party_size: 2, starts_at: starts_at}]
+        })
+
       Bypass.stub(bypass, "DELETE", "/api/orgs/seasons-sf/reservations/r1", fn conn ->
         Plug.Conn.resp(conn, 204, "")
       end)
 
       assert {:ok, %{cancelled: true, id: "r1"}} =
                CancelReservation.execute(
-                 %{"reservation_id" => "r1", "token" => "tok1"},
+                 %{"party_size" => 2, "starts_at" => starts_at},
                  %{org: org, ccid: ccid}
                )
     end

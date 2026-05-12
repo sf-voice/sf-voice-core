@@ -93,7 +93,7 @@ defmodule RestoBookingApp.Bookings do
                contact_id: phone_contact.id
              },
            {:ok, reservation} <- Reservations.create(reservation_attrs) do
-          Repo.preload(reservation, [:customer, :contact])
+        Repo.preload(reservation, [:customer, :contact])
       else
         {:error, %Ecto.Changeset{} = cs} ->
           Repo.rollback(map_db_errors_back_to_form(cs, form_data))
@@ -101,9 +101,7 @@ defmodule RestoBookingApp.Bookings do
         nil ->
           # impossible normally: find_or_create_for_phone just created
           # the contact. surface a generic error rather than crash.
-          Repo.rollback(
-            changeset(form_data) |> Changeset.add_error(:phone, "could not be saved")
-          )
+          Repo.rollback(changeset(form_data) |> Changeset.add_error(:phone, "could not be saved"))
       end
     end)
   end

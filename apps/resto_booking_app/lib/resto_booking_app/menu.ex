@@ -1,6 +1,4 @@
 defmodule RestoBookingApp.Menu do
-
-
   import Ecto.Query
 
   alias RestoBookingApp.Menu.Constants

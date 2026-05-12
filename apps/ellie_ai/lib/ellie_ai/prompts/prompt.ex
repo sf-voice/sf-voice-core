@@ -32,5 +32,6 @@ defmodule EllieAi.Prompts.Prompt do
     |> validate_required(@required)
     |> validate_number(:version, greater_than: 0)
     |> assoc_constraint(:org)
+    |> unique_constraint([:org_id, :version])
   end
 end
