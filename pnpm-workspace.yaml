@@ -1,0 +1,6 @@
+# pnpm workspace root for the sf-voice monorepo. JS packages live under
+# core/ (apps) and (eventually) packages/ once we extract anything shared.
+# elixir/, rust/, and cpp/ are separate ecosystems — pnpm ignores them.
+packages:
+  - "core/frontend"
+  - "core/*"

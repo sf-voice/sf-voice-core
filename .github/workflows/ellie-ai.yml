@@ -1,19 +1,19 @@
 name: ellie-ai
 
-# only fires when ellie_ai or shared deploy/ infra changes. resto's pipeline
+# only fires when ellie_ai or shared infra/deploy/ infra changes. resto's pipeline
 # has its own filter so the two apps deploy independently.
 
 on:
   pull_request:
     paths:
       - "apps/ellie_ai/**"
-      - "deploy/**"
+      - "infra/deploy/**"
       - ".github/workflows/ellie-ai.yml"
   push:
     branches: [main]
     paths:
       - "apps/ellie_ai/**"
-      - "deploy/**"
+      - "infra/deploy/**"
       - ".github/workflows/ellie-ai.yml"
 
 concurrency:
@@ -103,6 +103,18 @@ jobs:
           cache-from: type=gha,scope=ellie
           cache-to: type=gha,mode=max,scope=ellie
 
+      # upload the deploy script + compose file to a path the deploy user owns,
+      # so future edits to either ship on the next push without manual sync.
+      - name: upload deploy assets
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: deploy
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          source: "infra/deploy/deploy-ellie-ai.sh,infra/deploy/docker-compose.ellie.yml"
+          target: "/srv/ellie-ai/"
+          strip_components: 2
+
       - name: deploy via ssh
         uses: appleboy/ssh-action@v1.2.0
         env:
@@ -114,7 +126,10 @@ jobs:
           key: ${{ secrets.DROPLET_SSH_KEY }}
           envs: GHCR_USER,GHCR_TOKEN
           script: |
-            /usr/local/bin/deploy-ellie-ai.sh sha-${{ github.sha }}
+            cd /srv/ellie-ai
+            mv -f docker-compose.ellie.yml docker-compose.yml
+            chmod +x deploy-ellie-ai.sh
+            ./deploy-ellie-ai.sh sha-${{ github.sha }}
 
       - name: smoke check
         run: |
