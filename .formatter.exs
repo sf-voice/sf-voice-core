@@ -13,5 +13,5 @@
 # finds the per-app formatter via nearest-file lookup when formatting on
 # save.
 [
-  inputs: ["{mix,.formatter,.workspace}.exs"]
+  inputs: ["{mix,.formatter,.workspace}.exs", "*/{mix,.formatter,.workspace}.exs"]
 ]

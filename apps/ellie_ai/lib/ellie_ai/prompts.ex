@@ -8,7 +8,7 @@ defmodule EllieAi.Prompts do
 
   import Ecto.Query
 
-  alias EllieAi.{Calls, Customers, Resto}
+  alias EllieAi.{Calls, Customers, Resto, Utils}
   alias EllieAi.Calls.{Call, Memory}
   alias EllieAi.Customers.CustomerSummary
   alias EllieAi.Orgs.Org
@@ -50,7 +50,7 @@ defmodule EllieAi.Prompts do
 
       attrs =
         attrs
-        |> stringify_keys()
+        |> Utils.stringify_keys()
         |> Map.merge(%{
           "org_id" => org_id,
           "version" => next,
@@ -187,13 +187,6 @@ defmodule EllieAi.Prompts do
     render!(org_id, assigns)
   rescue
     _ -> Defaults.fallback()
-  end
-
-  defp stringify_keys(map) when is_map(map) do
-    Map.new(map, fn
-      {k, v} when is_atom(k) -> {Atom.to_string(k), v}
-      {k, v} -> {k, v}
-    end)
   end
 
   # ── orchestration: fetch context → write to memory → compose prompt ──

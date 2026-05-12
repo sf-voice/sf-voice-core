@@ -22,17 +22,13 @@ defmodule EllieAi.Providers.OpenAI do
   def transcription_model, do: config(:transcription_model, @default_transcription_model)
 
   def realtime_ws_url do
-    "wss://api.openai.com/v1/realtime?model=#{realtime_model()}"
+    "wss://api.openai.com/v1/realtime?" <> URI.encode_query(%{"model" => realtime_model()})
   end
 
-  # no `OpenAI-Beta` header — GA realtime rejects `realtime=v1` as `invalid_beta`.
   def realtime_ws_headers do
-    case api_key() do
-      key when is_binary(key) and key != "" ->
-        {:ok, [{"Authorization", "Bearer #{key}"}]}
-
-      _ ->
-        {:error, :openai_api_key_missing}
+    case fetch_api_key() do
+      {:ok, key} -> {:ok, [{"Authorization", "Bearer #{key}"}]}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -45,11 +41,11 @@ defmodule EllieAi.Providers.OpenAI do
 
   @spec chat([map()], keyword()) :: {:ok, String.t()} | {:error, term()}
   def chat(messages, opts \\ []) when is_list(messages) do
-    case api_key() do
-      nil ->
+    case fetch_api_key() do
+      {:error, :openai_api_key_missing} ->
         {:error, :no_api_key}
 
-      key ->
+      {:ok, key} ->
         body = build_chat_body(messages, opts)
         url = "#{base_url()}/v1/chat/completions"
 
@@ -86,6 +82,19 @@ defmodule EllieAi.Providers.OpenAI do
   end
 
   defp api_key, do: System.get_env("OPENAI_API_KEY")
+
+  # single source of truth for "is the api key usable?". trim handles the common
+  # copy-paste-with-trailing-newline foot-gun; empty/whitespace counts as missing.
+  defp fetch_api_key do
+    case api_key() do
+      key when is_binary(key) ->
+        trimmed = String.trim(key)
+        if trimmed == "", do: {:error, :openai_api_key_missing}, else: {:ok, trimmed}
+
+      _ ->
+        {:error, :openai_api_key_missing}
+    end
+  end
 
   defp base_url, do: config(:base_url, @default_base_url)
 

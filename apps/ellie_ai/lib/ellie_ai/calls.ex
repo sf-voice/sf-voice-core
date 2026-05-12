@@ -27,6 +27,7 @@ defmodule EllieAi.Calls do
 
   alias EllieAi.Customers.CustomerSummary
   alias EllieAi.Orgs.Org
+  alias EllieAi.Utils
 
   # inlined into the `append_turn/4` guard. guards reject runtime function
   # calls, so we read the canonical list once at compile time.
@@ -123,7 +124,7 @@ defmodule EllieAi.Calls do
   "make this stop now". if telnyx's API is unreachable we still tear
   down our side so the AI stops responding.
   """
-  `@spec` end_call(String.t()) :: :ok
+  @spec end_call(String.t()) :: :ok
   def end_call(ccid) when is_binary(ccid) do
     case EllieAi.Telnyx.Client.hangup(ccid) do
       :ok ->
@@ -579,7 +580,7 @@ defmodule EllieAi.Calls do
 
       outcome =
         try do
-          module.execute(stringify_top_level(args), %{
+          module.execute(Utils.stringify_keys(args), %{
             org: call.org,
             ccid: ccid,
             tool_call_id: new_row.id
@@ -604,13 +605,6 @@ defmodule EllieAi.Calls do
       nil -> {:error, :not_found}
       other -> other
     end
-  end
-
-  defp stringify_top_level(map) when is_map(map) do
-    Map.new(map, fn
-      {k, v} when is_atom(k) -> {Atom.to_string(k), v}
-      {k, v} -> {k, v}
-    end)
   end
 
   defp normalise_payload(p) when is_map(p), do: p
