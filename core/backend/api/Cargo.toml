@@ -1,0 +1,17 @@
+# the sf-voice api service — api.sf-voice.sh. kept as a single bin crate
+# until there's a real reason to split (e.g. a separate `worker` crate
+# sharing a `core` library crate). add new sibling crates as workspace
+# members in the root Cargo.toml.
+[package]
+name = "sf-voice-api"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "sf-voice-api"
+path = "src/main.rs"
+
+[dependencies]

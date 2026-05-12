@@ -1,0 +1,4 @@
+@import "tailwindcss";
+
+/* tailwind v4 theme config lives here, not in a JS file.
+   add @theme { ... } blocks below as the design system grows. */

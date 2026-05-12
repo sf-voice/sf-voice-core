@@ -1,0 +1,15 @@
+# root cargo workspace for sf-voice. one target/, one Cargo.lock for every
+# rust crate in the repo. core/backend/* are the runnable services
+# (api.sf-voice.sh). rust/* will hold publishable library crates once we
+# start extracting any.
+[workspace]
+resolver = "2"
+members = [
+    "core/backend/api",
+]
+exclude = []
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.80"
+license = "MIT"

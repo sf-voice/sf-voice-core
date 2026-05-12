@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # one-time droplet setup. run as root from the cloned repo on the droplet:
 #
-#   sudo bash deploy/bootstrap.sh \
+#   sudo bash infra/deploy/bootstrap.sh \
 #     "<deploy_pubkey contents>" \
 #     "<RESTO_SECRET_KEY_BASE>" \
 #     "<ELLIE_SECRET_KEY_BASE>" \
@@ -54,12 +54,12 @@ install -m 644 "$ORIGIN_CERT_PATH" /etc/caddy/certs/origin.pem
 install -m 600 "$ORIGIN_KEY_PATH"  /etc/caddy/certs/origin.key
 
 # ── 4. drop configs ──────────────────────────────────────────────────────
-install -m 644 "$REPO_DIR/deploy/Caddyfile"                  /srv/caddy/Caddyfile
-install -m 644 "$REPO_DIR/deploy/docker-compose.caddy.yml"   /srv/caddy/docker-compose.yml
-install -m 644 "$REPO_DIR/deploy/docker-compose.app.yml"     /srv/resto-demo/docker-compose.yml
-install -m 644 "$REPO_DIR/deploy/docker-compose.ellie.yml"   /srv/ellie-ai/docker-compose.yml
-install -m 755 "$REPO_DIR/deploy/deploy-resto-demo.sh"       /usr/local/bin/deploy-resto-demo.sh
-install -m 755 "$REPO_DIR/deploy/deploy-ellie-ai.sh"         /usr/local/bin/deploy-ellie-ai.sh
+install -m 644 "$REPO_DIR/infra/deploy/Caddyfile"                  /srv/caddy/Caddyfile
+install -m 644 "$REPO_DIR/infra/deploy/docker-compose.caddy.yml"   /srv/caddy/docker-compose.yml
+install -m 644 "$REPO_DIR/infra/deploy/docker-compose.app.yml"     /srv/resto-demo/docker-compose.yml
+install -m 644 "$REPO_DIR/infra/deploy/docker-compose.ellie.yml"   /srv/ellie-ai/docker-compose.yml
+install -m 755 "$REPO_DIR/infra/deploy/deploy-resto-demo.sh"       /usr/local/bin/deploy-resto-demo.sh
+install -m 755 "$REPO_DIR/infra/deploy/deploy-ellie-ai.sh"         /usr/local/bin/deploy-ellie-ai.sh
 
 # .env files hold runtime secrets — chmod 600 so only deploy can read them
 cat > /srv/resto-demo/.env <<EOF

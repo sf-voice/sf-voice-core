@@ -1,6 +1,6 @@
 name: resto-booking-app
 
-# only fires when this app's code, the shared deploy/ infra, or this workflow
+# only fires when this app's code, the shared infra/deploy/ infra, or this workflow
 # itself changes. ellie-ai's pipeline has its own filter so a change to one
 # app never rebuilds the other.
 
@@ -8,13 +8,13 @@ on:
   pull_request:
     paths:
       - "apps/resto_booking_app/**"
-      - "deploy/**"
+      - "infra/deploy/**"
       - ".github/workflows/resto-booking-app.yml"
   push:
     branches: [main]
     paths:
       - "apps/resto_booking_app/**"
-      - "deploy/**"
+      - "infra/deploy/**"
       - ".github/workflows/resto-booking-app.yml"
 
 concurrency:
