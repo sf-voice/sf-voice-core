@@ -8,6 +8,12 @@ defmodule EllieAi.Application do
     # load silero vad once per vm
     EllieAi.Calls.SileroVad.load!()
 
+    # owned by the application controller process so the table survives any
+    # request/worker dying. created here (not lazily by callers) because a
+    # short-lived plug process owning a named ETS table would take the
+    # whole cache down on exit. see EllieAi.Settings.
+    init_settings_cache()
+
     children =
       [
         EllieAiWeb.Telemetry,
@@ -82,6 +88,19 @@ defmodule EllieAi.Application do
           Logger.warning("could not print boot banner: #{Exception.message(e)}")
       end
     end
+  end
+
+  defp init_settings_cache do
+    if :ets.whereis(:ellie_settings_cache) == :undefined do
+      :ets.new(:ellie_settings_cache, [
+        :named_table,
+        :public,
+        read_concurrency: true,
+        write_concurrency: true
+      ])
+    end
+
+    :ok
   end
 
   defp port do

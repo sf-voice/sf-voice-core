@@ -65,26 +65,122 @@ end)
 
 menu_spec = [
   # breakfast
-  %{service: "breakfast", name: "Sourdough Toast & Jam", price_cents: 700, dietary: [:vegan], sort_order: 1},
-  %{service: "breakfast", name: "Garden Veg Shakshuka", price_cents: 1400, dietary: [:vegetarian, :gluten_free], sort_order: 2},
-  %{service: "breakfast", name: "Smoked Salmon Bagel", price_cents: 1600, dietary: [:nut_free], sort_order: 3},
-  %{service: "breakfast", name: "Buckwheat Pancakes", price_cents: 1200, dietary: [:vegetarian, :nut_free], sort_order: 4},
-  %{service: "breakfast", name: "Oat Porridge, Berries", price_cents: 900, dietary: [:vegan, :gluten_free], sort_order: 5},
+  %{
+    service: "breakfast",
+    name: "Sourdough Toast & Jam",
+    price_cents: 700,
+    dietary: [:vegan],
+    sort_order: 1
+  },
+  %{
+    service: "breakfast",
+    name: "Garden Veg Shakshuka",
+    price_cents: 1400,
+    dietary: [:vegetarian, :gluten_free],
+    sort_order: 2
+  },
+  %{
+    service: "breakfast",
+    name: "Smoked Salmon Bagel",
+    price_cents: 1600,
+    dietary: [:nut_free],
+    sort_order: 3
+  },
+  %{
+    service: "breakfast",
+    name: "Buckwheat Pancakes",
+    price_cents: 1200,
+    dietary: [:vegetarian, :nut_free],
+    sort_order: 4
+  },
+  %{
+    service: "breakfast",
+    name: "Oat Porridge, Berries",
+    price_cents: 900,
+    dietary: [:vegan, :gluten_free],
+    sort_order: 5
+  },
 
   # lunch
-  %{service: "lunch", name: "House Caesar Salad", price_cents: 1500, dietary: [:vegetarian], sort_order: 1},
-  %{service: "lunch", name: "Roasted Squash Risotto", price_cents: 1800, dietary: [:vegetarian, :gluten_free], sort_order: 2},
-  %{service: "lunch", name: "Steak Frites", price_cents: 2600, dietary: [:gluten_free], sort_order: 3},
-  %{service: "lunch", name: "Crispy Tofu Bowl", price_cents: 1700, dietary: [:vegan, :gluten_free, :nut_free], sort_order: 4},
-  %{service: "lunch", name: "Mushroom Tagliatelle", price_cents: 1900, dietary: [:vegetarian], sort_order: 5},
+  %{
+    service: "lunch",
+    name: "House Caesar Salad",
+    price_cents: 1500,
+    dietary: [:vegetarian],
+    sort_order: 1
+  },
+  %{
+    service: "lunch",
+    name: "Roasted Squash Risotto",
+    price_cents: 1800,
+    dietary: [:vegetarian, :gluten_free],
+    sort_order: 2
+  },
+  %{
+    service: "lunch",
+    name: "Steak Frites",
+    price_cents: 2600,
+    dietary: [:gluten_free],
+    sort_order: 3
+  },
+  %{
+    service: "lunch",
+    name: "Crispy Tofu Bowl",
+    price_cents: 1700,
+    dietary: [:vegan, :gluten_free, :nut_free],
+    sort_order: 4
+  },
+  %{
+    service: "lunch",
+    name: "Mushroom Tagliatelle",
+    price_cents: 1900,
+    dietary: [:vegetarian],
+    sort_order: 5
+  },
 
   # dinner
-  %{service: "dinner", name: "Charred Octopus", price_cents: 2400, dietary: [:gluten_free, :dairy_free], sort_order: 1},
-  %{service: "dinner", name: "Wagyu Tartare", price_cents: 2900, dietary: [:gluten_free, :nut_free], sort_order: 2},
-  %{service: "dinner", name: "Truffle Tagliolini", price_cents: 3200, dietary: [:vegetarian], sort_order: 3},
-  %{service: "dinner", name: "Branzino al Sale", price_cents: 3600, dietary: [:gluten_free, :dairy_free], sort_order: 4},
-  %{service: "dinner", name: "Beetroot Wellington", price_cents: 2800, dietary: [:vegan], sort_order: 5},
-  %{service: "dinner", name: "Dark Chocolate Tart", price_cents: 1100, dietary: [:vegetarian, :gluten_free], sort_order: 6}
+  %{
+    service: "dinner",
+    name: "Charred Octopus",
+    price_cents: 2400,
+    dietary: [:gluten_free, :dairy_free],
+    sort_order: 1
+  },
+  %{
+    service: "dinner",
+    name: "Wagyu Tartare",
+    price_cents: 2900,
+    dietary: [:gluten_free, :nut_free],
+    sort_order: 2
+  },
+  %{
+    service: "dinner",
+    name: "Truffle Tagliolini",
+    price_cents: 3200,
+    dietary: [:vegetarian],
+    sort_order: 3
+  },
+  %{
+    service: "dinner",
+    name: "Branzino al Sale",
+    price_cents: 3600,
+    dietary: [:gluten_free, :dairy_free],
+    sort_order: 4
+  },
+  %{
+    service: "dinner",
+    name: "Beetroot Wellington",
+    price_cents: 2800,
+    dietary: [:vegan],
+    sort_order: 5
+  },
+  %{
+    service: "dinner",
+    name: "Dark Chocolate Tart",
+    price_cents: 1100,
+    dietary: [:vegetarian, :gluten_free],
+    sort_order: 6
+  }
 ]
 
 Enum.each(orgs, fn org ->

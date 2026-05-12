@@ -33,8 +33,20 @@ defmodule RestoBookingAppWeb.ReservationControllerTest do
   defp default_menu do
     [
       %{service: "breakfast", name: "Toast", price_cents: 700, dietary: [:vegan], sort_order: 1},
-      %{service: "lunch", name: "Caesar", price_cents: 1500, dietary: [:vegetarian], sort_order: 1},
-      %{service: "dinner", name: "Tartare", price_cents: 2900, dietary: [:gluten_free], sort_order: 1}
+      %{
+        service: "lunch",
+        name: "Caesar",
+        price_cents: 1500,
+        dietary: [:vegetarian],
+        sort_order: 1
+      },
+      %{
+        service: "dinner",
+        name: "Tartare",
+        price_cents: 2900,
+        dietary: [:gluten_free],
+        sort_order: 1
+      }
     ]
   end
 
@@ -170,7 +182,6 @@ defmodule RestoBookingAppWeb.ReservationControllerTest do
       assert json_response(conn, 200)["reservation"]["special_requests"] ==
                "no peanuts, no shellfish"
     end
-
   end
 
   describe "DELETE /api/orgs/:org_slug/reservations/:id" do
@@ -186,7 +197,6 @@ defmodule RestoBookingAppWeb.ReservationControllerTest do
 
       assert response(conn, 204)
     end
-
   end
 
   describe "static endpoints" do

@@ -8,29 +8,13 @@ defmodule EllieAi.Settings do
   alias EllieAi.Settings.Setting
 
   # 30s read-through cache, keyed by {org_id, key}, lazily populated on
-  # first miss.
+  # first miss. table itself is created in EllieAi.Application.start/2 so
+  # it's owned by the application controller (effectively immortal) — if a
+  # plug worker owned it the cache would die with each request.
   @cache_table :ellie_settings_cache
   @cache_ttl_ms 30_000
 
-  defp ensure_cache do
-    if :ets.whereis(@cache_table) == :undefined do
-      try do
-        :ets.new(@cache_table, [
-          :named_table,
-          :public,
-          read_concurrency: true,
-          write_concurrency: true
-        ])
-      rescue
-        # lost the race — another process created the table between our
-        # whereis check and :ets.new. fine, the table exists either way.
-        ArgumentError -> :ok
-      end
-    end
-  end
-
   defp cache_get(org_id, key) do
-    ensure_cache()
     now = System.monotonic_time(:millisecond)
 
     case :ets.lookup(@cache_table, {org_id, key}) do
@@ -40,14 +24,12 @@ defmodule EllieAi.Settings do
   end
 
   defp cache_put(org_id, key, value) do
-    ensure_cache()
     expires_at = System.monotonic_time(:millisecond) + @cache_ttl_ms
     :ets.insert(@cache_table, {{org_id, key}, value, expires_at})
     value
   end
 
   defp cache_invalidate(org_id, key) do
-    ensure_cache()
     :ets.delete(@cache_table, {org_id, key})
   end
 
