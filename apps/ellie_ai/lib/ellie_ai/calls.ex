@@ -28,6 +28,8 @@ defmodule EllieAi.Calls do
   alias EllieAi.Customers.CustomerSummary
   alias EllieAi.Orgs.Org
   alias EllieAi.Utils
+  alias EllieAi.Calls.Summarizer
+  alias EllieAi.Telnyx.Client, as: TC
 
   # inlined into the `append_turn/4` guard. guards reject runtime function
   # calls, so we read the canonical list once at compile time.
@@ -107,7 +109,7 @@ defmodule EllieAi.Calls do
     # async post-call summary. snapshots call_id before teardown drops
     # the registry entry. failures inside the Task log but don't block.
     case get_by_ccid(ccid) do
-      %Call{id: call_id} -> EllieAi.Calls.Summarizer.summarize_async(call_id)
+      %Call{id: call_id} -> Summarizer.summarize_async(call_id)
       nil -> :ok
     end
 
@@ -126,7 +128,7 @@ defmodule EllieAi.Calls do
   """
   @spec end_call(String.t()) :: :ok
   def end_call(ccid) when is_binary(ccid) do
-    case EllieAi.Telnyx.Client.hangup(ccid) do
+    case TC.hangup(ccid) do
       :ok ->
         :ok
 
@@ -137,7 +139,7 @@ defmodule EllieAi.Calls do
     finish_call(ccid, Constants.status_ended(), "ended_by_staff")
 
     case get_by_ccid(ccid) do
-      %Call{id: call_id} -> EllieAi.Calls.Summarizer.summarize_async(call_id)
+      %Call{id: call_id} -> Summarizer.summarize_async(call_id)
       nil -> :ok
     end
 
