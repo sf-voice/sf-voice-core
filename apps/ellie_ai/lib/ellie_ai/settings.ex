@@ -107,28 +107,34 @@ defmodule EllieAi.Settings do
     description = Keyword.get(opts, :description)
     surfaced = Keyword.get(opts, :surfaced, true)
 
-    attrs = %{
-      org_id: org_id,
-      key: key,
-      value: stringify_value(value, value_type),
-      value_type: value_type,
-      description: description,
-      surfaced: surfaced
-    }
+    case encode_value(value, value_type) do
+      {:ok, encoded} ->
+        attrs = %{
+          org_id: org_id,
+          key: key,
+          value: encoded,
+          value_type: value_type,
+          description: description,
+          surfaced: surfaced
+        }
 
-    # atomic upsert against the unique index on (org_id, key) — without this,
-    # two concurrent put/4 calls for the same key race between the get and the
-    # insert. on_conflict replaces the row, leaving id + inserted_at intact.
-    result =
-      %Setting{}
-      |> Setting.changeset(attrs)
-      |> Repo.insert(
-        on_conflict: {:replace_all_except, [:id, :inserted_at]},
-        conflict_target: [:org_id, :key]
-      )
+        # atomic upsert against the unique index on (org_id, key) — without this,
+        # two concurrent put/4 calls for the same key race between the get and the
+        # insert. on_conflict replaces the row, leaving id + inserted_at intact.
+        result =
+          %Setting{}
+          |> Setting.changeset(attrs)
+          |> Repo.insert(
+            on_conflict: {:replace_all_except, [:id, :inserted_at]},
+            conflict_target: [:org_id, :key]
+          )
 
-    cache_invalidate(org_id, key)
-    result
+        cache_invalidate(org_id, key)
+        result
+
+      {:error, reason} ->
+        {:error, encode_error_changeset(org_id, key, value_type, description, surfaced, reason)}
+    end
   end
 
   @doc """
@@ -137,18 +143,77 @@ defmodule EllieAi.Settings do
   customizations on subsequent runs.
   """
   def bootstrap(org_id, key, value, opts \\ []) when is_binary(org_id) and is_binary(key) do
-    case get(org_id, key) do
-      nil -> put(org_id, key, value, opts)
-      %Setting{} = existing -> {:ok, existing}
+    value_type = Keyword.get(opts, :value_type, "string")
+    description = Keyword.get(opts, :description)
+    surfaced = Keyword.get(opts, :surfaced, true)
+
+    case encode_value(value, value_type) do
+      {:ok, encoded} ->
+        attrs = %{
+          org_id: org_id,
+          key: key,
+          value: encoded,
+          value_type: value_type,
+          description: description,
+          surfaced: surfaced
+        }
+
+        # atomic insert-if-absent against the unique index on (org_id, key). unlike
+        # put/4 which uses replace_all_except, bootstrap must preserve any existing
+        # row so operator customizations survive subsequent boots/seeds. the old
+        # get/2 -> put/4 path raced: two concurrent bootstrap calls (or bootstrap vs
+        # put) could both see nil and the second would clobber the first.
+        result =
+          %Setting{}
+          |> Setting.changeset(attrs)
+          |> Repo.insert(
+            on_conflict: :nothing,
+            conflict_target: [:org_id, :key]
+          )
+
+        case result do
+          {:ok, %Setting{id: nil}} ->
+            # conflict — row already existed. return whatever's in the db; never
+            # blindly overwrite a concurrent write.
+            {:ok, get(org_id, key)}
+
+          {:ok, %Setting{}} = ok ->
+            cache_invalidate(org_id, key)
+            ok
+
+          {:error, _} = err ->
+            err
+        end
+
+      {:error, reason} ->
+        {:error, encode_error_changeset(org_id, key, value_type, description, surfaced, reason)}
     end
   end
 
-  defp stringify_value(nil, _), do: nil
+  # only the "json" branch can fail (bad input → jason error). every other
+  # branch is total, so we wrap them in {:ok, _} to keep one return shape.
+  defp encode_value(nil, _), do: {:ok, nil}
+  defp encode_value(v, "json"), do: Jason.encode(v)
+  defp encode_value(v, type), do: {:ok, stringify_value(v, type)}
+
   defp stringify_value(v, "string") when is_binary(v), do: v
   defp stringify_value(v, "int") when is_integer(v), do: Integer.to_string(v)
   defp stringify_value(v, "float") when is_float(v), do: Float.to_string(v)
   defp stringify_value(true, "bool"), do: "true"
   defp stringify_value(false, "bool"), do: "false"
-  defp stringify_value(v, "json"), do: Jason.encode!(v)
   defp stringify_value(v, _), do: to_string(v)
+
+  # surface encode failures through the same changeset contract callers
+  # already handle, instead of letting a raise escape from put/bootstrap.
+  defp encode_error_changeset(org_id, key, value_type, description, surfaced, reason) do
+    %Setting{}
+    |> Setting.changeset(%{
+      org_id: org_id,
+      key: key,
+      value_type: value_type,
+      description: description,
+      surfaced: surfaced
+    })
+    |> Ecto.Changeset.add_error(:value, "is not valid json: #{inspect(reason)}")
+  end
 end
