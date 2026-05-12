@@ -183,7 +183,20 @@ Keep it short. This is a status update, not a recap.
 ### 21. Shared constants live in a constants module
 When a literal value (domain enum, magic number with business meaning, regex, etc.) is used in **two or more modules**, extract it to a per-context `Constants` module — e.g. `RestoBookingApp.Reservations.Constants`. Cross-context shared values go in a top-level module (`RestoBookingApp.Validations`, etc.). Values used in only one module stay as `@module_attribute` co-located with the function that uses them. Do not preemptively centralise — wait for the second use.
 
-### 22. The Karpathy 4
+### 22. Single source of truth
+Every concept lives in exactly one place. The moment the same function, regex, validation, formatter, mapping, or behaviour appears in **two** modules, stop and extract it to a shared module before adding a third copy. This applies to:
+
+- Helper functions (e.g. `format_reason/1`, `normalize_phone/1`)
+- Regex patterns
+- Mappings (status → label, role → CSS class)
+- Validation rules
+- Tool / behaviour implementations that share a contract
+
+The threshold is two, not three. Three copies is already three places to fix the same bug. If a similar pattern exists somewhere else, find it before writing the second copy — search the codebase first, extract second, then implement.
+
+Naming clash check: when extracting, never reuse a name that already exists in the same context (e.g. don't name a new module `Registry` when `CallRegistry` already exists to avoid shadowing stdlib `Registry`). Centralising should reduce ambiguity, not add it.
+
+### 23. The Karpathy 4
 1. **Ask, don't assume.** If something is unclear or underspecified, ask before writing a single line. Never make silent assumptions about intent, architecture, or requirements.
 
 2. **Simplest solution first.** Always implement the simplest thing that could work. Do not add abstractions, layers, or flexibility that weren't explicitly requested.
