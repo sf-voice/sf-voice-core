@@ -25,7 +25,7 @@ defmodule EllieAi.Menu do
     )
     |> Repo.all()
     |> Enum.reduce(base, fn item, acc ->
-      key = String.to_atom(item.service)
+      key = String.to_existing_atom(item.service)
       Map.update(acc, key, [item], &(&1 ++ [item]))
     end)
   end
