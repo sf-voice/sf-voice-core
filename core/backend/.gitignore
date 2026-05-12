@@ -1,0 +1,3 @@
+# cargo's target lives at the workspace root, but keep this guard in case
+# someone runs a one-off build from inside core/backend.
+target/

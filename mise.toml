@@ -192,3 +192,37 @@ run = [
   "mix deps.get",
   "mix workspace.run -t deps.compile",
 ]
+
+# ── core packages (scaffold — not wired into deploy yet) ─────────────────
+# these tasks exist so `mise tasks` lists every entrypoint in the monorepo
+# even before the packages have real code in them. each one is safe to run
+# on the empty scaffold (rspack serve starts a dev server, cargo run prints
+# a stub line, uv runs nothing useful yet).
+
+[tasks."web:dev"]
+description = "core/frontend dev server (rspack, app.sf-voice.sh)"
+dir = "core/frontend"
+run = "pnpm dev"
+
+[tasks."web:build"]
+description = "core/frontend production build"
+dir = "core/frontend"
+run = "pnpm build"
+
+[tasks."web:typecheck"]
+description = "tsc --noEmit for core/frontend"
+dir = "core/frontend"
+run = "pnpm typecheck"
+
+[tasks."api:dev"]
+description = "core/backend/api — cargo run (api.sf-voice.sh)"
+run = "cargo run -p sf-voice-api"
+
+[tasks."api:build"]
+description = "core/backend/api — cargo build --release"
+run = "cargo build -p sf-voice-api --release"
+
+[tasks."inference:install"]
+description = "core/inference — sync python deps (placeholder)"
+dir = "core/inference"
+run = "echo 'inference scaffold — wire uv/pip once dependencies exist'"
