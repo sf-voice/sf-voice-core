@@ -1,9 +1,5 @@
 defmodule EllieAi.Calls.ToolCall do
-  @moduledoc """
-  one row per tool invocation inside a call. type/status enums in
-  `Constants`. replays insert a new row pointing at the original via
-  `replayed_from_id`; the original is never mutated.
-  """
+  @moduledoc "one row per tool invocation. replays insert a new row via `replayed_from_id`; originals are immutable."
 
   use Ecto.Schema
   import Ecto.Changeset
@@ -24,8 +20,6 @@ defmodule EllieAi.Calls.ToolCall do
     field :duration_ms, :integer
 
     belongs_to :call, Call
-    # self-referential: replayed_from_id points at the original row when
-    # this is a replay; nil on originals.
     belongs_to :replayed_from, __MODULE__
 
     timestamps(type: :utc_datetime)

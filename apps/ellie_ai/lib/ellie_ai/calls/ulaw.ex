@@ -5,8 +5,7 @@ defmodule EllieAi.Calls.Ulaw do
 
   import Bitwise
 
-  # pre-build the lookup at compile time. each entry is the int16 pcm
-  # value for the corresponding μ-law byte index.
+  # compile-time table: byte index → int16 pcm sample.
   decoded_table =
     for byte <- 0..255 do
       inverted = bxor(byte, 0xFF)
@@ -21,13 +20,9 @@ defmodule EllieAi.Calls.Ulaw do
 
   @inv_scale 1.0 / 32768.0
 
-  @doc "decode one μ-law byte to its int16 pcm sample value."
   def decode_byte(b) when is_integer(b) and b in 0..255, do: elem(@table, b)
 
-  @doc """
-  decode a μ-law byte string into a list of float32 samples in [-1.0, 1.0).
-  output length equals input byte size (one sample per byte).
-  """
+  @doc "decode μ-law bytes into f32 samples in [-1.0, 1.0); one sample per byte."
   def decode_to_floats(bytes) when is_binary(bytes) do
     for <<b <- bytes>>, do: elem(@table, b) * @inv_scale
   end

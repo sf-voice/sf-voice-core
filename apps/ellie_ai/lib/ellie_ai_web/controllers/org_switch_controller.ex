@@ -1,11 +1,8 @@
 defmodule EllieAiWeb.OrgSwitchController do
   @moduledoc """
   switches the active org for the current session and redirects back to
-  the referring page (or `/` if there isn't one).
-
-  driven by the org dropdown in the sidebar. uses a regular POST + form so
-  it works without javascript — falling back to a full page reload is fine
-  because every LiveView re-mounts and picks up the new org from session.
+  the referring page. uses a plain POST + form so it works without js;
+  LiveView re-mounts pick up the new org from session on full reload.
   """
 
   use EllieAiWeb, :controller

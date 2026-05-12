@@ -1,14 +1,8 @@
 defmodule EllieAiWeb.CallAudioController do
   @moduledoc """
-  serves the per-call audio file. two paths:
-
-    * if the call has a populated `audio_s3_key`, redirect to a short-lived
-      presigned s3 url so the browser streams from s3 directly. avoids
-      proxying ~mb of audio through phoenix.
-
-    * if no key (s3 not configured in dev, or upload failed), serve the
-      local /tmp/calls/<call_id>/full.wav fall-back so staff can still
-      listen to recent calls from a dev box.
+  serves per-call audio. if `audio_s3_key` is set, redirect to a presigned
+  s3 url so the browser streams from s3 directly. otherwise fall back to
+  /tmp/calls/<id>/full.wav (dev boxes without s3 configured).
   """
 
   use EllieAiWeb, :controller
@@ -16,8 +10,7 @@ defmodule EllieAiWeb.CallAudioController do
   alias EllieAi.Calls
 
   @presign_expires_seconds 60 * 5
-  # 15-min max age on the signed audio token. matches how long a staff
-  # member typically keeps a call detail page open.
+  # 15-min token matches how long staff typically keep a call detail page open.
   @token_max_age 60 * 15
 
   def show(conn, %{"id" => id, "token" => token}) do

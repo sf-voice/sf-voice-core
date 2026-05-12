@@ -1,28 +1,14 @@
 defmodule EllieAi.Calls.Memory do
   @moduledoc """
-  the in-memory state of a live call. everything a per-call worker
-  needs to know without threading args — the org it's serving, the
-  ccid it's keyed on, the runtime config the operator dialled in via
-  /settings — all lives here and gets read on demand.
+  in-memory state of a live call. two layers:
 
-  two layers:
+    1. shared ETS row keyed by ccid — CallTree writes it once; children
+       read on init via `bootstrap_from/1`.
+    2. process dictionary copy for the hot path — `Memory.org/0` and
+       friends are constant-time dict reads.
 
-    1. **shared ETS row** keyed by ccid. CallTree writes it once at
-       boot via `publish/2`; every child process reads it on init via
-       `bootstrap_from/1`. drops via `drop/1` when the tree shuts down.
-
-    2. **process dictionary** for the read-hot path. `bootstrap_from/1`
-       copies the ETS row into the calling process's dict; subsequent
-       `Memory.org/0`, `Memory.vad_silence_ms/0`, etc. are constant-time
-       dict reads with no cross-process hop.
-
-  `Memory.async/1` propagates the dict into a spawned task so async
-  work (sentiment scoring, tool dispatch) inherits the context.
-
-  what NOT to put here: anything that needs to survive a crash, anything
-  shared across calls, the genserver-private state of any one worker
-  (file handles, vad rnn state, audio counters — those stay in their
-  owning process's struct).
+  `async/1` propagates the dict into a spawned task. don't put
+  per-worker private state (file handles, vad rnn, audio counters) here.
   """
 
   alias EllieAi.{Orgs, Settings}
@@ -33,12 +19,6 @@ defmodule EllieAi.Calls.Memory do
   @table :ellie_call_contexts
 
   # ── shared per-call store ─────────────────────────────────────────────
-  #
-  # ETS table keyed by ccid. CallTree writes one row per call at init;
-  # every child process reads it on its own init and copies into its
-  # process dictionary. when the tree terminates, we delete the row so
-  # the table doesn't grow unbounded. one named ETS table for the whole
-  # VM, lazily created.
 
   defp ensure_table do
     if :ets.whereis(@table) == :undefined do
@@ -46,10 +26,7 @@ defmodule EllieAi.Calls.Memory do
     end
   end
 
-  @doc """
-  publish a call's context so child processes can pick it up by ccid.
-  called from `CallTree.init/1`. idempotent on repeat with the same ccid.
-  """
+  @doc "publish a call's context so children can pick it up by ccid. idempotent."
   @spec publish_context(Org.t(), String.t()) :: :ok
   def publish_context(%Org{} = org, ccid) when is_binary(ccid) do
     ensure_table()
@@ -57,10 +34,7 @@ defmodule EllieAi.Calls.Memory do
     :ok
   end
 
-  @doc """
-  remove a call's published context. called when the per-call tree is
-  shutting down so the table doesn't leak rows.
-  """
+  @doc "remove a call's context on tree shutdown so the table doesn't leak rows."
   @spec drop_context(String.t()) :: :ok
   def drop_context(ccid) when is_binary(ccid) do
     ensure_table()
@@ -70,11 +44,7 @@ defmodule EllieAi.Calls.Memory do
 
   # ── per-call dynamic state (writer = Prompts on init, Calls on turns) ─
 
-  @doc """
-  merge per-call context fields (customer, call_history, reservations,
-  rendered_prompt) into the shared ETS row. read by audio_bridge,
-  sentiment, etc. via the accessors below.
-  """
+  @doc "merge per-call context fields (customer, call_history, reservations, rendered_prompt)."
   @spec put_call_context(String.t(), map()) :: :ok
   def put_call_context(ccid, %{} = ctx) when is_binary(ccid) do
     ensure_table()
@@ -111,11 +81,7 @@ defmodule EllieAi.Calls.Memory do
   @spec rendered_prompt(String.t()) :: String.t() | nil
   def rendered_prompt(ccid) when is_binary(ccid), do: ets_field(ccid, :rendered_prompt)
 
-  @doc """
-  append one turn to the rolling transcript. called from `Calls.append_turn/4`
-  so persistence + memory stay in lockstep. race-tolerant for the
-  single-call-per-restaurant v1 — concurrent appends are rare.
-  """
+  @doc "append one turn to the rolling transcript. race-tolerant for single-call-per-restaurant v1."
   @spec append_turn(String.t(), String.t(), String.t(), DateTime.t() | nil) :: :ok
   def append_turn(ccid, role, text, at \\ nil)
       when is_binary(ccid) and is_binary(role) and is_binary(text) do
@@ -134,11 +100,7 @@ defmodule EllieAi.Calls.Memory do
     :ok
   end
 
-  @doc """
-  swap one reservation in the per-call list with a new map. tools call
-  this after a successful modify_reservation so a chained tool call
-  inside the same turn sees the post-change shape.
-  """
+  @doc "swap one reservation after modify so a chained tool call sees the new shape."
   @spec update_reservation(String.t(), String.t(), map()) :: :ok
   def update_reservation(ccid, id, %{} = attrs) when is_binary(ccid) and is_binary(id) do
     ensure_table()
@@ -184,12 +146,7 @@ defmodule EllieAi.Calls.Memory do
     end
   end
 
-  @doc """
-  hydrate the current process's call context from the shared ETS row.
-  child processes call this once on init; after that, `Flag.org/0` and
-  friends work without re-touching the table. returns `:ok` even if no
-  context was found — accessors gracefully default in that case.
-  """
+  @doc "hydrate this process's call context from the ETS row. accessors default when missing."
   @spec bootstrap_from(String.t()) :: :ok
   def bootstrap_from(ccid) when is_binary(ccid) do
     ensure_table()
@@ -202,10 +159,7 @@ defmodule EllieAi.Calls.Memory do
     :ok
   end
 
-  @doc """
-  set the call context for the current process. call once per per-call
-  worker on init (CallServer, AudioBridge, VadGate, Archivist…).
-  """
+  @doc "set the call context for this process. call once per per-call worker on init."
   @spec bootstrap(Org.t(), String.t()) :: :ok
   def bootstrap(%Org{} = org, ccid) when is_binary(ccid) do
     Process.put(@key, %{org: org, ccid: ccid})
@@ -240,10 +194,8 @@ defmodule EllieAi.Calls.Memory do
   end
 
   # ── runtime config accessors ──────────────────────────────────────────
-  #
-  # each one resolves through the org's Settings table (which has its own
-  # ETS cache, so these are cheap on the hot path). they fall back to the
-  # compile-time default when unset OR when there's no bootstrapped org.
+  # resolve via the org's Settings table (ETS-cached). fall back to the
+  # compile-time default when unset or when no org is bootstrapped.
 
   @doc "end-of-turn silence threshold (ms). drives VadGate hysteresis."
   @spec vad_silence_ms() :: pos_integer()
@@ -258,11 +210,7 @@ defmodule EllieAi.Calls.Memory do
   def sentiment_threshold,
     do: setting_float("sentiment_threshold", Sentiment.default_threshold())
 
-  @doc """
-  barge-in confirmation window (ms). speech sustained past this fires
-  response.cancel at openai. below this is a backchannel — local mute
-  handles it; AI's response continues uninterrupted.
-  """
+  @doc "barge-in confirmation window (ms). below = backchannel (local mute only); above = response.cancel."
   @spec barge_in_cancel_ms() :: pos_integer()
   def barge_in_cancel_ms,
     do: setting_int("barge_in_cancel_ms", CallServer.default_barge_in_cancel_ms())
@@ -278,11 +226,7 @@ defmodule EllieAi.Calls.Memory do
 
   # ── task propagation ─────────────────────────────────────────────────
 
-  @doc """
-  like `Task.start/1`, but copies this process's call context into the
-  spawned task so `Flag.org/0`, `Flag.vad_silence_ms/0`, etc. work inside
-  the task without re-bootstrapping.
-  """
+  @doc "Task.start/1 that copies this process's call context so accessors work in the spawned task."
   @spec async(function()) :: {:ok, pid()} | {:error, term()}
   def async(fun) when is_function(fun, 0) do
     ctx = Process.get(@key)
@@ -295,9 +239,6 @@ defmodule EllieAi.Calls.Memory do
 
   # ── helpers ───────────────────────────────────────────────────────────
 
-  # the org_id might be stale if a workflow caches Flag.bootstrap output
-  # past an Org row change. we always re-read by id; the settings cache
-  # is the right place to live with TTL'd freshness.
   defp setting(key, default) do
     case org_id() do
       nil -> default
@@ -344,11 +285,7 @@ defmodule EllieAi.Calls.Memory do
     end
   end
 
-  @doc """
-  resolve an Org struct by id, suitable for bootstrapping a process that
-  only knows the call_id (e.g. Archivist reads call.org_id and needs the
-  full org). returns nil on miss.
-  """
+  @doc "resolve an Org by id — for processes that only know call.org_id. nil on miss."
   @spec fetch_org(String.t()) :: Org.t() | nil
   def fetch_org(org_id) when is_binary(org_id), do: Orgs.get(org_id)
   def fetch_org(_), do: nil
