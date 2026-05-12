@@ -1,9 +1,6 @@
 defmodule RestoBookingApp.Repo.Migrations.ReplaceGuestFieldsOnReservations do
   use Ecto.Migration
 
-  # cutover from a single `name` + `dietary` to the full booking-form fields.
-  # we backfill so existing rows aren't lost: `name` is split on the first space
-  # (close enough for demo data), and `notes` migrates over to `remarks`.
   def change do
     alter table(:reservations) do
       add :salutation, :string
@@ -15,9 +12,7 @@ defmodule RestoBookingApp.Repo.Migrations.ReplaceGuestFieldsOnReservations do
       add :remarks, :string
     end
 
-    # backfill from the old columns. instr returns 0 when there's no space, so
-    # the case statement handles single-word names by stuffing everything into
-    # first_name and leaving last_name blank.
+    # split old `name` on first space; single-word names land in first_name.
     execute(
       """
       UPDATE reservations

@@ -3,7 +3,6 @@ defmodule RestoBookingApp.Repo.Migrations.CreateReservations do
 
   def change do
     create table(:reservations, primary_key: false) do
-      # uuid as a string in sqlite — keeps the column human-readable
       add :id, :binary_id, primary_key: true
       add :cancel_token, :string, null: false
       add :table_id, :string, null: false
@@ -15,8 +14,7 @@ defmodule RestoBookingApp.Repo.Migrations.CreateReservations do
       timestamps(type: :utc_datetime)
     end
 
-    # the overlap query filters by table_id then sorts by time, so this is the
-    # right composite to keep it cheap as the table grows
+    # composite matches the overlap query's filter+sort shape.
     create index(:reservations, [:table_id, :starts_at])
   end
 end
