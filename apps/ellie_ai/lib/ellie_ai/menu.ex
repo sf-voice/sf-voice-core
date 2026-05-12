@@ -1,13 +1,6 @@
 defmodule EllieAi.Menu do
   @moduledoc """
-  per-org menu cache. mirrors resto via the menu reconciliation cron
-  and is the source the AI reads when callers ask "what's on tonight?".
-
-  the cache is read-only from ellie's perspective; staff edit menus
-  on resto and changes propagate via the cron at 5min cadence. the
-  cron also handles deletions by reconciling the full set per cycle
-  (rows present in resto but not in ellie are inserted; rows present
-  in ellie but not in resto are deleted).
+  per-org menu cache.
   """
 
   import Ecto.Query
@@ -17,7 +10,7 @@ defmodule EllieAi.Menu do
 
   @doc "the entire menu for an org, keyed by service."
   def all(org_id) when is_binary(org_id) do
-    base = Map.new(MenuItem.services(), &{String.to_atom(&1), []})
+    base = Map.new(MenuItem.services(), &{&1, []})
 
     from(m in MenuItem,
       where: m.org_id == ^org_id,
@@ -25,8 +18,7 @@ defmodule EllieAi.Menu do
     )
     |> Repo.all()
     |> Enum.reduce(base, fn item, acc ->
-      key = String.to_existing_atom(item.service)
-      Map.update(acc, key, [item], &(&1 ++ [item]))
+      Map.update(acc, item.service, [item], &(&1 ++ [item]))
     end)
   end
 
@@ -63,8 +55,6 @@ defmodule EllieAi.Menu do
       }
 
       # atomic upsert against the unique index on (org_id, service, name).
-      # the read-then-write version raced when reconcile/2 ran in parallel
-      # with itself; on_conflict makes a duplicate insert update in place.
       %MenuItem{}
       |> MenuItem.changeset(attrs)
       |> Repo.insert(
@@ -78,44 +68,41 @@ defmodule EllieAi.Menu do
 
   @doc """
   reconcile an org's full menu against a fresh payload from resto.
-  rows present in resto but missing locally are inserted; rows
-  present locally but missing from resto are deleted; everything
-  else is upserted with refreshed `last_synced_at`.
-
-  returns `{:ok, %{upserted: n, deleted: m}}`.
   """
   def reconcile(org_id, items) when is_binary(org_id) and is_list(items) do
     Repo.transaction(fn ->
-      upserted =
-        items
-        |> Enum.reduce(0, fn item, count ->
+      {upserted_keys, errors} =
+        Enum.reduce(items, {[], 0}, fn item, {keys, err_count} ->
           case upsert_from_resto(org_id, item) do
-            {:ok, _} -> count + 1
-            {:error, _} -> count
+            {:ok, %MenuItem{service: service, name: name}} ->
+              {[{service, name} | keys], err_count}
+
+            {:error, _} ->
+              {keys, err_count + 1}
           end
         end)
 
-      keep_keys =
-        items
-        |> Enum.map(fn item ->
-          {Map.get(item, "service") || Map.get(item, :service),
-           Map.get(item, "name") || Map.get(item, :name)}
-        end)
-        |> MapSet.new()
-
+      # destructive phase: only run when we have a complete, clean picture
+      # of resto's menu.
       deleted =
-        from(m in MenuItem, where: m.org_id == ^org_id, select: {m.id, m.service, m.name})
-        |> Repo.all()
-        |> Enum.reduce(0, fn {id, service, name}, count ->
-          if MapSet.member?(keep_keys, {service, name}) do
-            count
-          else
-            Repo.delete_all(from m in MenuItem, where: m.id == ^id)
-            count + 1
-          end
-        end)
+        if errors > 0 do
+          0
+        else
+          keep_keys = MapSet.new(upserted_keys)
 
-      %{upserted: upserted, deleted: deleted}
+          from(m in MenuItem, where: m.org_id == ^org_id, select: {m.id, m.service, m.name})
+          |> Repo.all()
+          |> Enum.reduce(0, fn {id, service, name}, count ->
+            if MapSet.member?(keep_keys, {service, name}) do
+              count
+            else
+              Repo.delete_all(from m in MenuItem, where: m.id == ^id)
+              count + 1
+            end
+          end)
+        end
+
+      %{upserted: length(upserted_keys), deleted: deleted, errors: errors}
     end)
   end
 end
