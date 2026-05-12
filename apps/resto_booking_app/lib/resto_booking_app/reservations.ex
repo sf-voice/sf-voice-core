@@ -262,5 +262,4 @@ defmodule RestoBookingApp.Reservations do
         {:error, %{cs | action: :insert}}
     end
   end
-
 end
