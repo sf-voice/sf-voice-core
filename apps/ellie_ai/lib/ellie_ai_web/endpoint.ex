@@ -18,7 +18,7 @@ defmodule EllieAiWeb.Endpoint do
   plug Plug.Static,
     at: "/",
     from: :ellie_ai,
-    gzip: not code_reloading?, # gzip when not reloading
+    gzip: not code_reloading?,
     only: EllieAiWeb.static_paths(),
     raise_on_missing_only: code_reloading?
 

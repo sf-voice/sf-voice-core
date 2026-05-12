@@ -11,7 +11,7 @@ config :ellie_ai, EllieAiWeb.Endpoint,
   secret_key_base: "EllieAiTestSecretKeyBaseAtLeast64BytesLongPlaceholderXyzAbc1234567890",
   server: false
 
-  # don't need a real endpoint here
+# don't need a real endpoint here
 config :ellie_ai, EllieAi.Resto, base_url: "http://localhost:0"
 
 config :ellie_ai, :internal_api_token, "test-internal-api-token"
