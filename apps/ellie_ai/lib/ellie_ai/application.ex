@@ -18,6 +18,12 @@ defmodule EllieAi.Application do
       [
         EllieAiWeb.Telemetry,
         EllieAi.Repo,
+        # auto-migrate on boot in releases. dev/test skip this (mix
+        # ecto.migrate handles dev; test setup creates schemas). without
+        # this Reconciliation lower down crashes immediately on a fresh
+        # sqlite file — "no such table: orgs".
+        {Ecto.Migrator,
+         repos: Application.fetch_env!(:ellie_ai, :ecto_repos), skip: skip_migrations?()},
         # tw_merge powers SaladUI's className conflict resolution. the
         # cache is an ETS table populated lazily on first merge — required
         # by SaladUI as of 1.0.0-beta.
@@ -115,6 +121,13 @@ defmodule EllieAi.Application do
       System.get_env("RELEASE_NAME") -> :prod
       true -> :prod
     end
+  end
+
+  # release builds set RELEASE_NAME; dev/test don't. only auto-migrate
+  # inside a release so `mix ecto.migrate` keeps owning dev migrations
+  # and the test suite isn't surprised by an extra child.
+  defp skip_migrations? do
+    System.get_env("RELEASE_NAME") == nil
   end
 
   @impl true
