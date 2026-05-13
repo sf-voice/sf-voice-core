@@ -80,23 +80,7 @@ defmodule EllieAiWeb.Layouts do
       "flex items-center gap-2.5 px-3 py-1.5 rounded-md text-[13px] font-medium no-underline " <>
         "text-foreground/85 hover:text-foreground hover:bg-secondary transition-colors"
 
-  # ── org switcher ───────────────────────────────────────────────────────
 
-  @doc """
-  org switcher at the top of the sidebar. popover + cmdk-style command
-  palette so an operator with many orgs can type to filter instead of
-  scrolling.
-
-  shape:
-    * trigger button = current org's initials + name + slug
-    * popover content sized to the trigger so it stays inside the sidebar
-    * search input + filterable list (filter is client-side, no roundtrip)
-    * each row is a real POST form so the switch still works with JS off
-
-  width is pinned with an inline `--switcher-w` so the trigger and the
-  popover always match — keeps the dropdown from spilling past the
-  sidebar's right edge.
-  """
   attr :current, :any, required: true
   attr :orgs, :list, required: true
   attr :csrf, :string, required: true
@@ -104,7 +88,7 @@ defmodule EllieAiWeb.Layouts do
   def org_switcher(assigns) do
     ~H"""
     <.popover id="ellie-org-switcher">
-      <.popover_trigger class="block w-full">
+      <.popover_trigger class="block w-[92%]">
         <button
           type="button"
           title={if @current, do: @current.name}
