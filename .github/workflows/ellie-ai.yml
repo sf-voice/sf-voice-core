@@ -123,6 +123,7 @@ jobs:
               TELNYX_API_KEY: ${{ secrets.TELNYX_API_KEY }}
               TELNYX_PUBLIC_KEY: ${{ secrets.TELNYX_PUBLIC_KEY }}
               PHONE_NUMBER: ${{ secrets.PHONE_NUMBER }}
+              STAFF_PHONE_E164: ${{ secrets.STAFF_PHONE_E164 }}
               AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
               AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
               AWS_REGION: ${{ secrets.AWS_REGION }}
@@ -131,7 +132,7 @@ jobs:
               host: ${{ secrets.DROPLET_HOST }}
               username: deploy
               key: ${{ secrets.DROPLET_SSH_KEY }}
-              envs: GHCR_USER,GHCR_TOKEN,SECRET_KEY_BASE,INTERNAL_API_TOKEN,OPENAI_API_KEY,TELNYX_API_KEY,TELNYX_PUBLIC_KEY,PHONE_NUMBER,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_REGION,S3_BUCKET_NAME
+              envs: GHCR_USER,GHCR_TOKEN,SECRET_KEY_BASE,INTERNAL_API_TOKEN,OPENAI_API_KEY,TELNYX_API_KEY,TELNYX_PUBLIC_KEY,PHONE_NUMBER,STAFF_PHONE_E164,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_REGION,S3_BUCKET_NAME
               script: |
                  cd /srv/ellie-ai
 
@@ -144,7 +145,8 @@ jobs:
                    printf 'OPENAI_API_KEY=%s\n'         "$OPENAI_API_KEY"
                    printf 'TELNYX_API_KEY=%s\n'         "$TELNYX_API_KEY"
                    printf 'TELNYX_PUBLIC_KEY=%s\n'      "$TELNYX_PUBLIC_KEY"
-                   printf 'TELNYX_PHONE_NUMBER=%s\n'    "$PHONE_NUMBER"
+                   printf 'PHONE_NUMBER=%s\n'           "$PHONE_NUMBER"
+                   printf 'STAFF_PHONE_E164=%s\n'       "$STAFF_PHONE_E164"
                    printf 'AWS_ACCESS_KEY_ID=%s\n'      "$AWS_ACCESS_KEY_ID"
                    printf 'AWS_SECRET_ACCESS_KEY=%s\n'  "$AWS_SECRET_ACCESS_KEY"
                    printf 'AWS_REGION=%s\n'             "$AWS_REGION"

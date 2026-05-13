@@ -3,7 +3,7 @@
 import { createRoute } from "@tanstack/react-router";
 import { CallList } from "@/components/CallList";
 import { useCalls } from "@/lib/queries";
-import { rootRoute } from "./root";
+import { authedLayoutRoute } from "./_authed";
 
 function CallsIndexPage() {
   const { data, isLoading, error } = useCalls();
@@ -41,7 +41,7 @@ function ErrorState({ message }: { message: string }) {
 }
 
 export const callsIndexRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => authedLayoutRoute,
   path: "/",
   component: CallsIndexPage,
 });

@@ -5,7 +5,7 @@
 import { createRoute } from "@tanstack/react-router";
 import { useOrg, useUpdateOrg } from "@/lib/queries";
 import { useEffect, useState } from "react";
-import { rootRoute } from "./root";
+import { authedLayoutRoute } from "./_authed";
 
 function SettingsOrgPage() {
   const { data: org, isLoading } = useOrg();
@@ -101,7 +101,7 @@ function Field({
 }
 
 export const settingsOrgRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => authedLayoutRoute,
   path: "/settings/org",
   component: SettingsOrgPage,
 });

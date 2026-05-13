@@ -8,7 +8,12 @@
 --   run   = 01900000-0000-7000-8000-000000000020
 --
 -- audio_uri points at a static file the frontend serves from its public/
--- folder. drop a sample at core/frontend/public/sample-call.mp3.
+-- folder. drop ANY browser-supported audio (wav, mp3, m4a, flac, ogg,
+-- webm) at core/frontend/public/sample-call.<ext> and override @audio
+-- below, or pass --init-command='SET @audio="/sample-call.wav"' on the
+-- mysql cli. wavesurfer + <audio> both honour whatever the browser
+-- decodes; nothing in the rust or react code cares about format.
+SET @audio := COALESCE(@audio, '/sample-call.wav');
 
 START TRANSACTION;
 
@@ -43,9 +48,9 @@ VALUES (
   '+14155551234',
   '+18774980043',
   'caller_hangup',
-  '/sample-call.mp3',
-  '/sample-call.mp3',
-  '/sample-call.mp3'
+  @audio,
+  @audio,
+  @audio
 );
 
 INSERT INTO transcript_runs (id, call_id, status,

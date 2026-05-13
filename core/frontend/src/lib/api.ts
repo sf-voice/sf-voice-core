@@ -1,5 +1,16 @@
 const API_BASE_URL = "http://localhost:8080";
 
+export class ApiError extends Error {
+   constructor(
+      public status: number,
+      public statusText: string,
+      public path: string,
+      message: string,
+   ) {
+      super(message);
+   }
+}
+
 async function request<T>(
    path: string,
    init?: RequestInit & { json?: unknown },
@@ -10,12 +21,16 @@ async function request<T>(
    }
    const res = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
+      // include cookies on every request so the session cookie travels
+      // from localhost:3000 → :8080 (and prod cross-origin if that ever
+      // happens). backend CORS allows credentials for these origins.
+      credentials: "include",
       headers,
       body: init?.json !== undefined ? JSON.stringify(init.json) : init?.body,
    });
    if (!res.ok) {
       const text = await res.text().catch(() => "");
-      throw new Error(`api ${path} → ${res.status} ${res.statusText} ${text}`);
+      throw new ApiError(res.status, res.statusText, path, text || res.statusText);
    }
    // 204 / empty body → null
    if (res.status === 204) return null as T;
@@ -98,6 +113,31 @@ export type UpdateOrgBody = Partial<
    >
 >;
 
+// ── auth ─────────────────────────────────────────────────────────────────
+
+export type User = {
+   id: string;
+   email: string;
+   display_name: string | null;
+   created_at: string;
+};
+
+export type Me = {
+   user: User;
+   org: { id: string; name: string; slug: string };
+};
+
+export type SignupBody = {
+   email: string;
+   password: string;
+   org_name?: string;
+};
+
+export type LoginBody = {
+   email: string;
+   password: string;
+};
+
 export const api = {
    hello: () => request<Hello>("/api/hello"),
 
@@ -134,4 +174,12 @@ export const api = {
    getOrg: () => request<Org | null>("/api/org"),
    updateOrg: (body: UpdateOrgBody) =>
       request<Org | null>("/api/org", { method: "PATCH", json: body }),
+
+   // auth
+   signup: (body: SignupBody) =>
+      request<Me>("/api/auth/signup", { method: "POST", json: body }),
+   login: (body: LoginBody) =>
+      request<Me>("/api/auth/login", { method: "POST", json: body }),
+   logout: () => request<null>("/api/auth/logout", { method: "POST" }),
+   me: () => request<Me>("/api/me"),
 };

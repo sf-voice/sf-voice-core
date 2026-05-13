@@ -8,7 +8,7 @@ import { useCall, useSlice } from "@/lib/queries";
 import { ReasoningPath } from "@/components/ReasoningPath";
 import { ABPlayer } from "@/components/ABPlayer";
 import { fmtMs } from "@/lib/timeline";
-import { rootRoute } from "./root";
+import { authedLayoutRoute } from "./_authed";
 
 const SANDBOX_STEPS = [
   "slice captured",
@@ -103,7 +103,7 @@ function SliceDetailPage() {
 }
 
 export const sliceDetailRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => authedLayoutRoute,
   path: "/calls/$callId/slices/$sliceId",
   component: SliceDetailPage,
 });

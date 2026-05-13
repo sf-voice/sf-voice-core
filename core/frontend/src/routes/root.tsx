@@ -1,9 +1,8 @@
-// root route — owns the layout shell. every child route renders inside
-// <Outlet /> in Layout.
+// root route — pathless container. layout-routes below split the tree
+// into public (light theme) and authed (dark theme, guarded) branches.
 
-import { createRootRoute } from "@tanstack/react-router";
-import { Layout } from "@/components/Layout";
+import { Outlet, createRootRoute } from "@tanstack/react-router";
 
 export const rootRoute = createRootRoute({
-  component: Layout,
+  component: () => <Outlet />,
 });
