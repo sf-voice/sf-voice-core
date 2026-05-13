@@ -32,7 +32,8 @@ on the next push**. update the GH secret and re-push to rotate.
 | `OPENAI_API_KEY`        | —          | ✓        | —            | —        | `OPENAI_API_KEY`           |
 | `TELNYX_API_KEY`        | —          | ✓        | —            | —        | `TELNYX_API_KEY`           |
 | `TELNYX_PUBLIC_KEY`     | —          | ✓        | —            | —        | `TELNYX_PUBLIC_KEY`        |
-| `PHONE_NUMBER`          | —          | ✓        | —            | —        | `TELNYX_PHONE_NUMBER` ⚠️    |
+| `PHONE_NUMBER`          | —          | ✓        | —            | —        | `PHONE_NUMBER`             |
+| `STAFF_PHONE_E164`      | —          | ✓        | —            | —        | `STAFF_PHONE_E164`         |
 | `AWS_ACCESS_KEY_ID`     | —          | ✓        | —            | —        | `AWS_ACCESS_KEY_ID`        |
 | `AWS_SECRET_ACCESS_KEY` | —          | ✓        | —            | —        | `AWS_SECRET_ACCESS_KEY`    |
 | `AWS_REGION`            | —          | ✓        | —            | —        | `AWS_REGION`               |
@@ -45,11 +46,6 @@ frontend has no `.env` at all — it's a sealed static build. the rust
 api uses `INTERNAL_API_TOKEN` only as the bearer it sends when joining
 ellie's VAD websocket (`/socket/vad`); ellie verifies the same token.
 
-⚠️ `PHONE_NUMBER` is the GH name; the elixir code reads it as
-`TELNYX_PHONE_NUMBER` (see `apps/ellie_ai/lib/ellie_ai/env_check.ex`).
-the workflow remaps it on write. when the GH secret is renamed to
-match, update the `printf` line in `.github/workflows/ellie-ai.yml`.
-
 ### what's *not* a secret (lives in compose, not `.env`)
 
 per-app `infra/deploy/docker-compose.*.yml` carries the static stuff in
@@ -57,6 +53,8 @@ the `environment:` block:
 
 - `PHX_HOST`, `PHX_SERVER`, `PORT` — phoenix endpoint config
 - `DATABASE_PATH` — sqlite file location inside the container
+- `RESTO_BASE_URL` (ellie only) — `http://resto-demo:4000` over proxy_net
+- `VAD_WS_URL` (sf-voice-api only) — `ws://ellie-ai:4001/socket/vad` over proxy_net
 
 ### adding a new secret
 
