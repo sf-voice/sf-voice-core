@@ -79,3 +79,9 @@ target/
 
 ## core stack — embedded duckdb store (created at runtime by the rust api)
 /data/
+
+## python — covers infra/deploy/smoke-vad.py byte-compile output and any
+## one-off scripts elsewhere. core/inference/.gitignore handles its own
+## tree more thoroughly (venv, pytest cache, ruff cache).
+__pycache__/
+*.py[cod]
