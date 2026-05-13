@@ -42,7 +42,12 @@ echo "==> stopping ellie container (if running) before db wipe"
 docker compose down --remove-orphans 2>/dev/null || true
 
 echo "==> wiping sqlite db at ./data/ellie.db (+ wal/shm sidecars)"
-rm -f ./data/ellie.db ./data/ellie.db-wal ./data/ellie.db-shm
+# the db file is owned by uid 65534 (the container's `nobody` user, per
+# bootstrap-ellie.sh's chown). the `deploy` user that runs this script
+# can't rm it from the host. spin up a throwaway alpine container with
+# the data dir mounted — it runs as root and can wipe anything.
+docker run --rm -v "$COMPOSE_DIR/data:/data" alpine sh -c \
+  'rm -f /data/ellie.db /data/ellie.db-wal /data/ellie.db-shm'
 
 # pull + bring up. on boot, the Ecto.Migrator child in
 # EllieAi.Application runs all pending migrations against the fresh
