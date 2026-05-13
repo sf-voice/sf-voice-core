@@ -37,7 +37,7 @@ importers:
         specifier: ^2.0.0
         version: 2.0.3(@rspack/core@2.0.3)(@rspack/dev-server@2.0.1(@rspack/core@2.0.3))
       '@rspack/core':
-        specifier: ^2.0.0
+        specifier: ^2.0.1
         version: 2.0.3
       '@rspack/dev-server':
         specifier: ^2.0.1
