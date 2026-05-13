@@ -1,26 +1,24 @@
 defmodule EllieAi.Calls.VadGate do
   @moduledoc """
   per-call voice activity detector. decodes μ-law chunks (160 samples
-  each) to f32 pcm, accumulates 256-sample windows, runs silero inference,
-  and emits `:speech_start` / `:speech_end` over a hysteresis state machine.
+  each) to f32 pcm, accumulates 256-sample windows, runs silero
+  inference, and emits `:speech_start` / `:speech_end` over the shared
+  hysteresis state machine in `EllieAi.Vad.Hysteresis`.
 
-  hysteresis (canonical silero):
-    silence → speech: prob ≥ 0.5 in one window
-    speech → silence: prob < 0.35 sustained ≥ min_silence_windows
+  the channel endpoint `EllieAiWeb.VadChannel` uses the same hysteresis
+  module — see it for the canonical threshold/hangover behaviour.
   """
 
   use GenServer
 
   alias EllieAi.Calls.{CallRegistry, CallServer, Memory, SileroVad, Ulaw}
+  alias EllieAi.Vad.Hysteresis
 
   require Logger
 
   # silero v5 @ 8khz: 256 samples per window = 32ms.
   @window_size 256
   @window_ms 32
-
-  @speech_threshold 0.5
-  @silence_threshold 0.35
 
   # clamped so a /settings typo can't kill turn detection.
   @default_silence_ms 700
@@ -30,10 +28,8 @@ defmodule EllieAi.Calls.VadGate do
   defstruct [
     :ccid,
     :rnn_state,
-    :min_silence_windows,
-    sample_buffer: [],
-    vad_state: :silence,
-    silence_count: 0
+    :hysteresis,
+    sample_buffer: []
   ]
 
   # ── public api ──────────────────────────────────────────────────────────
@@ -50,12 +46,6 @@ defmodule EllieAi.Calls.VadGate do
 
   def start_link(%{ccid: ccid} = args) when is_binary(ccid) do
     GenServer.start_link(__MODULE__, args, name: CallRegistry.via_vad_gate(ccid))
-  end
-
-  @doc "resolve this process's vad_silence_ms into a clamped window count. exposed for testing."
-  def silence_windows_now do
-    ms = Memory.vad_silence_ms() |> clamp_silence_ms()
-    div(ms, @window_ms)
   end
 
   def default_silence_ms, do: @default_silence_ms
@@ -77,14 +67,18 @@ defmodule EllieAi.Calls.VadGate do
     Logger.metadata(ccid: ccid)
     Memory.bootstrap_from(ccid)
 
-    windows = silence_windows_now()
-    Logger.info("vad_gate init: silence_windows=#{windows} (~#{windows * @window_ms}ms)")
+    silence_ms = Memory.vad_silence_ms() |> clamp_silence_ms()
+    hysteresis = Hysteresis.new(silence_ms: silence_ms, window_ms: @window_ms)
+
+    Logger.info(
+      "vad_gate init: silence_ms=#{silence_ms} (windows=#{hysteresis.min_silence_windows})"
+    )
 
     {:ok,
      %__MODULE__{
        ccid: ccid,
        rnn_state: SileroVad.initial_state(),
-       min_silence_windows: windows
+       hysteresis: hysteresis
      }}
   end
 
@@ -102,41 +96,25 @@ defmodule EllieAi.Calls.VadGate do
     {window, rest} = Enum.split(buffer, @window_size)
 
     {prob, new_rnn_state} = SileroVad.infer(window, state.rnn_state)
+    {new_hysteresis, events} = Hysteresis.feed(state.hysteresis, prob)
 
-    state
-    |> Map.put(:rnn_state, new_rnn_state)
-    |> apply_hysteresis(prob)
+    Enum.each(events, fn event -> emit(event, state.ccid, prob, new_hysteresis) end)
+
+    %{state | rnn_state: new_rnn_state, hysteresis: new_hysteresis}
     |> process_buffer(rest)
   end
 
-  defp apply_hysteresis(%{vad_state: :silence} = state, prob)
-       when prob >= @speech_threshold do
+  defp emit(:speech_start, ccid, prob, _hyst) do
     Logger.info("vad: speech start (p=#{Float.round(prob, 3)})")
-    CallServer.speech_start(state.ccid)
-    %{state | vad_state: :speech, silence_count: 0}
+    CallServer.speech_start(ccid)
   end
 
-  # only commit speech → silence once min_silence_windows have stacked up.
-  defp apply_hysteresis(%{vad_state: :speech} = state, prob)
-       when prob < @silence_threshold do
-    new_count = state.silence_count + 1
+  defp emit(:speech_end, ccid, prob, hyst) do
+    Logger.info(
+      "vad: speech end (p=#{Float.round(prob, 3)}, " <>
+        "sustained #{hyst.min_silence_windows * @window_ms}ms)"
+    )
 
-    if new_count >= state.min_silence_windows do
-      Logger.info(
-        "vad: speech end (p=#{Float.round(prob, 3)}, sustained #{new_count * @window_ms}ms)"
-      )
-
-      CallServer.speech_end(state.ccid)
-      %{state | vad_state: :silence, silence_count: 0}
-    else
-      %{state | silence_count: new_count}
-    end
+    CallServer.speech_end(ccid)
   end
-
-  # any window above silence threshold resets the silence counter.
-  defp apply_hysteresis(%{vad_state: :speech} = state, _prob) do
-    %{state | silence_count: 0}
-  end
-
-  defp apply_hysteresis(state, _prob), do: state
 end

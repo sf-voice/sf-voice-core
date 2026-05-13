@@ -1,0 +1,18 @@
+# scopes the docker build context for core/frontend/Dockerfile.
+# build is invoked from the repo root so pnpm can see the workspace.
+
+*
+
+!pnpm-workspace.yaml
+!pnpm-lock.yaml
+!package.json
+!core/frontend/**
+
+# noise that might sneak through globbing
+**/node_modules
+**/dist
+**/.next
+**/_build
+**/target
+**/.git
+**/*.swp

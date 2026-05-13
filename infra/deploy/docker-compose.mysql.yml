@@ -1,0 +1,35 @@
+# installed at /srv/mysql/docker-compose.yml on the droplet by bootstrap-mysql.sh.
+# joined to the same proxy_net network the apps use, so the rust api reaches
+# the db at hostname `mysql:3306`. no public port — only containers on
+# proxy_net can talk to it.
+#
+# tuning is deliberately conservative for the 1 vCPU / 1 GB droplet. revisit
+# innodb_buffer_pool_size if memory pressure shows up.
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: mysql
+    restart: unless-stopped
+    env_file:
+      - .env
+    command:
+      - "--innodb-buffer-pool-size=128M"
+      - "--performance-schema=OFF"
+      - "--max-connections=64"
+      - "--default-authentication-plugin=caching_sha2_password"
+    volumes:
+      - ./data:/var/lib/mysql
+    expose:
+      - "3306"
+    networks:
+      - proxy_net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+networks:
+  proxy_net:
+    external: true

@@ -15,3 +15,19 @@ name = "sf-voice-api"
 path = "src/main.rs"
 
 [dependencies]
+# minimal axum server. tokio = full so we don't have to think about
+# feature flags for a scaffold. tower-http brings cors so the frontend
+# (different origin in dev + prod) can hit us.
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# duckdb embedded analytical store. `bundled` compiles libduckdb from
+# source so there's no system `libduckdb` dependency on dev machines /
+# ci / prod containers. cost: first build adds ~1–2 min of c++ compile;
+# subsequent builds are cached.
+duckdb = { version = "1", features = ["bundled"] }
