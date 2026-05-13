@@ -27,7 +27,7 @@ defmodule EllieAi.EnvCheck do
     {"OPENAI_API_KEY", :always, "openai api key for the realtime voice session."},
     {"TELNYX_API_KEY", :prod, "telnyx api key for outbound call control."},
     {"TELNYX_PUBLIC_KEY", :prod, "telnyx ed25519 public key — verifies inbound webhook signatures."},
-    {"TELNYX_PHONE_NUMBER", :prod, "telnyx number ellie answers calls on (E.164)."},
+    {"PHONE_NUMBER", :prod, "telnyx number ellie answers calls on (E.164)."},
     {"STAFF_PHONE_E164", :prod, "fallback staff phone for escalation (E.164)."},
     {"S3_BUCKET_NAME", :prod, "s3 bucket for call recording archive (e.g. sf-voice-demo-calls)."},
     {"AWS_ACCESS_KEY_ID", :prod, "aws access key id (s3 + ses)."},

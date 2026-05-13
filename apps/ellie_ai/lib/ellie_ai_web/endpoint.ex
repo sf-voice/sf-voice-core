@@ -15,6 +15,13 @@ defmodule EllieAiWeb.Endpoint do
     websocket: [connect_info: [session: @session_options]],
     longpoll: [connect_info: [session: @session_options]]
 
+  # internal VAD service — consumed by the rust api (and future consumers)
+  # over proxy_net at ws://ellie-ai:4001/socket/vad/websocket. auth is
+  # the shared INTERNAL_API_TOKEN bearer, checked in VadSocket.connect/3.
+  socket "/socket/vad", EllieAiWeb.VadSocket,
+    websocket: true,
+    longpoll: false
+
   plug Plug.Static,
     at: "/",
     from: :ellie_ai,

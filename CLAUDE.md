@@ -162,8 +162,11 @@ The following actions require explicit in-session confirmation before executing,
 ### 19. Tech stack
 Always use these. Never suggest alternatives unless I ask:
 
-- **Language:** Elixir
-- **Database:** SQLite
+- **Language:** Elixir (apps under `apps/`), Rust (`core/sf-voice-api`)
+- **Database:**
+  - SQLite — Elixir apps. don't switch them off SQLite without asking.
+  - MySQL 8.4 on-prem — rust API state store. local dev via `infra/dev/docker-compose.yml`; prod via `infra/deploy/docker-compose.mysql.yml` (bootstrap with `infra/deploy/bootstrap-mysql.sh`).
+  - ClickHouse Cloud — analytics / events store. no on-prem deployment; connection string lives in the consuming service's `.env`.
 - **Hosting:** Digital Ocean, San Francisco region
 
 Other choices (web framework, package versions, testing, linting) are not yet locked in — propose options before introducing them and wait for me to pick.
