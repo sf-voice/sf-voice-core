@@ -57,3 +57,27 @@ export function useSlice(id: string | undefined) {
     enabled: Boolean(id),
   });
 }
+
+export function useCreateSlice(callId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      start_ms: number;
+      end_ms: number;
+      prompt_text: string;
+    }) => api.createSlice(callId, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.call(callId) });
+    },
+  });
+}
+
+export function useCreateTranscribeRun(callId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.createTranscribeRun(callId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.transcripts(callId) });
+    },
+  });
+}
