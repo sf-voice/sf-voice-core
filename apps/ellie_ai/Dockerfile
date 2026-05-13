@@ -53,12 +53,22 @@ RUN mkdir config
 COPY config/config.exs config/${MIX_ENV}.exs config/
 RUN mix deps.compile
 
+# install esbuild + tailwind binaries before the source copy so this
+# layer caches between deploys when only lib/ or assets/ change.
+RUN mix assets.setup
+
 COPY priv priv
 
 COPY lib lib
 
 # Compile the release
 RUN mix compile
+
+# bundle css/js + run phx.digest so priv/static/assets/* and the
+# cache_manifest.json land in the release. without this Phoenix serves
+# the layout but every /assets/* request 404s — page loads naked.
+COPY assets assets
+RUN mix assets.deploy
 
 # Changes to config/runtime.exs don't require recompiling the code
 COPY config/runtime.exs config/
