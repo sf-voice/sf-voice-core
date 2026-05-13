@@ -20,6 +20,13 @@ services:
       - "--default-authentication-plugin=caching_sha2_password"
     volumes:
       - ./data:/var/lib/mysql
+    # bind on the droplet's loopback only — reachable from anything on
+    # the host (including over an SSH local-forward) but NOT from the
+    # public internet. apps on proxy_net continue to use `mysql:3306`
+    # via the docker network. drop this line if/when you no longer need
+    # external DataGrip access.
+    ports:
+      - "127.0.0.1:3306:3306"
     expose:
       - "3306"
     networks:
