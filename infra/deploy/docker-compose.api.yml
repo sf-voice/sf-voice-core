@@ -16,9 +16,13 @@ services:
       # recreate. core/backend/api/src/main.rs reads DUCKDB_PATH.
       DUCKDB_PATH: /data/sf_voice.duckdb
       RUST_LOG: ${RUST_LOG:-info}
-      # DATABASE_URL (mysql) is rendered into .env by the workflow from
-      # the GH secret. main.rs notes it's "not wired yet" but the env is
-      # ready so sqlx can be added without another deploy.
+      # ellie's VAD websocket — internal proxy_net hostname, no caddy
+      # involvement. the rust vad::VadClient appends /websocket and the
+      # vsn/token query string. not a secret so it lives here, not .env.
+      VAD_WS_URL: ws://ellie-ai:4001/socket/vad
+      # DATABASE_URL (mysql) + INTERNAL_API_TOKEN are rendered into .env
+      # by the workflow from GH secrets. INTERNAL_API_TOKEN is the bearer
+      # the VAD client sends on join.
     volumes:
       - ./data:/data
     expose:
