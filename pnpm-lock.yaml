@@ -29,13 +29,19 @@ importers:
       tailwind-merge:
         specifier: ^2.5.4
         version: 2.6.1
+      wavesurfer.js:
+        specifier: ^7.12.6
+        version: 7.12.6
     devDependencies:
       '@rspack/cli':
         specifier: ^2.0.0
-        version: 2.0.3(@rspack/core@2.0.3)
+        version: 2.0.3(@rspack/core@2.0.3)(@rspack/dev-server@2.0.1(@rspack/core@2.0.3))
       '@rspack/core':
         specifier: ^2.0.0
         version: 2.0.3
+      '@rspack/dev-server':
+        specifier: ^2.0.1
+        version: 2.0.1(@rspack/core@2.0.3)
       '@tailwindcss/postcss':
         specifier: ^4.0.0
         version: 4.3.0
@@ -178,6 +184,25 @@ packages:
       '@module-federation/runtime-tools':
         optional: true
       '@swc/helpers':
+        optional: true
+
+  '@rspack/dev-middleware@2.0.1':
+    resolution: {integrity: sha512-cXSubf5/C+dvkWV2/+rGTtiZ93wSLd3OlTQhwMvsmsmGDdPlkYqIvQ+BTkOk9UCXxKIaF0DDYYmCpBeRRYJfJw==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    peerDependencies:
+      '@rspack/core': ^2.0.0-0
+    peerDependenciesMeta:
+      '@rspack/core':
+        optional: true
+
+  '@rspack/dev-server@2.0.1':
+    resolution: {integrity: sha512-N5sIdU9v6WhwPH6Ek8QCj4IMvGd8jA3ZW1NMAyHP1ezzKIr2/idcNV2zX5vbC6FJvOLRLww0rFjfKA+z4tshDA==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    peerDependencies:
+      '@rspack/core': ^2.0.0-0
+      selfsigned: ^5.0.0
+    peerDependenciesMeta:
+      selfsigned:
         optional: true
 
   '@tailwindcss/node@4.3.0':
@@ -559,6 +584,9 @@ packages:
     peerDependencies:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
+  wavesurfer.js@7.12.6:
+    resolution: {integrity: sha512-zSxPgOFprtyJ31ppHQF0+E9jAmjAhi1rR36yIW6h1GOYdpRxDe6mbkYtlChqLK0Iz8ROBweiEFw2zus7tDFibA==}
+
 snapshots:
 
   '@alloc/quick-lru@5.2.0': {}
@@ -660,13 +688,24 @@ snapshots:
       '@rspack/binding-win32-ia32-msvc': 2.0.3
       '@rspack/binding-win32-x64-msvc': 2.0.3
 
-  '@rspack/cli@2.0.3(@rspack/core@2.0.3)':
+  '@rspack/cli@2.0.3(@rspack/core@2.0.3)(@rspack/dev-server@2.0.1(@rspack/core@2.0.3))':
     dependencies:
       '@rspack/core': 2.0.3
+    optionalDependencies:
+      '@rspack/dev-server': 2.0.1(@rspack/core@2.0.3)
 
   '@rspack/core@2.0.3':
     dependencies:
       '@rspack/binding': 2.0.3
+
+  '@rspack/dev-middleware@2.0.1(@rspack/core@2.0.3)':
+    optionalDependencies:
+      '@rspack/core': 2.0.3
+
+  '@rspack/dev-server@2.0.1(@rspack/core@2.0.3)':
+    dependencies:
+      '@rspack/core': 2.0.3
+      '@rspack/dev-middleware': 2.0.1(@rspack/core@2.0.3)
 
   '@tailwindcss/node@4.3.0':
     dependencies:
@@ -970,3 +1009,5 @@ snapshots:
   use-sync-external-store@1.6.0(react@19.2.6):
     dependencies:
       react: 19.2.6
+
+  wavesurfer.js@7.12.6: {}
