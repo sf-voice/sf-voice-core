@@ -12,7 +12,6 @@
 # the origin cert covers *.sf-voice.sh + sf-voice.sh and lasts 15 years, so
 # there's nothing to renew. drop replacement files in /etc/caddy/certs/ and
 # `docker compose restart caddy` if it ever needs rotating.
-
 {
 	# no auto-https — we provide our own cert
 	auto_https off
