@@ -1,0 +1,20 @@
+# scopes the docker build context for core/backend/api/Dockerfile.
+# build is invoked from the repo root so cargo can see the workspace
+# Cargo.{toml,lock}, but we don't need anything else in the image.
+
+# everything by default
+*
+
+# then explicitly include what the build actually reads
+!Cargo.toml
+!Cargo.lock
+!core/backend/api/Cargo.toml
+!core/backend/api/src/**
+
+# (re-exclude noise that might sneak through globbing)
+**/target
+**/node_modules
+**/_build
+**/deps
+**/.git
+**/*.swp

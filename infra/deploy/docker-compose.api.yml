@@ -1,0 +1,38 @@
+# installed at /srv/sf-voice-api/docker-compose.yml on the droplet.
+# the deploy script swaps the image tag and re-creates the `api` service.
+#
+# caddy reaches this container as `api:8080` on proxy_net (see
+# infra/deploy/Caddyfile → api.sf-voice.sh block).
+
+services:
+  api:
+    image: ghcr.io/sf-voice/sf-voice-api:latest
+    container_name: api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # duckdb file lives on the mounted volume so it survives container
+      # recreate. core/backend/api/src/main.rs reads DUCKDB_PATH.
+      DUCKDB_PATH: /data/sf_voice.duckdb
+      RUST_LOG: ${RUST_LOG:-info}
+      # DATABASE_URL (mysql) is rendered into .env by the workflow from
+      # the GH secret. main.rs notes it's "not wired yet" but the env is
+      # ready so sqlx can be added without another deploy.
+    volumes:
+      - ./data:/data
+    expose:
+      - "8080"
+    networks:
+      - proxy_net
+    healthcheck:
+      # /healthz is a flat 200 that doesn't touch the db — exactly what
+      # docker / caddy want for "is the process up and serving."
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+networks:
+  proxy_net:
+    external: true

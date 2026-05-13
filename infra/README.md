@@ -5,14 +5,89 @@ operational glue — everything that runs the system but isn't application code.
 ## layout
 
 - `deploy/` — droplet bootstrap, per-app deploy scripts, docker-compose
-  stacks, Caddy reverse-proxy config. used by the two GitHub Actions
-  workflows (`.github/workflows/ellie-ai.yml`,
-  `.github/workflows/resto-booking-app.yml`) and by one-time droplet
-  provisioning (`sudo bash infra/deploy/bootstrap.sh ...`).
-- `clickhouse/` — clickhouse schemas, migrations, and operator notes
-  (placeholder; populate when we wire it up).
+  stacks, Caddy reverse-proxy config. used by the GitHub Actions
+  workflows in
+  `.github/workflows/{ellie-ai,resto-booking-app,sf-voice-api,frontend,vad,caddy}.yml`
+  and by one-time droplet provisioning:
+  - `sudo bash infra/deploy/bootstrap.sh ...` — initial droplet bring-up
+  - `sudo bash infra/deploy/bootstrap-ellie.sh ...` — ellie data dir + caddy chown
+  - `sudo bash infra/deploy/bootstrap-mysql.sh ...` — mysql container + backup timer
+  - `sudo bash infra/deploy/bootstrap-api.sh ...` — sf-voice-api data dir
+  - `sudo bash infra/deploy/bootstrap-frontend.sh ...` — frontend dir
+- `dev/` — local-only data layer (mysql + clickhouse) for
+  `mise run core:dev`. see `dev/README.md`. not deployed.
+- `clickhouse/` — clickhouse schemas / operator notes (placeholder).
+
+## secrets
+
+GitHub Actions repo secrets are the source of truth for every prod env
+var. each deploy workflow re-renders the matching `.env` file on the
+droplet from these secrets, so **manual edits on the droplet get wiped
+on the next push**. update the GH secret and re-push to rotate.
+
+| GH secret               | resto-demo | ellie-ai | sf-voice-api | frontend | maps to env var on droplet |
+| ----------------------- | :--------: | :------: | :----------: | :------: | -------------------------- |
+| `SECRET_KEY_BASE`       | ✓          | ✓        | —            | —        | `SECRET_KEY_BASE`          |
+| `INTERNAL_API_TOKEN`    | ✓          | ✓        | ✓ (vad ws)   | —        | `INTERNAL_API_TOKEN`       |
+| `OPENAI_API_KEY`        | —          | ✓        | —            | —        | `OPENAI_API_KEY`           |
+| `TELNYX_API_KEY`        | —          | ✓        | —            | —        | `TELNYX_API_KEY`           |
+| `TELNYX_PUBLIC_KEY`     | —          | ✓        | —            | —        | `TELNYX_PUBLIC_KEY`        |
+| `PHONE_NUMBER`          | —          | ✓        | —            | —        | `TELNYX_PHONE_NUMBER` ⚠️    |
+| `AWS_ACCESS_KEY_ID`     | —          | ✓        | —            | —        | `AWS_ACCESS_KEY_ID`        |
+| `AWS_SECRET_ACCESS_KEY` | —          | ✓        | —            | —        | `AWS_SECRET_ACCESS_KEY`    |
+| `AWS_REGION`            | —          | ✓        | —            | —        | `AWS_REGION`               |
+| `S3_BUCKET_NAME`        | —          | ✓        | —            | —        | `S3_BUCKET_NAME`           |
+| `DATABASE_URL`          | —          | —        | ✓            | —        | `DATABASE_URL`             |
+| `DROPLET_HOST`          | runner only — used to ssh to the droplet                            |
+| `DROPLET_SSH_KEY`       | runner only — private key for the deploy user                       |
+
+frontend has no `.env` at all — it's a sealed static build. the rust
+api uses `INTERNAL_API_TOKEN` only as the bearer it sends when joining
+ellie's VAD websocket (`/socket/vad`); ellie verifies the same token.
+
+⚠️ `PHONE_NUMBER` is the GH name; the elixir code reads it as
+`TELNYX_PHONE_NUMBER` (see `apps/ellie_ai/lib/ellie_ai/env_check.ex`).
+the workflow remaps it on write. when the GH secret is renamed to
+match, update the `printf` line in `.github/workflows/ellie-ai.yml`.
+
+### what's *not* a secret (lives in compose, not `.env`)
+
+per-app `infra/deploy/docker-compose.*.yml` carries the static stuff in
+the `environment:` block:
+
+- `PHX_HOST`, `PHX_SERVER`, `PORT` — phoenix endpoint config
+- `DATABASE_PATH` — sqlite file location inside the container
+
+### adding a new secret
+
+1. add it as a GH repo secret.
+2. extend the matching workflow's `env:` block and `envs:` list.
+3. add a `printf` line to the `.env`-rendering script in that workflow.
+4. add the row to the table above.
+
+## the apps
+
+| dir                          | runtime          | datastore                                    | container port | public host                  |
+| ---------------------------- | ---------------- | -------------------------------------------- | -------------- | ---------------------------- |
+| `apps/resto_booking_app/`    | elixir / phoenix | sqlite (`/data/resto.db`)                    | 4000           | `resto-demo.sf-voice.sh`     |
+| `apps/ellie_ai/`             | elixir / phoenix | sqlite (`/data/ellie.db`)                    | 4001           | `ellie-ai.sf-voice.sh`       |
+| `core/backend/api/`          | rust             | duckdb embedded + mysql on-prem (via sqlx)   | 8080           | `api.sf-voice.sh`            |
+| `core/frontend/`             | static (rspack)  | —                                            | 3000           | `app.sf-voice.sh`            |
+
+caddy fronts the four public services on `*.sf-voice.sh`. cloudflare
+proxies the zone with origin cert pinned in
+`/etc/caddy/certs/origin.{pem,key}`.
+
+VAD is **not a separate service.** ellie exposes a websocket at
+`/socket/vad` (mounted on the same `ellie-ai:4001` container) that
+consumers — the rust api today, anything else later — connect to over
+`proxy_net`. auth is bearer `INTERNAL_API_TOKEN` at connect. silero
+inference reuses the in-process `EllieAi.Calls.SileroVad` loaded once
+per VM into `:persistent_term` from `priv/silero_vad/silero_vad.onnx`.
 
 ## not here
 
 - application code → `apps/` (elixir) and `core/` (web / api / inference).
-- secrets → `.env` at the repo root; never commit.
+- secret *values* → GitHub Actions repo secrets; never commit.
+- production `.env` files → written on the droplet by CI; never live in
+  the repo.

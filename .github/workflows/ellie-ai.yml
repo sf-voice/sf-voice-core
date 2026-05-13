@@ -1,146 +1,171 @@
 name: ellie-ai
 
-# only fires when ellie_ai or shared infra/deploy/ infra changes. resto's pipeline
-# has its own filter so the two apps deploy independently.
-
 on:
-  pull_request:
-    paths:
-      - "apps/ellie_ai/**"
-      - "infra/deploy/**"
-      - ".github/workflows/ellie-ai.yml"
-  push:
-    branches: [main]
-    paths:
-      - "apps/ellie_ai/**"
-      - "infra/deploy/**"
-      - ".github/workflows/ellie-ai.yml"
+   pull_request:
+      paths:
+         - "apps/ellie_ai/**"
+         - "infra/deploy/**"
+         - ".github/workflows/ellie-ai.yml"
+   push:
+      branches: [main]
+      paths:
+         - "apps/ellie_ai/**"
+         - "infra/deploy/**"
+         - ".github/workflows/ellie-ai.yml"
 
 concurrency:
-  group: deploy-ellie-${{ github.ref }}
-  cancel-in-progress: false
+   group: deploy-ellie-${{ github.ref }}
+   cancel-in-progress: false
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: sf-voice/ellie-ai
-  ELIXIR_VERSION: "1.18.4"
-  OTP_VERSION: "27.3.4"
-  APP_DIR: apps/ellie_ai
+   REGISTRY: ghcr.io
+   IMAGE_NAME: sf-voice/ellie-ai
+   ELIXIR_VERSION: "1.18.4"
+   OTP_VERSION: "27.3.4"
+   APP_DIR: apps/ellie_ai
 
 jobs:
-  test:
-    name: test
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ env.APP_DIR }}
-    steps:
-      - uses: actions/checkout@v4
+   test:
+      name: test
+      runs-on: ubuntu-latest
+      defaults:
+         run:
+            working-directory: ${{ env.APP_DIR }}
+      steps:
+         - uses: actions/checkout@v4
 
-      - name: install elixir + otp
-        uses: erlef/setup-beam@v1
-        with:
-          elixir-version: ${{ env.ELIXIR_VERSION }}
-          otp-version: ${{ env.OTP_VERSION }}
+         - name: install elixir + otp
+           uses: erlef/setup-beam@v1
+           with:
+              elixir-version: ${{ env.ELIXIR_VERSION }}
+              otp-version: ${{ env.OTP_VERSION }}
 
-      # ellie_ai has no native NIF deps today, but install build-essential
-      # anyway so adding one (e.g. an audio codec) doesn't fail mid-deploy
-      # without a clear error.
-      - name: install build tools
-        run: sudo apt-get update && sudo apt-get install -y build-essential
+         # ellie_ai has no native NIF deps today, but install build-essential
+         # anyway so adding one (e.g. an audio codec) doesn't fail mid-deploy
+         # without a clear error.
+         - name: install build tools
+           run: sudo apt-get update && sudo apt-get install -y build-essential
 
-      - name: cache deps
-        uses: actions/cache@v4
-        with:
-          path: |
-            ${{ env.APP_DIR }}/deps
-            ${{ env.APP_DIR }}/_build
-          key: mix-ellie-${{ runner.os }}-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-${{ hashFiles('apps/ellie_ai/mix.lock') }}
-          restore-keys: |
-            mix-ellie-${{ runner.os }}-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-
+         - name: cache deps
+           uses: actions/cache@v4
+           with:
+              path: |
+                 ${{ env.APP_DIR }}/deps
+                 ${{ env.APP_DIR }}/_build
+              key: mix-ellie-${{ runner.os }}-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-${{ hashFiles('apps/ellie_ai/mix.lock') }}
+              restore-keys: |
+                 mix-ellie-${{ runner.os }}-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-
 
-      - name: install deps
-        run: mix deps.get
+         - name: install deps
+           run: mix deps.get
 
-      - name: check formatting
-        run: mix format --check-formatted
+         - name: check formatting
+           run: mix format --check-formatted
 
-      - name: compile (warnings as errors)
-        run: mix compile --warnings-as-errors
+         - name: compile (warnings as errors)
+           run: mix compile --warnings-as-errors
 
-      - name: run tests
-        run: mix test
+         - name: run tests
+           run: mix test
 
-  deploy:
-    name: build + deploy
-    needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v4
+   deploy:
+      name: build + deploy
+      needs: test
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      runs-on: ubuntu-latest
+      permissions:
+         contents: read
+         packages: write
+      steps:
+         - uses: actions/checkout@v4
 
-      - name: set up buildx
-        uses: docker/setup-buildx-action@v3
+         - name: set up buildx
+           uses: docker/setup-buildx-action@v3
 
-      - name: log in to ghcr
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+         - name: log in to ghcr
+           uses: docker/login-action@v3
+           with:
+              registry: ${{ env.REGISTRY }}
+              username: ${{ github.actor }}
+              password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: build and push image
-        uses: docker/build-push-action@v6
-        with:
-          context: ${{ env.APP_DIR }}
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
-          cache-from: type=gha,scope=ellie
-          cache-to: type=gha,mode=max,scope=ellie
+         - name: build and push image
+           uses: docker/build-push-action@v6
+           with:
+              context: ${{ env.APP_DIR }}
+              push: true
+              tags: |
+                 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+                 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+              cache-from: type=gha,scope=ellie
+              cache-to: type=gha,mode=max,scope=ellie
 
-      # upload the deploy script + compose file to a path the deploy user owns,
-      # so future edits to either ship on the next push without manual sync.
-      - name: upload deploy assets
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.DROPLET_HOST }}
-          username: deploy
-          key: ${{ secrets.DROPLET_SSH_KEY }}
-          source: "infra/deploy/deploy-ellie-ai.sh,infra/deploy/docker-compose.ellie.yml"
-          target: "/srv/ellie-ai/"
-          strip_components: 2
+         # upload the deploy script + compose file to a path the deploy user owns,
+         # so future edits to either ship on the next push without manual sync.
+         - name: upload deploy assets
+           uses: appleboy/scp-action@v0.1.7
+           with:
+              host: ${{ secrets.DROPLET_HOST }}
+              username: deploy
+              key: ${{ secrets.DROPLET_SSH_KEY }}
+              source: "infra/deploy/deploy-ellie-ai.sh,infra/deploy/docker-compose.ellie.yml"
+              target: "/srv/ellie-ai/"
+              strip_components: 2
 
-      - name: deploy via ssh
-        uses: appleboy/ssh-action@v1.2.0
-        env:
-          GHCR_USER: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          host: ${{ secrets.DROPLET_HOST }}
-          username: deploy
-          key: ${{ secrets.DROPLET_SSH_KEY }}
-          envs: GHCR_USER,GHCR_TOKEN
-          script: |
-            cd /srv/ellie-ai
-            mv -f docker-compose.ellie.yml docker-compose.yml
-            chmod +x deploy-ellie-ai.sh
-            ./deploy-ellie-ai.sh sha-${{ github.sha }}
+         - name: deploy via ssh
+           uses: appleboy/ssh-action@v1.2.0
+           env:
+              GHCR_USER: ${{ github.actor }}
+              GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              SECRET_KEY_BASE: ${{ secrets.SECRET_KEY_BASE }}
+              INTERNAL_API_TOKEN: ${{ secrets.INTERNAL_API_TOKEN }}
+              OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+              TELNYX_API_KEY: ${{ secrets.TELNYX_API_KEY }}
+              TELNYX_PUBLIC_KEY: ${{ secrets.TELNYX_PUBLIC_KEY }}
+              PHONE_NUMBER: ${{ secrets.PHONE_NUMBER }}
+              AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+              AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+              AWS_REGION: ${{ secrets.AWS_REGION }}
+              S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+           with:
+              host: ${{ secrets.DROPLET_HOST }}
+              username: deploy
+              key: ${{ secrets.DROPLET_SSH_KEY }}
+              envs: GHCR_USER,GHCR_TOKEN,SECRET_KEY_BASE,INTERNAL_API_TOKEN,OPENAI_API_KEY,TELNYX_API_KEY,TELNYX_PUBLIC_KEY,PHONE_NUMBER,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_REGION,S3_BUCKET_NAME
+              script: |
+                 cd /srv/ellie-ai
 
-      - name: smoke check
-        run: |
-          # ellie_ai has no /api/menu yet — probe the root path. once a real
-          # health endpoint exists, switch to that.
-          for i in $(seq 1 30); do
-            if curl -fsS https://ellie-ai.sf-voice.sh/ -o /dev/null; then
-              echo "site is live"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "smoke check failed — ellie-ai.sf-voice.sh didn't respond within 60s"
-          exit 1
+                 # render .env atomically: write to .env.new, chmod, then mv.
+                 # printf %s prevents shell expansion inside secret values.
+                 umask 077
+                 {
+                   printf 'SECRET_KEY_BASE=%s\n'        "$SECRET_KEY_BASE"
+                   printf 'INTERNAL_API_TOKEN=%s\n'     "$INTERNAL_API_TOKEN"
+                   printf 'OPENAI_API_KEY=%s\n'         "$OPENAI_API_KEY"
+                   printf 'TELNYX_API_KEY=%s\n'         "$TELNYX_API_KEY"
+                   printf 'TELNYX_PUBLIC_KEY=%s\n'      "$TELNYX_PUBLIC_KEY"
+                   printf 'TELNYX_PHONE_NUMBER=%s\n'    "$PHONE_NUMBER"
+                   printf 'AWS_ACCESS_KEY_ID=%s\n'      "$AWS_ACCESS_KEY_ID"
+                   printf 'AWS_SECRET_ACCESS_KEY=%s\n'  "$AWS_SECRET_ACCESS_KEY"
+                   printf 'AWS_REGION=%s\n'             "$AWS_REGION"
+                   printf 'S3_BUCKET_NAME=%s\n'         "$S3_BUCKET_NAME"
+                 } > .env.new
+                 mv .env.new .env
+
+                 mv -f docker-compose.ellie.yml docker-compose.yml
+                 chmod +x deploy-ellie-ai.sh
+                 ./deploy-ellie-ai.sh sha-${{ github.sha }}
+
+         - name: smoke check
+           run: |
+              # ellie_ai has no /api/menu yet — probe the root path. once a real
+              # health endpoint exists, switch to that.
+              for i in $(seq 1 30); do
+                if curl -fsS https://ellie-ai.sf-voice.sh/ -o /dev/null; then
+                  echo "site is live"
+                  exit 0
+                fi
+                sleep 2
+              done
+              echo "smoke check failed — ellie-ai.sf-voice.sh didn't respond within 60s"
+              exit 1
