@@ -8,6 +8,16 @@
 erlang = "27.3.4"
 elixir = "1.18.4-otp-27"
 
+# core stack tooling. pinning here so `mise install` provisions everything
+# any task needs — no implicit dependency on whatever's globally installed
+# on the dev machine. when these versions move in CI, update here too.
+node = "22"
+pnpm = "9"
+rust = "stable"
+# duckdb cli — useful for poking the embedded store from the shell
+# (e.g. `duckdb data/sf_voice.duckdb` then `SHOW TABLES;`).
+duckdb = "latest"
+
 # ── env ──────────────────────────────────────────────────────────────────
 # single root `.env` is the source of truth for every var, every app,
 # every shell. mise loads it on cd-into and on every `mise run …`.
@@ -163,27 +173,30 @@ description = "iex console for ellie_ai (no server)"
 dir = "apps/ellie_ai"
 run = "iex -S mix"
 
-[tasks."db:reset"]
-description = "drop + recreate + migrate + seed both apps' dev dbs (destructive — wipes resto + ellie)"
+[tasks."sqlite:reset"]
+description = "drop + recreate + migrate + seed both elixir apps' sqlite dbs (destructive — wipes resto + ellie)"
 # why both apps: ellie's call rows / customer_summary mirror only make
 # sense alongside the resto state they were derived from. resetting one
 # without the other leaves stale references and orphaned `status:
 # active` call rows in ellie's homepage. keep them in lockstep.
+#
+# this task targets the elixir apps' on-disk sqlite stores only. for the
+# core stack's mysql container + duckdb file see `db:nuke`.
 run = """
 set -e
-echo "[db:reset] resto: drop + create + migrate + seed"
+echo "[sqlite:reset] resto: drop + create + migrate + seed"
 (cd apps/resto_booking_app && \\
   mix ecto.drop --force --quiet && \\
   mix ecto.create --quiet && \\
   mix ecto.migrate --quiet && \\
   mix run priv/repo/seeds.exs)
-echo "[db:reset] ellie: drop + create + migrate + seed"
+echo "[sqlite:reset] ellie: drop + create + migrate + seed"
 (cd apps/ellie_ai && \\
   mix ecto.drop --force --quiet && \\
   mix ecto.create --quiet && \\
   mix ecto.migrate --quiet && \\
   mix run priv/repo/seeds.exs)
-echo "[db:reset] done."
+echo "[sqlite:reset] done."
 """
 
 [tasks.deps]
@@ -226,3 +239,122 @@ run = "cargo build -p sf-voice-api --release"
 description = "core/inference — sync python deps (placeholder)"
 dir = "core/inference"
 run = "echo 'inference scaffold — wire uv/pip once dependencies exist'"
+
+# ── monorepo-wide install + dev loop ─────────────────────────────────────
+# `mise run install` is the one-shot bootstrap for every stack. `mise run
+# core:dev` brings up the data layer (docker compose), then spawns
+# frontend + backend (+ inference placeholder) with prefixed logs.
+#
+# data-layer lifecycle lives under `db:*` (mysql container + duckdb file,
+# the core stack's stores):
+#   - `db:start`  — bring up mysql; ensure ./data/ exists for duckdb
+#   - `db:stop`   — halt mysql, keep volume
+#   - `db:nuke`   — destructive: wipe mysql volume + delete duckdb file
+#   - `db:logs`   — tail container logs (mysql only)
+#
+# (the elixir apps' sqlite stores are reset via `sqlite:reset`, which is
+# unrelated to docker.)
+
+[tasks.install]
+description = "one-time bootstrap: tool versions, then deps for every stack"
+run = """
+set -e
+
+echo "[install] mise tools"
+mise install
+
+echo "[install] elixir deps"
+mix deps.get
+
+echo "[install] frontend deps (pnpm)"
+(cd core/frontend && pnpm install)
+
+echo "[install] rust deps (cargo fetch)"
+cargo fetch
+
+echo "[install] inference (placeholder — no python deps yet)"
+# uv sync goes here once core/inference has real dependencies.
+
+echo "[install] pull dev data-layer images"
+docker compose -f infra/dev/docker-compose.yml pull
+
+echo "[install] ensure duckdb data dir exists"
+mkdir -p data
+
+echo "[install] done."
+"""
+
+[tasks."core:dev"]
+description = "full core stack: mysql + duckdb + frontend + backend (+ inference)"
+# flow:
+#   1. bring up mysql via docker compose; ensure ./data/ exists for the
+#      duckdb file (rust opens it in-process on first write).
+#   2. wait for mysql healthcheck.
+#   3. spawn frontend, backend, inference with prefixed logs.
+#   4. on Ctrl+C, the EXIT trap kills the foreground processes; mysql
+#      stays up (use `mise run db:stop` to halt it).
+run = """
+set -e
+
+COMPOSE="docker compose -f infra/dev/docker-compose.yml"
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "docker not found — install Docker Desktop or colima first" >&2
+  exit 1
+fi
+
+trap 'kill 0 2>/dev/null; pkill -P $$ 2>/dev/null; exit' EXIT INT TERM
+
+mkdir -p data
+
+echo "[core:dev] starting data layer (mysql)..."
+# --wait blocks until every service with a healthcheck is healthy (or
+# the timeout fires). much more reliable than polling `docker compose ps`
+# json, which has fragile schemas across compose versions. healthcheck
+# start_period in the compose file already gives cold-init enough room.
+if ! $COMPOSE up -d --wait --wait-timeout 180; then
+  echo "[core:dev] data layer didn't come up — recent logs:" >&2
+  $COMPOSE logs --tail=40 mysql >&2 || true
+  exit 1
+fi
+echo "[core:dev] data layer healthy"
+
+# 3. banner with every url up front, so a slow cargo first-build doesn't
+#    leave the user wondering where to look.
+echo ""
+echo "[core:dev] services:"
+echo "  web     → http://localhost:5173   (app.sf-voice.sh)"
+echo "  api     → http://localhost:8080   (api.sf-voice.sh)   curl /api/hello"
+echo "  mysql   → mysql://sf_voice:sf_voice@127.0.0.1:3306/sf_voice_dev"
+echo "  duckdb  → file: ./data/sf_voice.duckdb (open with: duckdb data/sf_voice.duckdb)"
+echo ""
+
+# 4. app processes. each backgrounded with a sed prefix so logs interleave
+#    cleanly. inference is a placeholder loop until there's real code.
+(cd core/frontend && pnpm dev 2>&1 | sed -u 's/^/[web]    /') &
+(cargo run -p sf-voice-api 2>&1 | sed -u 's/^/[api]    /') &
+( while true; do echo "[inf]    scaffold — no inference process yet"; sleep 300; done ) &
+wait
+"""
+
+[tasks."db:start"]
+description = "start the dev data layer (mysql in docker, duckdb is just a file)"
+run = """
+mkdir -p data
+docker compose -f infra/dev/docker-compose.yml up -d
+"""
+
+[tasks."db:stop"]
+description = "stop the dev data layer (mysql). volume preserved."
+run = "docker compose -f infra/dev/docker-compose.yml down"
+
+[tasks."db:nuke"]
+description = "destructive — wipe mysql volume + delete the duckdb file"
+run = """
+docker compose -f infra/dev/docker-compose.yml down -v
+rm -f data/sf_voice.duckdb data/sf_voice.duckdb.wal
+"""
+
+[tasks."db:logs"]
+description = "tail mysql container logs"
+run = "docker compose -f infra/dev/docker-compose.yml logs -f"

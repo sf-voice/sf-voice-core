@@ -1,0 +1,142 @@
+name: frontend
+
+# fires when the frontend source, its workspace lock, or this workflow
+# changes. ellie / resto / api pipelines have their own filters.
+
+on:
+   pull_request:
+      paths:
+         - "core/frontend/**"
+         - "pnpm-lock.yaml"
+         - "pnpm-workspace.yaml"
+         - "infra/deploy/docker-compose.frontend.yml"
+         - ".github/workflows/frontend.yml"
+   push:
+      branches: [main]
+      paths:
+         - "core/frontend/**"
+         - "pnpm-lock.yaml"
+         - "pnpm-workspace.yaml"
+         - "infra/deploy/docker-compose.frontend.yml"
+         - ".github/workflows/frontend.yml"
+
+concurrency:
+   group: deploy-frontend-${{ github.ref }}
+   cancel-in-progress: false
+
+env:
+   REGISTRY: ghcr.io
+   IMAGE_NAME: sf-voice/sf-voice-frontend
+
+jobs:
+   test:
+      name: test
+      runs-on: ubuntu-latest
+      steps:
+         - uses: actions/checkout@v4
+
+         - name: setup pnpm + node
+           uses: actions/setup-node@v4
+           with:
+              node-version: "22"
+
+         - name: enable corepack
+           run: corepack enable
+
+         - name: cache pnpm store
+           uses: actions/cache@v4
+           with:
+              path: ~/.local/share/pnpm/store
+              key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+              restore-keys: |
+                 pnpm-${{ runner.os }}-
+
+         - name: install deps (frontend workspace)
+           run: pnpm install --frozen-lockfile --filter @sf-voice/frontend...
+
+         - name: typecheck
+           run: pnpm --filter @sf-voice/frontend typecheck
+
+         - name: build
+           run: pnpm --filter @sf-voice/frontend build
+
+   deploy:
+      name: build + deploy
+      needs: test
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      runs-on: ubuntu-latest
+      permissions:
+         contents: read
+         packages: write
+      steps:
+         - uses: actions/checkout@v4
+
+         - name: set up buildx
+           uses: docker/setup-buildx-action@v3
+
+         - name: log in to ghcr
+           uses: docker/login-action@v3
+           with:
+              registry: ${{ env.REGISTRY }}
+              username: ${{ github.actor }}
+              password: ${{ secrets.GITHUB_TOKEN }}
+
+         - name: build and push image
+           uses: docker/build-push-action@v6
+           with:
+              context: .
+              file: core/frontend/Dockerfile
+              push: true
+              tags: |
+                 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+                 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+              cache-from: type=gha,scope=frontend
+              cache-to: type=gha,mode=max,scope=frontend
+
+         - name: upload deploy assets
+           uses: appleboy/scp-action@v0.1.7
+           with:
+              host: ${{ secrets.DROPLET_HOST }}
+              username: deploy
+              key: ${{ secrets.DROPLET_SSH_KEY }}
+              source: "infra/deploy/docker-compose.frontend.yml"
+              target: "/srv/frontend/"
+              strip_components: 2
+
+         - name: deploy via ssh
+           uses: appleboy/ssh-action@v1.2.0
+           env:
+              GHCR_USER: ${{ github.actor }}
+              GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+           with:
+              host: ${{ secrets.DROPLET_HOST }}
+              username: deploy
+              key: ${{ secrets.DROPLET_SSH_KEY }}
+              envs: GHCR_USER,GHCR_TOKEN
+              script: |
+                 cd /srv/frontend
+                 mv -f docker-compose.frontend.yml docker-compose.yml
+
+                 echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+
+                 sed -i.bak -E \
+                   "s|(image: ghcr\\.io/sf-voice/sf-voice-frontend:)[^[:space:]]+|\\1sha-${{ github.sha }}|" \
+                   docker-compose.yml
+                 rm -f docker-compose.yml.bak
+
+                 docker compose pull frontend
+                 docker compose up -d --no-deps frontend
+                 docker image prune -f --filter "until=168h" >/dev/null 2>&1 || true
+                 docker compose ps frontend
+
+         - name: smoke check
+           run: |
+              for i in $(seq 1 30); do
+                if curl -fsS https://app.sf-voice.sh/ >/dev/null; then
+                  echo "frontend is live"
+                  exit 0
+                fi
+                sleep 2
+              done
+              echo "smoke check failed — app.sf-voice.sh didn't respond within 60s"
+              exit 1

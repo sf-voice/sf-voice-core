@@ -107,27 +107,83 @@ jobs:
           cache-from: type=gha,scope=resto
           cache-to: type=gha,mode=max,scope=resto
 
+      # upload the deploy script + compose file to a path the deploy user
+      # owns, so future edits to either ship on the next push without
+      # having to ssh in and copy by hand.
+      - name: upload deploy assets
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: deploy
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          source: "infra/deploy/deploy-resto-demo.sh,infra/deploy/docker-compose.app.yml"
+          target: "/srv/resto-demo/"
+          strip_components: 2
+
+      # render /srv/resto-demo/.env from GH secrets, then run the deploy
+      # script. workflow is the source of truth for .env contents —
+      # manual edits on the droplet are overwritten on every push.
       - name: deploy via ssh
         uses: appleboy/ssh-action@v1.2.0
         env:
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SECRET_KEY_BASE: ${{ secrets.SECRET_KEY_BASE }}
+          INTERNAL_API_TOKEN: ${{ secrets.INTERNAL_API_TOKEN }}
         with:
           host: ${{ secrets.DROPLET_HOST }}
           username: deploy
           key: ${{ secrets.DROPLET_SSH_KEY }}
-          envs: GHCR_USER,GHCR_TOKEN
+          envs: GHCR_USER,GHCR_TOKEN,SECRET_KEY_BASE,INTERNAL_API_TOKEN
           script: |
-            /usr/local/bin/deploy-resto-demo.sh sha-${{ github.sha }}
+            cd /srv/resto-demo
 
-      - name: smoke check
+            # render .env atomically: write to .env.new, chmod via umask,
+            # then mv. printf %s prevents shell expansion inside secrets.
+            umask 077
+            {
+              printf 'SECRET_KEY_BASE=%s\n'    "$SECRET_KEY_BASE"
+              printf 'INTERNAL_API_TOKEN=%s\n' "$INTERNAL_API_TOKEN"
+            } > .env.new
+            mv .env.new .env
+
+            mv -f docker-compose.app.yml docker-compose.yml
+            chmod +x deploy-resto-demo.sh
+            ./deploy-resto-demo.sh sha-${{ github.sha }}
+
+      - name: smoke check (resto-demo, blocking)
         run: |
           for i in $(seq 1 30); do
             if curl -fsS https://resto-demo.sf-voice.sh/api/menu >/dev/null; then
-              echo "site is live"
+              echo "resto-demo is live"
               exit 0
             fi
             sleep 2
           done
           echo "smoke check failed — resto-demo.sf-voice.sh didn't respond within 60s"
           exit 1
+
+      # non-blocking — app and api upstreams aren't deployed yet, so the
+      # Caddy routes 502 until those stacks land. once they do, flip the
+      # `|| true` off so regressions fail the build.
+      - name: smoke check (app, non-blocking)
+        if: always()
+        run: |
+          status=$(curl -s -o /dev/null -w '%{http_code}' https://app.sf-voice.sh/ || echo "000")
+          echo "app.sf-voice.sh → HTTP $status"
+          if [[ "$status" =~ ^[23] ]]; then
+            echo "app is live"
+          else
+            echo "::warning::app.sf-voice.sh not live yet (HTTP $status) — non-blocking"
+          fi
+
+      - name: smoke check (api, non-blocking)
+        if: always()
+        run: |
+          status=$(curl -s -o /dev/null -w '%{http_code}' https://api.sf-voice.sh/ || echo "000")
+          echo "api.sf-voice.sh → HTTP $status"
+          if [[ "$status" =~ ^[23] ]]; then
+            echo "api is live"
+          else
+            echo "::warning::api.sf-voice.sh not live yet (HTTP $status) — non-blocking"
+          fi
