@@ -156,16 +156,37 @@ jobs:
                  chmod +x deploy-ellie-ai.sh
                  ./deploy-ellie-ai.sh sha-${{ github.sha }}
 
-         - name: smoke check
+         - name: smoke check (http root)
            run: |
               # ellie_ai has no /api/menu yet — probe the root path. once a real
               # health endpoint exists, switch to that.
               for i in $(seq 1 30); do
                 if curl -fsS https://ellie-ai.sf-voice.sh/ -o /dev/null; then
                   echo "site is live"
-                  exit 0
+                  break
+                fi
+                if [ "$i" = "30" ]; then
+                  echo "smoke check failed — ellie-ai.sf-voice.sh didn't respond within 60s"
+                  exit 1
                 fi
                 sleep 2
               done
-              echo "smoke check failed — ellie-ai.sf-voice.sh didn't respond within 60s"
-              exit 1
+
+         # VAD websocket smoke. proves the full path the rust api
+         # depends on: TLS → caddy → ellie → phoenix socket → token
+         # auth → channel join → silero round-trip. failure here means
+         # the rust client would also fail; catch it now.
+         #
+         # `websockets` is the only dep; python3 ships on ubuntu-latest.
+         - name: smoke check (vad websocket)
+           env:
+              INTERNAL_API_TOKEN: ${{ secrets.INTERNAL_API_TOKEN }}
+           run: |
+              if [ -z "$INTERNAL_API_TOKEN" ]; then
+                echo "::error::INTERNAL_API_TOKEN repo secret is not set — smoke can't authenticate"
+                exit 1
+              fi
+              python3 -m pip install --quiet 'websockets>=12,<14'
+              python3 infra/deploy/smoke-vad.py \
+                wss://ellie-ai.sf-voice.sh/socket/vad \
+                "$INTERNAL_API_TOKEN"
