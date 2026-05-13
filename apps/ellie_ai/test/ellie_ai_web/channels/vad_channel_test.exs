@@ -39,6 +39,32 @@ defmodule EllieAiWeb.VadChannelTest do
       assert channel.assigns.hysteresis.vad_state == :silence
     end
 
+    test "default join echoes the 8khz format spec", %{socket: socket} do
+      assert {:ok, reply, _channel} = subscribe_and_join(socket, "vad:stream:8k", %{})
+
+      assert reply.sample_rate == 8000
+      assert reply.samples_per_window == 256
+      assert reply.bytes_per_window == 1024
+      assert reply.window_ms == 32
+      assert reply.sample_dtype == "float32_le"
+    end
+
+    test "join with sample_rate: 16000 echoes the 16khz format spec", %{socket: socket} do
+      assert {:ok, reply, channel} =
+               subscribe_and_join(socket, "vad:stream:16k", %{"sample_rate" => 16_000})
+
+      assert reply.sample_rate == 16_000
+      assert reply.samples_per_window == 512
+      assert reply.bytes_per_window == 2048
+      assert channel.assigns.sample_rate == 16_000
+      assert channel.assigns.window_bytes == 2048
+    end
+
+    test "join with an unsupported sample_rate is rejected", %{socket: socket} do
+      assert {:error, %{reason: "unsupported_sample_rate", got: 44_100, supported: [8000, 16_000]}} =
+               subscribe_and_join(socket, "vad:stream:bad", %{"sample_rate" => 44_100})
+    end
+
     test "rejects unknown topic", %{socket: socket} do
       assert {:error, %{reason: "unknown topic"}} =
                subscribe_and_join(socket, "vad:not-a-stream", %{})
@@ -52,12 +78,15 @@ defmodule EllieAiWeb.VadChannelTest do
       %{channel: channel}
     end
 
-    test "wrong window size replies with a bad_window_size error", %{channel: channel} do
+    test "wrong window size replies with a bad_window_size error and echoes sample rate", %{
+      channel: channel
+    } do
       bad = :binary.copy(<<0.0::little-float-32>>, 100)
       ref = push(channel, "audio", {:binary, bad})
 
       assert_reply ref, :error, %{
         reason: "bad_window_size",
+        sample_rate: 8000,
         expected_bytes: 1024,
         got_bytes: 400
       }

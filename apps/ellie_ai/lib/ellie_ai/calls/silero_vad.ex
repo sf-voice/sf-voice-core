@@ -49,18 +49,46 @@ defmodule EllieAi.Calls.SileroVad do
     Nx.broadcast(Nx.tensor(0.0, type: :f32), {2, 1, 128})
   end
 
-  @doc "run one inference. samples = 256 floats in [-1,1] (for 8khz); state = f32 {2,1,128}."
-  def infer(samples, state) when is_list(samples) do
+  @doc """
+  run one inference. silero v5 supports two sample rates with strict
+  window sizes:
+
+    * 8000  Hz → 256 samples per window (32ms)
+    * 16000 Hz → 512 samples per window (32ms)
+
+  passing a sample count that doesn't match the rate produces garbage
+  probabilities, not an error — so we guard at the boundary.
+
+  `samples` = floats in [-1,1]; `state` = f32 tensor of shape {2,1,128}.
+  the 2-arity form defaults to 8khz for backwards-compat with VadGate's
+  existing call sites.
+  """
+  def infer(samples, state), do: infer(samples, state, 8000)
+
+  def infer(samples, state, sample_rate)
+      when is_list(samples) and sample_rate in [8000, 16000] do
+    expected = window_size_for(sample_rate)
+
+    if length(samples) != expected do
+      raise ArgumentError,
+            "silero @ #{sample_rate}Hz needs #{expected} samples per window, " <>
+              "got #{length(samples)}"
+    end
+
     model = :persistent_term.get(@persist_key)
 
     input = Nx.tensor([samples], type: :f32)
-    sr = Nx.tensor(8000, type: :s64)
+    sr = Nx.tensor(sample_rate, type: :s64)
 
     {output, new_state} = Ortex.run(model, {input, state, sr})
 
     prob = output |> Nx.to_flat_list() |> hd()
     {prob, new_state}
   end
+
+  @doc "samples-per-window for a given sample rate. raises on unsupported rates."
+  def window_size_for(8000), do: 256
+  def window_size_for(16000), do: 512
 
   defp full_path do
     @model_path_override || Path.join(:code.priv_dir(:ellie_ai), @model_relpath)
