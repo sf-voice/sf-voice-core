@@ -10,7 +10,7 @@ import { Timeline } from "@/components/timeline/Timeline";
 import { ProgressDrawer } from "@/components/ProgressDrawer";
 import { PromptFlow } from "@/components/PromptFlow";
 import { ReasoningPath } from "@/components/ReasoningPath";
-import { rootRoute } from "./root";
+import { authedLayoutRoute } from "./_authed";
 
 function CallDetailPage() {
   const { callId } = callDetailRoute.useParams();
@@ -122,7 +122,7 @@ function CallDetailPage() {
 }
 
 export const callDetailRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => authedLayoutRoute,
   path: "/calls/$callId",
   component: CallDetailPage,
 });

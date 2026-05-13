@@ -1,4 +1,106 @@
 @import "tailwindcss";
 
-/* tailwind v4 theme config lives here, not in a JS file.
-   add @theme { ... } blocks below as the design system grows. */
+/* design tokens — single source of truth.
+   light theme is the default (:root); product surfaces opt into dark
+   by wrapping in .theme-dark. tokens stay semantic so component code
+   never knows which theme it's in.
+   values pulled from https://sf-voice.sh production css. see BRAND.md.
+*/
+
+:root {
+  --bg: 220 20% 97%;
+  --fg: 210 60% 11%;
+  --muted: 210 18% 72%;
+  --muted-fg: 211 35% 31%;
+  --border: 210 30% 88%;
+  --input: 210 30% 88%;
+  --ring: 211 35% 31%;
+  --primary: 210 60% 11%;
+  --primary-fg: 220 20% 97%;
+  --destructive: 12 65% 55%;
+  --destructive-fg: 220 20% 97%;
+  --accent: 36 47% 82%;
+}
+
+.theme-dark {
+  /* derived dark palette. preserves the deep-navy seed of the parent
+     brand but inverts the surface. watercolor accents (cyan/sage/lavender/
+     peach/sand) keep their hex values so they read on both themes. */
+  --bg: 210 30% 7%;
+  --fg: 220 20% 95%;
+  --muted: 210 25% 14%;
+  --muted-fg: 211 20% 60%;
+  --border: 210 25% 16%;
+  --input: 210 25% 16%;
+  --ring: 211 35% 60%;
+  --primary: 220 20% 95%;
+  --primary-fg: 210 30% 8%;
+}
+
+@theme inline {
+  --font-display: "Playfair Display", Georgia, serif;
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+
+  --radius: 0.375rem;
+
+  --color-background: hsl(var(--bg));
+  --color-foreground: hsl(var(--fg));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-fg));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-fg));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-fg));
+  --color-accent: hsl(var(--accent));
+
+  /* watercolor — invariant across themes */
+  --color-cyan: #cfe7e6;
+  --color-cyan-deep: #b6d5d4;
+  --color-sage: #c7d8c1;
+  --color-sage-deep: #b5cbae;
+  --color-lavender: #d8c7e6;
+  --color-lavender-deep: #c7b3da;
+  --color-peach: #f6d6c7;
+  --color-peach-deep: #ebc1ad;
+  --color-sand: #e7d7be;
+  --color-sand-deep: #dbc8a8;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    background-color: hsl(var(--bg));
+    color: hsl(var(--fg));
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+  }
+  .font-sans {
+    font-family: var(--font-sans);
+  }
+  /* paper grain texture — adds tactile feel under hero / empty-state
+     sections. parent at sf-voice.sh uses the same trick. */
+  .grain {
+    position: relative;
+  }
+  .grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    mix-blend-mode: overlay;
+    opacity: 0.06;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23g)' opacity='1'/%3E%3C/svg%3E");
+  }
+}
