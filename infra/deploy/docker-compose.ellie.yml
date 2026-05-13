@@ -12,7 +12,14 @@ services:
       PHX_HOST: ellie-ai.sf-voice.sh
       PHX_SERVER: "true"
       PORT: "4001"
-      # SECRET_KEY_BASE comes from .env (gitignored, written by bootstrap.sh)
+      DATABASE_PATH: /data/ellie.db
+      # secrets (SECRET_KEY_BASE, INTERNAL_API_TOKEN, OPENAI_API_KEY,
+      # TELNYX_*, AWS_*, S3_BUCKET_NAME) come from .env, written on every
+      # deploy by .github/workflows/ellie-ai.yml. local edits get overwritten.
+    volumes:
+      # host dir is owned by uid 65534 (nobody) so the container can write
+      # to its sqlite db. created by bootstrap-ellie.sh.
+      - ./data:/data
     expose:
       - "4001"
     networks:

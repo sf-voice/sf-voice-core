@@ -72,3 +72,10 @@ multi-region-support.md
 debug.log
 .gstack/
 **/.design-audit-shots/
+
+
+## rust
+target/
+
+## core stack — embedded duckdb store (created at runtime by the rust api)
+/data/

@@ -32,8 +32,8 @@ defmodule EllieAi.Calls.VadGateTest do
       # wait for all buffered windows to be processed.
       :sys.get_state(CallRegistry.whereis_vad_gate(ccid))
       |> tap(fn state ->
-        assert state.vad_state == :silence
-        assert state.silence_count == 0
+        assert state.hysteresis.vad_state == :silence
+        assert state.hysteresis.silence_count == 0
       end)
     end
 
@@ -45,7 +45,7 @@ defmodule EllieAi.Calls.VadGateTest do
 
       state = :sys.get_state(CallRegistry.whereis_vad_gate(ccid))
       assert length(state.sample_buffer) == 100
-      assert state.vad_state == :silence
+      assert state.hysteresis.vad_state == :silence
     end
 
     test "drains multiple windows from one chunk", %{ccid: ccid} do
@@ -55,7 +55,7 @@ defmodule EllieAi.Calls.VadGateTest do
 
       state = :sys.get_state(CallRegistry.whereis_vad_gate(ccid))
       assert length(state.sample_buffer) == 88
-      assert state.vad_state == :silence
+      assert state.hysteresis.vad_state == :silence
     end
   end
 end

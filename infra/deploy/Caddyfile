@@ -43,6 +43,28 @@ ellie-ai.sf-voice.sh {
 	}
 }
 
+# frontend (core/web). listens on 3000 inside its container. until the
+# upstream container exists, this block 502s — that's intentional, the
+# route + tls handshake still work and prove the wiring.
+app.sf-voice.sh {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
+	encode zstd gzip
+
+	reverse_proxy frontend:3000 {
+		header_up X-Forwarded-Proto https
+	}
+}
+
+# rust api (core/sf-voice-api). same internal port it uses in dev (8080).
+api.sf-voice.sh {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
+	encode zstd gzip
+
+	reverse_proxy api:8080 {
+		header_up X-Forwarded-Proto https
+	}
+}
+
 # anything else hitting the droplet on 443 with a host we don't know about
 :443 {
 	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key

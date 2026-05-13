@@ -1,0 +1,45 @@
+# local-only data layer for `mise run core:dev`. NOT used in production —
+# the prod stack lives in infra/deploy/docker-compose.*.yml.
+#
+# mysql backs the new rust api service. duckdb (the analytical store) is
+# an embedded library — it lives as a `.duckdb` file at ./data/ and runs
+# in-process inside the rust binary, so it has nothing here.
+#
+# named volume so `docker compose down` preserves data; wipe with
+# `docker compose -f infra/dev/docker-compose.yml down -v`.
+
+name: sf-voice-dev
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: sf-voice-mysql
+    restart: unless-stopped
+    command:
+      # caching_sha2_password is the default auth plugin in 8.4 — no need
+      # to set it. `--default-authentication-plugin` itself was removed
+      # in 8.4 and aborts mysqld at startup if present.
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-sf_voice_dev}
+      MYSQL_USER: ${MYSQL_USER:-sf_voice}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-sf_voice}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-sf_voice_root}
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-sf_voice_root}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      # first-init runs mysqld --initialize which can take 20–40s on a
+      # cold volume. start_period tells docker to ignore failing checks
+      # during this window so they don't burn the retry budget.
+      start_period: 45s
+
+volumes:
+  mysql_data:
+    name: sf-voice-mysql-data
