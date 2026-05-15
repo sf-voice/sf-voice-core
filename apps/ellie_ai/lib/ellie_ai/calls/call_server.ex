@@ -140,7 +140,7 @@ defmodule EllieAi.Calls.CallServer do
     from = payload["from"]
 
     if org && is_binary(from) and from != "" do
-      Task.start(fn ->
+      Task.Supervisor.start_child(EllieAi.TaskSupervisor, fn ->
         case EllieAi.RestoClient.get_customer_by_phone(org, from) do
           {:ok, customer_payload} ->
             case EllieAi.Customers.reconcile_id(org, from, customer_payload) do
