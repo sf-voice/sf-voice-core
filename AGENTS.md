@@ -1,100 +1,64 @@
-This is a web application written using the Phoenix web framework.
+# Repo rules
 
-## Project guidelines
+`CLAUDE.md` is a symlink to this file. Read this first; then read the `AGENTS.md` in the folder you're working in (it overrides anything here).
 
-- Use `mix precommit` alias when you are done with all changes and fix any pending issues
-- Use the already included and available `:req` (`Req`) library for HTTP requests, **avoid** `:httpoison`, `:tesla`, and `:httpc`. Req is included by default and is the preferred HTTP client for Phoenix apps
-- **Shared constants live in a constants module.** When a literal value (domain enum, magic number with business meaning, regex, etc.) is used in **two or more modules**, extract it to a per-context `Constants` module — e.g. `RestoBookingApp.Reservations.Constants`. Cross-context shared values go in a top-level module (`RestoBookingApp.Validations`, etc.). Values used in only one module stay as `@module_attribute` co-located with the function that uses them. Do not preemptively centralise — wait for the second use. Existing examples: `RestoBookingApp.Reservations.Constants`, `RestoBookingApp.Menu.Constants`, `RestoBookingApp.Contacts.Constants`, `RestoBookingApp.Validations`, `EllieAi.Calls.Constants`. Caveats: pattern matches and Ecto schema-default literals (e.g. `field :status, :string, default: "ringing"`) keep their string literals — Elixir can't reference a function call in either position. For `in` guards, read the constant once at compile time via a module attribute (`@roles Constants.roles()`), since guards reject runtime function calls.
+## Repo shape
 
-### Phoenix v1.8 guidelines
+- `apps/` — Elixir / Phoenix apps. Shared stack rules: [`apps/ELIXIR_RULES.md`](apps/ELIXIR_RULES.md). Shared decisions: [`apps/MEMORY.md`](apps/MEMORY.md).
+- `core/` — sf-voice product (Rust API + React frontend). Multi-tenant for sf-voice's external customers; **not** the booking-app product.
+- `infra/` — Docker compose, Caddy, GitHub Actions, droplet bootstrap.
 
-- **Always** begin your LiveView templates with `<Layouts.app flash={@flash} ...>` which wraps all inner content
-- The `MyAppWeb.Layouts` module is aliased in the `my_app_web.ex` file, so you can use it without needing to alias it again
-- Anytime you run into errors with no `current_scope` assign:
-  - You failed to follow the Authenticated Routes guidelines, or you failed to pass `current_scope` to `<Layouts.app>`
-  - **Always** fix the `current_scope` error by moving your routes to the proper `live_session` and ensure you pass `current_scope` as needed
-- Phoenix v1.8 moved the `<.flash_group>` component to the `Layouts` module. You are **forbidden** from calling `<.flash_group>` outside of the `layouts.ex` module
-- Out of the box, `core_components.ex` imports an `<.icon name="hero-x-mark" class="w-5 h-5"/>` component for hero icons. **Always** use the `<.icon>` component for icons, **never** use `Heroicons` modules or similar
-- **Always** use the imported `<.input>` component for form inputs from `core_components.ex` when available. `<.input>` is imported and using it will save steps and prevent errors
-- If you override the default input classes (`<.input class="myclass px-2 py-1 rounded-lg">)`) class with your own values, no default classes are inherited, so your
-custom classes must fully style the input
+Each folder has its own `AGENTS.md` and `MEMORY.md`.
 
+## How to talk
 
-<!-- usage-rules-start -->
+1. **No filler.** Never open with "Great question!", "Of course!", "Sure!", or similar. Start with the answer.
+2. **Options before action.** For any non-trivial task, show 2–3 approaches and wait for me to pick.
+3. **Honesty over guesses.** If uncertain, say so. "I'm not sure" beats a confident wrong answer.
+4. **Match length to need.** Short answers for short questions. Don't pad.
 
-<!-- phoenix:elixir-start -->
-## Elixir guidelines
+## How to behave
 
-- Elixir lists **do not support index based access via the access syntax**
+5. **Ask before rewriting my work.** If you're about to restructure, remove paragraphs, or change tone of something I wrote, stop and describe the change first.
+6. **Stay in scope.** Only change what I asked for. Mention adjacent issues in a note; don't touch them.
+7. **Always say what changed.** End coding tasks with a short list of files touched and what was modified.
+8. **Never act on my behalf.** No emails, posts, deploys, or external side effects without explicit yes-in-this-message.
 
-  **Never do this (invalid)**:
+## Hard stops (require explicit yes in the current message)
 
-      i = 0
-      mylist = ["blue", "green"]
-      mylist[i]
+- Deploying / pushing to any environment.
+- DB migrations or schema changes.
+- Any irreversible external side effect (emails, API calls, etc).
+- Deleting files or overwriting work I haven't asked you to change.
 
-  Instead, **always** use `Enum.at`, pattern matching, or `List` for index based list access, ie:
+## Memory & continuity
 
-      i = 0
-      mylist = ["blue", "green"]
-      Enum.at(mylist, i)
+- Memory lives **per folder**. No root `MEMORY.md`. Read the `MEMORY.md` for the folder you're in before starting.
+- Decision template:
+  ```
+  ## [YYYY-MM-DD] — [Decision]
+  **What was decided:** ...
+  **Why:** ...
+  **What was rejected:** ...
+  ```
+- **Cross-cutting decisions** live in the **primary actor's** `MEMORY.md`. The other folder carries a one-line cross-ref.
+- Failure log at `ERRORS.md` (root). Update it when an approach takes >2 attempts to work.
+- Never contradict a logged decision without flagging it first.
 
-- Elixir variables are immutable, but can be rebound, so for block expressions like `if`, `case`, `cond`, etc
-  you *must* bind the result of the expression to a variable if you want to use it and you CANNOT rebind the result inside the expression, ie:
+## Karpathy 4
 
-      # INVALID: we are rebinding inside the `if` and the result never gets assigned
-      if connected?(socket) do
-        socket = assign(socket, :val, val)
-      end
+1. **Ask, don't assume.**
+2. **Simplest solution first.**
+3. **Don't touch unrelated code.**
+4. **Flag uncertainty explicitly.**
 
-      # VALID: we rebind the result of the `if` to a new variable
-      socket =
-        if connected?(socket) do
-          assign(socket, :val, val)
-        end
+## Single source of truth
 
-- **Never** nest multiple modules in the same file as it can cause cyclic dependencies and compilation errors
-- **Never** use map access syntax (`changeset[:field]`) on structs as they do not implement the Access behaviour by default. For regular structs, you **must** access the fields directly, such as `my_struct.field` or use higher level APIs that are available on the struct if they exist, `Ecto.Changeset.get_field/2` for changesets
-- Elixir's standard library has everything necessary for date and time manipulation. Familiarize yourself with the common `Time`, `Date`, `DateTime`, and `Calendar` interfaces by accessing their documentation as necessary. **Never** install additional dependencies unless asked or for date/time parsing (which you can use the `date_time_parser` package)
-- Don't use `String.to_atom/1` on user input (memory leak risk)
-- Predicate function names should not start with `is_` and should end in a question mark. Names like `is_thing` should be reserved for guards
-- Elixir's builtin OTP primitives like `DynamicSupervisor` and `Registry`, require names in the child spec, such as `{DynamicSupervisor, name: MyApp.MyDynamicSup}`, then you can use `DynamicSupervisor.start_child(MyApp.MyDynamicSup, child_spec)`
-- Use `Task.async_stream(collection, callback, options)` for concurrent enumeration with back-pressure. The majority of times you will want to pass `timeout: :infinity` as option
+The moment the same function, regex, validation, formatter, or mapping appears in **two** places, stop and extract it before adding a third copy. Search first, extract second, implement third.
 
-## Mix guidelines
+## Audience
 
-- Read the docs and options before using tasks (by using `mix help task_name`)
-- To debug test failures, run tests in a specific file with `mix test test/my_test.exs` or run all previously failed tests with `mix test --failed`
-- `mix deps.clean --all` is **almost never needed**. **Avoid** using it unless you have good reason
+- `apps/*` — The Seasons restaurant group. Guests + staff, **very low technical literacy**. UX must be simple, apparent, direct.
+- `core/*` — sf-voice external customers. Engineers operating voice agents.
 
-## Test guidelines
-
-- **Always use `start_supervised!/1`** to start processes in tests as it guarantees cleanup between tests
-- **Avoid** `Process.sleep/1` and `Process.alive?/1` in tests
-  - Instead of sleeping to wait for a process to finish, **always** use `Process.monitor/1` and assert on the DOWN message:
-
-      ref = Process.monitor(pid)
-      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}
-
-   - Instead of sleeping to synchronize before the next call, **always** use `_ = :sys.get_state/1` to ensure the process has handled prior messages
-<!-- phoenix:elixir-end -->
-
-<!-- phoenix:phoenix-start -->
-## Phoenix guidelines
-
-- Remember Phoenix router `scope` blocks include an optional alias which is prefixed for all routes within the scope. **Always** be mindful of this when creating routes within a scope to avoid duplicate module prefixes.
-
-- You **never** need to create your own `alias` for route definitions! The `scope` provides the alias, ie:
-
-      scope "/admin", AppWeb.Admin do
-        pipe_through :browser
-
-        live "/users", UserLive, :index
-      end
-
-  the UserLive route would point to the `AppWeb.Admin.UserLive` module
-
-- `Phoenix.View` no longer is needed or included with Phoenix, don't use it
-<!-- phoenix:phoenix-end -->
-
-<!-- usage-rules-end -->
+When in doubt about audience for the file you're editing, read the folder's `AGENTS.md`.
