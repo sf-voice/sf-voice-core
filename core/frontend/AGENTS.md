@@ -2,9 +2,9 @@
 
 ## Read this first
 
-This document is the durable spec for the frontend product. Sibling spec for the API and schema lives at [`../backend/AGENT.md`](../backend/AGENT.md).
+This document is the durable spec for the frontend product. Sibling spec for the API and schema lives at [`../backend/AGENTS.md`](../backend/AGENTS.md).
 
-**Scope flag.** The repo's top-level `CLAUDE.md` says *"One restaurant only — The Seasons. Not multi-tenant."* That rule applies to the Elixir resto-booking surfaces under `apps/`. It does **not** apply here. `core/frontend` and `core/backend` are a multi-tenant product for sf-voice's external customers.
+**Scope flag.** The audience and UX rules in `apps/*` (single restaurant group, very-low-technical-literacy guests) do **not** apply here. `core/frontend` and `core/backend` are a multi-tenant product for sf-voice's external customers — engineers running voice agents.
 
 ---
 
@@ -95,7 +95,7 @@ When the final step lands, the panel shows:
 - Diff of the system prompt that the sandbox used.
 - Link to the PR on the customer's config repo (placeholder URL in v1).
 
-**v1 backend stubs the work.** The UI is real, the events are real, the Slack posts are real, the audio is a placeholder TTS file. See `core/backend/AGENT.md` § sandbox-stub job.
+**v1 backend stubs the work.** The UI is real, the events are real, the Slack posts are real, the audio is a placeholder TTS file. See `core/backend/AGENTS.md` § sandbox-stub job.
 
 ## 7. Re-transcribe / re-diarize
 
@@ -103,7 +103,7 @@ Button on the call view. Kicks off a `transcribe` job. Same reasoning-path drawe
 
 ## 8. Latency / interrupt thresholds
 
-v1 defaults (hardcoded inline in `src/lib/timeline.ts` per CLAUDE.md rule 21 — extract to a constants module only on second use):
+v1 defaults (hardcoded inline in `src/lib/timeline.ts` per the single-source-of-truth rule in repo-root `AGENTS.md` — extract to a constants module only on second use):
 
 - `INTERRUPT_OVERLAP_MS = 200` — AI TTS starts while caller VAD probability > 0.5 for at least this long.
 - `SLOW_TURN_MS = 1500` — total turnaround from caller-stops to AI-speaks above this is flagged.
@@ -121,13 +121,13 @@ Per-org configurability is deferred to v2.
 - **Streaming events:** native `EventSource` (SSE).
 - **Time formatting:** `date-fns`.
 
-No charting library in v1. The VAD curve renders as a tiny inline SVG; if a third track ever needs it, propose a library before introducing one (CLAUDE.md rule 19).
+No charting library in v1. The VAD curve renders as a tiny inline SVG; if a third track ever needs it, propose a library before introducing one (per repo-root `AGENTS.md` — ask before new deps).
 
 ## 10. Semantic search
 
 The call list page has a search input next to the filters. Typing a phrase ("customers giving up", "wrong booking time confirmed", "AI repeated itself") fires `GET /api/search?q=...`. Results render as utterance hits with the parent call linked; clicking a hit opens the call's timeline scrolled to that utterance.
 
-This is powered by per-utterance embeddings stored in DuckDB. The query string is embedded with the same model and matched via cosine k-NN. See `core/backend/AGENT.md` § 5 for the data layer.
+This is powered by per-utterance embeddings stored in DuckDB. The query string is embedded with the same model and matched via cosine k-NN. See `core/backend/AGENTS.md` § 5 for the data layer.
 
 ## 11. Out of scope for v1
 
@@ -149,7 +149,7 @@ This is powered by per-utterance embeddings stored in DuckDB. The query string i
 - "Insert prompt" calls `POST /api/calls/:id/slices` with `{ start_ms, end_ms, prompt_text }` → returns `{ slice_id, job_id }`.
 - Org settings call `PATCH /api/org` with `{ config_repo_url, slack_webhook_url, bucket_name, bucket_prefix, bucket_region }`.
 
-Full schema and route surface live in [`../backend/AGENT.md`](../backend/AGENT.md).
+Full schema and route surface live in [`../backend/AGENTS.md`](../backend/AGENTS.md).
 
 ---
 
