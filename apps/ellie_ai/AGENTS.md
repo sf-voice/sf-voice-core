@@ -89,3 +89,9 @@ Even so:
 - Read fields off `context.org` directly: `context.org.id`, `context.org.time_zone`, etc.
 
 The alias-ban is a forcing function for "fields only, never struct shape" — if the `Org` schema gains or loses a field, tools that only read named fields keep working.
+
+----
+
+# Code Conventions 
+
+- Avoid `alias EllieAI.Telnyx.Client` pattern, do `alias EllieAI.Telnyx.Client as TC` instead - less code is better code
