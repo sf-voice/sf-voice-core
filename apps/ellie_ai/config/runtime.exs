@@ -15,7 +15,7 @@ config :ellie_ai, EllieAiWeb.Endpoint,
 # `RESTO_BASE_URL` (set in prod where resto and ellie live on different
 # hosts); falls back to composing `http://localhost:$RESTO_BOOKING_APP_PORT`
 # for the dev workflow, where the only resto-related env var is the port.
-config :ellie_ai, EllieAi.Resto,
+config :ellie_ai, EllieAi.RestoClient,
   base_url:
     System.get_env("RESTO_BASE_URL") ||
       "http://localhost:#{System.get_env("RESTO_BOOKING_APP_PORT", "4000")}"
