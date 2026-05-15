@@ -22,7 +22,7 @@ App-specific behaviour, design rules, and product scope live in each app's own `
 
 ---
 
-## Phoenix v1.8 guidelines
+## Phoenix guidelines
 
 - **Always** begin your LiveView templates with `<Layouts.app flash={@flash} ...>` which wraps all inner content.
 - The `MyAppWeb.Layouts` module is aliased in the `my_app_web.ex` file, so you can use it without needing to alias it again.
@@ -72,6 +72,31 @@ App-specific behaviour, design rules, and product scope live in each app's own `
 - Predicate function names should not start with `is_` and should end in a question mark. Names like `is_thing` should be reserved for guards.
 - OTP primitives like `DynamicSupervisor` and `Registry` require names in the child spec, e.g. `{DynamicSupervisor, name: MyApp.MyDynamicSup}`, then `DynamicSupervisor.start_child(MyApp.MyDynamicSup, child_spec)`.
 - Use `Task.async_stream(collection, callback, options)` for concurrent enumeration with back-pressure. Pass `timeout: :infinity` most of the time.
+
+---
+
+## Background tasks (Task / Task.Supervisor)
+
+Pick the right API based on (a) is the caller long-running, and (b) should a crash kill the caller?
+
+| API | Linked to caller? | Use when |
+|---|---|---|
+| `Task.async/1` + `Task.await/2` | **Linked** — task crash kills caller | One-shot helper or test code. **Never inside a GenServer that should outlive the task.** |
+| `Task.Supervisor.async_nolink/3` | **Not linked** — caller stays alive | Inside a GenServer firing background work (analytics, sentiment, slow I/O). Handle `{ref, result}` and `{:DOWN, ref, :process, _pid, _reason}` in `handle_info/2`. |
+| `Task.Supervisor.start_child/2` | Not linked, no reply expected | Fire-and-forget. No reply, no monitoring. Result is discarded. |
+| `Task.async_stream/3` | Linked stream | Concurrent enumeration with back-pressure (`max_concurrency`, `timeout: :infinity`). |
+
+Rules:
+
+1. **Never call `Task.async/1` from a long-running process** (GenServer, LiveView, supervised worker). The task is linked; a crash propagates up. Use `Task.Supervisor.async_nolink/3` instead.
+2. **Every app that uses background tasks declares a `Task.Supervisor` in its application supervision tree**, with an explicit name:
+   ```elixir
+   {Task.Supervisor, name: MyApp.TaskSupervisor}
+   ```
+   Then `Task.Supervisor.async_nolink(MyApp.TaskSupervisor, fn -> ... end)` from the GenServer.
+3. **Always handle the `{:DOWN, ref, :process, _pid, _reason}` message** in `handle_info/2` when using `async_nolink`. Silent failure of a task you started is a bug.
+4. **No new bare `Task.async/1` in lib code.** If you see one in a long-running module, treat it as a refactor candidate.
+5. **For pure fire-and-forget** (no caller cares about success/failure), use `Task.Supervisor.start_child/2`. Don't reach for `spawn/1`.
 
 ---
 
