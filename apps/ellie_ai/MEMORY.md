@@ -219,7 +219,7 @@ Summaries cover the WHOLE call including the human-to-human portion after escala
 **Why:** Async keeps call shutdown fast. `gpt-4o-mini` is cheap (~$0.001/call) and accurate enough at 2-3 sentence prose. Two summaries because the staff UI wants prose; future prompts want terseness. Outcome enum makes filterable analytics trivial.
 
 **Implications for implementation:**
-- `Task.Supervisor` named `EllieAi.TaskSupervisor` in the supervision tree.
+- `Task.Supervisor` named `EllieAi.TaskSupervisor` in the supervision tree (`application.ex:31` — added 2026-05-15). The tool runner in `audio_bridge.ex` (`spawn_supervised_tool/6`) uses `Task.Supervisor.async_nolink/3` against it; the future summarizer should do the same. Per `apps/ELIXIR_RULES.md` § "Background tasks", no new bare `Task.async/1` in lib.
 - Failed summary jobs flag the row `summary_pending: true` and retry on backoff for up to 24h.
 - `transcript_turns` table has a `phase` enum: `ai_handling | escalation_pending | human_handling | post_resolution`.
 - Diarization upgrade (gpt-4o-mini "who said what" pass) deferred to v1.1.
