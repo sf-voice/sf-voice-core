@@ -12,8 +12,9 @@ apps/
   ellie_ai/            ─ voice AI orchestration for the booking app written in elixir
 core/
   backend/api/         ─ Rust + Axum API 
-  frontend/            ─ React + rspack + Tailwind frontend for sf-voice
-  inference/           ─ Python wrapper for hosted inference 
+  frontend/            ─ React + rspack + Tailwind frontend
+  plane/               ─ C++ for data plane management on customer's infra
+  inference/           ─ Python for hosted inference 
 infra/
   dev/                 ─ docker-compose for local MySQL
   deploy/              ─ prod compose files, Caddyfile, bootstrap scripts
