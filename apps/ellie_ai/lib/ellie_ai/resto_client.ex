@@ -1,4 +1,4 @@
-defmodule EllieAi.Resto do
+defmodule EllieAi.RestoClient do
   @moduledoc """
   """
 
