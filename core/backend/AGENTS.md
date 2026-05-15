@@ -2,6 +2,10 @@
 
 Rules and conventions only. Detail and implementation plan live in [`plan/`](plan/).
 
+**Stack rules:** Rust / axum / tokio conventions live in [`RUST_RULES.md`](RUST_RULES.md). Read both files before working in `core/backend`.
+
+**Decisions:** [`MEMORY.md`](MEMORY.md) holds architectural decisions specific to this service.
+
 ## Scope flag
 
 Multi-tenant by design. The "single restaurant" rule from `apps/*` does **not** apply here. sf-voice's external customers each get an org. Every queryable row carries `org_id` and every query filters on it.
