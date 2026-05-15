@@ -1,33 +1,15 @@
-# mise config for the sf-voice workspace. one source of truth for tool
-# versions, env, and dev tasks. install mise first (https://mise.jdx.dev),
-# then `mise install` from this dir to pin elixir + erlang to the
-# versions CI uses, and `mise run …` for any task below.
 
-# ── tool versions (match .github/workflows/*.yml so dev == ci) ───────────
 [tools]
 erlang = "27.3.4"
 elixir = "1.18.4-otp-27"
-
-# core stack tooling. pinning here so `mise install` provisions everything
-# any task needs — no implicit dependency on whatever's globally installed
-# on the dev machine. when these versions move in CI, update here too.
 node = "22"
 pnpm = "9"
 rust = "stable"
-# duckdb cli — useful for poking the embedded store from the shell
-# (e.g. `duckdb data/sf_voice.duckdb` then `SHOW TABLES;`).
 duckdb = "latest"
 
-# ── env ──────────────────────────────────────────────────────────────────
-# single root `.env` is the source of truth for every var, every app,
-# every shell. mise loads it on cd-into and on every `mise run …`.
-# `mise run dev` writes dynamic values (e.g. NGROK_URL) back into this
-# same file so they survive across terminals.
+
 [env]
 "_".file = ".env"
-
-# ── tasks ────────────────────────────────────────────────────────────────
-# run any task with `mise run <name>`, or list with `mise tasks`.
 
 [tasks.setup]
 description = "first-time setup: install deps, create dbs, migrate, seed"
@@ -50,16 +32,7 @@ run = "iex -S mix phx.server"
 
 [tasks.dev]
 description = "full local stack: ngrok tunnel for ellie + both phoenix apps"
-# flow:
-#   1. start ngrok in the background pointing at $ELLIE_AI_PORT
-#   2. poll its local api until the public url is up
-#   3. write NGROK_URL into apps/ellie_ai/.env so the ellie app picks it up
-#      on boot (mise's [env] block also re-loads that file for any task)
-#   4. spawn both apps with prefixed logs
-#   5. on Ctrl+C, the EXIT trap kills ngrok + both apps together
-#
-# for an iex'd boot of one app at a time, use `mise run server:resto` /
-# `mise run server:ellie` instead.
+
 run = """
 set -e
 
@@ -118,9 +91,6 @@ run = "mix workspace.run -t test"
 
 [tasks.ci]
 description = "simulate the CI run locally (format-check → compile → test)"
-# invokes mix directly rather than `mise run <task>` because mise glob-
-# matches `test` against `test.watch`, which would drag the watcher into
-# the run and fail.
 run = [
   "mix workspace.run -t format -- --check-formatted",
   "mix workspace.run -t compile -- --warnings-as-errors",
@@ -175,13 +145,6 @@ run = "iex -S mix"
 
 [tasks."sqlite:reset"]
 description = "drop + recreate + migrate + seed both elixir apps' sqlite dbs (destructive — wipes resto + ellie)"
-# why both apps: ellie's call rows / customer_summary mirror only make
-# sense alongside the resto state they were derived from. resetting one
-# without the other leaves stale references and orphaned `status:
-# active` call rows in ellie's homepage. keep them in lockstep.
-#
-# this task targets the elixir apps' on-disk sqlite stores only. for the
-# core stack's mysql container + duckdb file see `db:nuke`.
 run = """
 set -e
 echo "[sqlite:reset] resto: drop + create + migrate + seed"
@@ -206,11 +169,6 @@ run = [
   "mix workspace.run -t deps.compile",
 ]
 
-# ── core packages (scaffold — not wired into deploy yet) ─────────────────
-# these tasks exist so `mise tasks` lists every entrypoint in the monorepo
-# even before the packages have real code in them. each one is safe to run
-# on the empty scaffold (rspack serve starts a dev server, cargo run prints
-# a stub line, uv runs nothing useful yet).
 
 [tasks."web:dev"]
 description = "core/frontend dev server (rspack, app.sf-voice.sh)"
@@ -235,25 +193,17 @@ run = "cargo run -p sf-voice-api"
 description = "core/backend/api — cargo build --release"
 run = "cargo build -p sf-voice-api --release"
 
+
+
+[tasks."db:migrate"]
+description = "run schema-sync against DATABASE_URL (no api boot needed)"
+run = "cargo run -p sf-voice-api --bin sync"
+
 [tasks."inference:install"]
 description = "core/inference — sync python deps (placeholder)"
 dir = "core/inference"
 run = "echo 'inference scaffold — wire uv/pip once dependencies exist'"
 
-# ── monorepo-wide install + dev loop ─────────────────────────────────────
-# `mise run install` is the one-shot bootstrap for every stack. `mise run
-# core:dev` brings up the data layer (docker compose), then spawns
-# frontend + backend (+ inference placeholder) with prefixed logs.
-#
-# data-layer lifecycle lives under `db:*` (mysql container + duckdb file,
-# the core stack's stores):
-#   - `db:start`  — bring up mysql; ensure ./data/ exists for duckdb
-#   - `db:stop`   — halt mysql, keep volume
-#   - `db:nuke`   — destructive: wipe mysql volume + delete duckdb file
-#   - `db:logs`   — tail container logs (mysql only)
-#
-# (the elixir apps' sqlite stores are reset via `sqlite:reset`, which is
-# unrelated to docker.)
 
 [tasks.install]
 description = "one-time bootstrap: tool versions, then deps for every stack"
@@ -286,13 +236,6 @@ echo "[install] done."
 
 [tasks."core:dev"]
 description = "full core stack: mysql + duckdb + frontend + backend (+ inference)"
-# flow:
-#   1. bring up mysql via docker compose; ensure ./data/ exists for the
-#      duckdb file (rust opens it in-process on first write).
-#   2. wait for mysql healthcheck.
-#   3. spawn frontend, backend, inference with prefixed logs.
-#   4. on Ctrl+C, the EXIT trap kills the foreground processes; mysql
-#      stays up (use `mise run db:stop` to halt it).
 run = """
 set -e
 
