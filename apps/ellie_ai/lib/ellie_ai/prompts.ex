@@ -8,7 +8,7 @@ defmodule EllieAi.Prompts do
 
   import Ecto.Query
 
-  alias EllieAi.{Calls, Customers, Resto, Utils}
+  alias EllieAi.{Calls, Customers, RestoClient, Utils}
   alias EllieAi.Calls.{Call, Memory}
   alias EllieAi.Customers.CustomerSummary
   alias EllieAi.Orgs.Org
@@ -332,7 +332,7 @@ defmodule EllieAi.Prompts do
   # caller the reconcile Task may not have landed yet — the 404 path
   # gracefully returns [].
   defp load_reservations(%Org{} = org, %CustomerSummary{id: customer_id}) do
-    case Resto.list_customer_reservations(org, customer_id) do
+    case RestoClient.list_customer_reservations(org, customer_id) do
       {:ok, list} when is_list(list) ->
         cutoff = DateTime.utc_now() |> DateTime.add(@reservation_window_days, :day)
         now = DateTime.utc_now()
