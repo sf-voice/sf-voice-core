@@ -3,7 +3,7 @@
 This repo is a monorepo housing two related products:
 
 - **The Seasons booking system** — Example application. Single-tenant restaurant booking app. Elixir/Phoenix. Lives under `apps/resto_booking_app` (the integration service) and `apps/ellie_ai` (a zero-franework voice AI app).
-- **Core** — Core platform. Rust API + React frontend. Lives under `core/`.
+- **Core** — Core platform. Rust API (Control Plane) + C++ DBMS storage engine (Data Plane) + React frontend. Lives under `core/`.
 
 
 ```
@@ -13,11 +13,10 @@ apps/
 core/
   backend/api/         ─ Rust + Axum API powering sf-voice
   frontend/            ─ React + rspack + Tailwind frontend for sf-voice
-  inference/           ─ Python wrapper for hosted inference (placeholder)
+  inference/           ─ Python wrapper for hosted inference 
 infra/
   dev/                 ─ docker-compose for local MySQL
   deploy/              ─ prod compose files, Caddyfile, bootstrap scripts
-cpp/                   ─ historical native VAD experiments (parked)
 elixir/, rust/         ─ reserved for extracted library crates
 docs/                  ─ misc operational notes (telnyx setup, etc)
 mise.toml              ─ tool versions + tasks for every stack in here
@@ -52,20 +51,12 @@ mise run core:dev  # boots MySQL via docker-compose, then frontend + backend
 ```
 
 That opens:
-- **Frontend** on http://localhost:3000 — landing on the public light-theme shell. Sign up at `/signup`; you land on the product (dark theme) with an empty DJ-mixing-style dashboard until a bucket is connected.
+- **Frontend** on http://localhost:3000 — landing on the public light-theme shell. 
+
 - **Backend API** on http://localhost:8080 — `GET /healthz` for liveness, `GET /api/hello` for a sanity check.
 
 
 Dev escape hatch: `SF_VOICE_SKIP_AWS_VERIFY=1` lets you click through the bucket-connect flow without provisioning anything in AWS.
-
-## Migrations
-
-Run automatically on backend boot via `sqlx::migrate!`. Files live at `core/backend/api/migrations/000N_*.sql`.
-
-```sh
-# adding a new migration — just create a file and restart
-touch core/backend/api/migrations/0006_<name>.sql
-```
 
 ## Production
 
