@@ -16,7 +16,7 @@ defmodule EllieAi.Calls.Summarizer do
 
   @spec summarize_async(Ecto.UUID.t()) :: :ok
   def summarize_async(call_id) when is_binary(call_id) do
-    Task.start(fn -> summarize(call_id) end)
+    Task.Supervisor.start_child(EllieAi.TaskSupervisor, fn -> summarize(call_id) end)
     :ok
   end
 
