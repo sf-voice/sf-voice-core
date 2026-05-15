@@ -99,7 +99,7 @@ export function TranscriptArea({
                 "absolute flex items-center justify-center text-[10px] font-mono px-1 rounded-sm border",
                 t.gap_ms > SLOW_TURN_MS
                   ? "border-amber-500/70 text-amber-300 bg-amber-500/10"
-                  : "border-neutral-800 text-neutral-500 bg-neutral-900/40",
+                  : "border-neutral-800 text-neutral-200 bg-neutral-900/40",
               )}
               style={{
                 left: msToPx(t.start_ms, pxPerMs),
@@ -120,7 +120,7 @@ export function TranscriptArea({
 function RowLabel({ y, label }: { y: number; label: string }) {
   return (
     <div
-      className="absolute left-0 text-[10px] uppercase tracking-wider text-neutral-600 font-mono"
+      className="absolute left-0 text-[10px] uppercase tracking-wider text-neutral-300 font-mono"
       style={{ top: y + 2 }}
     >
       {label}
