@@ -10,7 +10,7 @@ defmodule EllieAiWeb.CallDetailLive do
 
   use EllieAiWeb, :live_view
 
-  alias EllieAi.{Calls, Customers, Orgs, Resto}
+  alias EllieAi.{Calls, Customers, Orgs, RestoClient}
   alias EllieAi.Calls.Constants
   alias EllieAi.Telnyx.Messaging
   alias EllieAi.Tools.Catalog
@@ -167,7 +167,7 @@ defmodule EllieAiWeb.CallDetailLive do
     case Customers.lookup_by_phone(org, phone) do
       {:ok, %{id: id} = customer} ->
         reservations =
-          case Resto.list_customer_reservations(org, id) do
+          case RestoClient.list_customer_reservations(org, id) do
             {:ok, list} -> list
             _ -> []
           end
