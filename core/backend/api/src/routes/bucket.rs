@@ -1,15 +1,3 @@
-//! /api/org/bucket/* — connect a customer's S3 bucket. two methods:
-//!
-//! - IAM role assumption (recommended): we generate an external_id; the
-//!   customer creates a role with our principal + that external id in
-//!   the trust policy. they paste back the role arn.
-//!
-//! - stored access keys: we encrypt the secret with xchacha20poly1305.
-//!
-//! v1 doesn't verify creds at save time — the heavy aws-sdk crates
-//! aren't in the build yet. first ingest job (phase C) will verify and
-//! stamp bucket_verified_at on success.
-
 use axum::{
     extract::State,
     routing::{get, post},
@@ -38,10 +26,6 @@ pub fn router() -> Router<AppState> {
         .route("/org/bucket/ingest", post(ingest_now))
         .route("/cfn/sf-voice-readonly.yaml", get(template_yaml))
 }
-
-// ─────────────────────────────────────────────────────────────────────
-// GET /api/org/bucket — current status
-// ─────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Serialize)]
 pub struct BucketStatus {
@@ -96,10 +80,6 @@ async fn get_status(
         verified_at: r.8,
     }))
 }
-
-// ─────────────────────────────────────────────────────────────────────
-// GET /api/org/bucket/setup — one-click params (external_id, cfn url)
-// ─────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
 pub struct SetupQuery {
@@ -181,10 +161,6 @@ async fn setup_info(
     }))
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// POST /api/org/bucket/role — IAM role assumption setup
-// ─────────────────────────────────────────────────────────────────────
-
 #[derive(Debug, Deserialize)]
 pub struct SaveRoleBody {
     pub bucket_name: String,
@@ -207,7 +183,9 @@ async fn save_role(
         ));
     }
     if !body.role_arn.starts_with("arn:aws:iam::") {
-        return Err(AppError::BadRequest("role_arn must start with arn:aws:iam::".into()));
+        return Err(AppError::BadRequest(
+            "role_arn must start with arn:aws:iam::".into(),
+        ));
     }
 
     // we need the org's external_id to call AssumeRole. fetch + create
@@ -267,18 +245,6 @@ async fn save_role(
     get_status(State(state), auth).await
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// POST /api/org/bucket/role/probe — auto-discover stack completion
-//
-// the frontend wizard polls this every few seconds after the customer
-// opens the AWS console. given the account id (and bucket details), we
-// know the Role ARN deterministically because the CFN template uses
-// a fixed role name. each probe call tries STS AssumeRole + S3 ListObjects;
-// when it works, we persist exactly as /role would. callers can stop
-// polling on `verified` or `failed`; `pending` means stack is still
-// provisioning (or wasn't created yet).
-// ─────────────────────────────────────────────────────────────────────
-
 #[derive(Debug, Deserialize)]
 pub struct ProbeRoleBody {
     pub aws_account_id: String,
@@ -290,9 +256,18 @@ pub struct ProbeRoleBody {
 #[derive(Debug, Serialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum ProbeRoleResponse {
-    Verified { role_arn: String, bucket: BucketStatus },
-    Pending { role_arn: String, reason: String },
-    Failed { role_arn: String, reason: String },
+    Verified {
+        role_arn: String,
+        bucket: BucketStatus,
+    },
+    Pending {
+        role_arn: String,
+        reason: String,
+    },
+    Failed {
+        role_arn: String,
+        reason: String,
+    },
 }
 
 async fn probe_role(
@@ -387,10 +362,6 @@ async fn probe_role(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// POST /api/org/bucket/keys — stored access keys
-// ─────────────────────────────────────────────────────────────────────
-
 #[derive(Debug, Deserialize)]
 pub struct SaveKeysBody {
     pub bucket_name: String,
@@ -456,10 +427,6 @@ async fn save_keys(
 
     get_status(State(state), auth).await
 }
-
-// ─────────────────────────────────────────────────────────────────────
-// DELETE /api/org/bucket — disconnect (clears all bucket fields)
-// ─────────────────────────────────────────────────────────────────────
 
 async fn disconnect(
     State(state): State<AppState>,
@@ -536,10 +503,6 @@ async fn template_yaml() -> impl axum::response::IntoResponse {
         TEMPLATE_YAML,
     )
 }
-
-// ─────────────────────────────────────────────────────────────────────
-// helpers
-// ─────────────────────────────────────────────────────────────────────
 
 fn generate_external_id() -> String {
     // 24 bytes → 32 chars url-safe base64. plenty of entropy; short
