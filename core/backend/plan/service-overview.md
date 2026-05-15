@@ -1,6 +1,6 @@
 # Service overview
 
-Rust + Axum API powering the sf-voice debugging product.
+Rust + Axum API powering the product.
 
 - **State store:** MySQL 8.4 (per repo-root `AGENTS.md` tech stack). Local dev via `infra/dev/docker-compose.yml`; prod via `infra/deploy/docker-compose.mysql.yml`.
 - **Embedded analytical + vector store:** DuckDB. Holds per-utterance embeddings and any per-call analytical rollups. In-process inside the API binary; file at `DUCKDB_PATH` (defaults to `./data/sf_voice.duckdb`). Uses the `vss` extension for HNSW vector indexes.
