@@ -3,7 +3,7 @@ defmodule EllieAi.Tools.CancelReservation do
 
   @behaviour EllieAi.Tools.Tool
 
-  alias EllieAi.{Orgs, Prompts, Resto}
+  alias EllieAi.{Orgs, Prompts, RestoClient}
   alias EllieAi.Calls.Memory
   alias EllieAi.Tools.CustomerPreconditions
 
@@ -43,7 +43,7 @@ defmodule EllieAi.Tools.CancelReservation do
       when is_integer(size) and is_binary(starts_at) and is_binary(ccid) do
     with :ok <- CustomerPreconditions.check(ccid),
          {:ok, reservation} <- find_one(ccid, size, starts_at),
-         {:ok, result} <- Resto.cancel_reservation(org, reservation.id) do
+         {:ok, result} <- RestoClient.cancel_reservation(org, reservation.id) do
       Memory.remove_reservation(ccid, reservation.id)
       Prompts.re_render!(ccid)
       {:ok, result}
