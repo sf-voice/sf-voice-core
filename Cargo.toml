@@ -6,6 +6,7 @@
 resolver = "2"
 members = [
     "core/backend/api",
+    "core/backend/entities",
 ]
 exclude = []
 
