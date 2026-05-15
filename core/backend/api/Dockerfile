@@ -33,11 +33,15 @@ RUN cargo build --release --bin sf-voice-api
 FROM debian:bookworm-slim AS runner
 
 # ca-certs for outbound tls (mysql, anything else). libstdc++ + libgcc
-# for the duckdb static c++ runtime baked into the binary.
+# for the duckdb static c++ runtime baked into the binary. ffmpeg + yt-dlp
+# back the internal /api/_internal/youtube job (subprocess-spawned by the
+# rust worker; they don't need to be in PATH at build time, only runtime).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libstdc++6 \
     libgcc-s1 \
+    ffmpeg \
+    yt-dlp \
   && rm -rf /var/lib/apt/lists/*
 
 # non-root for the runtime user. uid matches what bootstrap-api.sh
