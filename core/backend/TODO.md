@@ -145,3 +145,5 @@ Since the recent sqlx → SeaORM port, all new code uses `entities::*` patterns.
 
 
 ### Migrate to OAuth sign in + Magic link
+
+### Rename to Audio
