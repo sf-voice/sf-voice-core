@@ -226,12 +226,15 @@ defmodule EllieAi.Calls.Memory do
 
   # ── task propagation ─────────────────────────────────────────────────
 
-  @doc "Task.start/1 that copies this process's call context so accessors work in the spawned task."
+  @doc """
+  supervised fire-and-forget that copies this process's call context so
+  accessors work in the spawned task.
+  """
   @spec async(function()) :: {:ok, pid()} | {:error, term()}
   def async(fun) when is_function(fun, 0) do
     ctx = Process.get(@key)
 
-    Task.start(fn ->
+    Task.Supervisor.start_child(EllieAi.TaskSupervisor, fn ->
       if ctx, do: Process.put(@key, ctx)
       fun.()
     end)
