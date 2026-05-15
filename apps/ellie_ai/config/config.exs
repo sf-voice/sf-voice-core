@@ -5,7 +5,7 @@ config :ellie_ai,
   ecto_repos: [EllieAi.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true]
 
-config :ellie_ai, EllieAi.Resto,
+config :ellie_ai, EllieAi.RestoClient,
   base_url: "http://localhost:#{System.get_env("RESTO_BOOKING_APP_PORT", "4000")}",
   # how long the http client waits before giving up
   receive_timeout: 5_000
