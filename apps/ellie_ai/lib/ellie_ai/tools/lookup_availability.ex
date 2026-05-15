@@ -3,7 +3,7 @@ defmodule EllieAi.Tools.LookupAvailability do
 
   @behaviour EllieAi.Tools.Tool
 
-  alias EllieAi.{Orgs, Resto}
+  alias EllieAi.{Orgs, RestoClient}
   alias EllieAi.Tools.Tool
 
   @impl true
@@ -37,7 +37,7 @@ defmodule EllieAi.Tools.LookupAvailability do
 
   @impl true
   def execute(%{"date" => date}, %{org: %Orgs.Org{} = org}) when is_binary(date) do
-    case Resto.get_availability(org, date) do
+    case RestoClient.get_availability(org, date) do
       {:ok, body} -> {:ok, body}
       {:error, :not_found} -> {:ok, %{date: date, tables: []}}
       {:error, {:transient, _}} = err -> err
