@@ -6,7 +6,7 @@ defmodule EllieAi.Customers do
 
   the keystone read for the call loop is `lookup_by_phone/2`. waterfall:
     1. local read on `(org_id, phone_e164)` — fast, no network.
-    2. miss → `EllieAi.Resto.get_customer_by_phone/2`. on hit, upsert
+    2. miss → `EllieAi.RestoClient.get_customer_by_phone/2`. on hit, upsert
        the summary so the next call is fast.
     3. miss everywhere → `:not_found`. step 3's "ask the caller" lives
        at the realtime tool layer.
@@ -20,7 +20,7 @@ defmodule EllieAi.Customers do
 
   alias EllieAi.Customers.CustomerSummary
   alias EllieAi.Orgs.Org
-  alias EllieAi.{Repo, Resto}
+  alias EllieAi.{Repo, RestoClient}
 
   require Logger
 
@@ -294,7 +294,7 @@ defmodule EllieAi.Customers do
 
   @doc "used by the nightly reconciliation cron."
   def reconcile_from_resto(%Org{} = org) do
-    case Resto.list_customers(org) do
+    case RestoClient.list_customers(org) do
       {:ok, customers} ->
         count =
           Enum.reduce(customers, 0, fn payload, acc ->
@@ -327,7 +327,7 @@ defmodule EllieAi.Customers do
   end
 
   defp fallback_to_resto(%Org{} = org, e164) do
-    case Resto.get_customer_by_phone(org, e164) do
+    case RestoClient.get_customer_by_phone(org, e164) do
       {:ok, payload} ->
         case reconcile_id(org, e164, payload) do
           {:ok, summary} -> {:ok, summary}
