@@ -3,7 +3,7 @@ defmodule EllieAi.Tools.ModifyReservation do
 
   @behaviour EllieAi.Tools.Tool
 
-  alias EllieAi.{Orgs, Prompts, Resto}
+  alias EllieAi.{Orgs, Prompts, RestoClient}
   alias EllieAi.Calls.Memory
   alias EllieAi.Tools.CustomerPreconditions
 
@@ -46,7 +46,7 @@ defmodule EllieAi.Tools.ModifyReservation do
              is_binary(ccid) do
     with :ok <- CustomerPreconditions.check(ccid),
          {:ok, reservation} <- find_one(ccid, size, starts_at),
-         {:ok, updated} <- Resto.update_reservation(org, reservation.id, %{starts_at: new_starts_at}) do
+         {:ok, updated} <- RestoClient.update_reservation(org, reservation.id, %{starts_at: new_starts_at}) do
       Memory.update_reservation(ccid, reservation.id, %{starts_at: new_starts_at})
       Prompts.re_render!(ccid)
       {:ok, %{reservation: updated}}
