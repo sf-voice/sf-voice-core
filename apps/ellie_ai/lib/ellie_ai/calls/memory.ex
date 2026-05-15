@@ -1,6 +1,7 @@
 defmodule EllieAi.Calls.Memory do
   @moduledoc """
-  in-memory state of a live call. two layers:
+  in-memory state of a live call and it SHOULD NOT handle I/O with database. Any database fetching should be happening at entity call site `/entity` and when they are passed into Memory module they are stored and dispatched in Memory.
+  two layers:
 
     1. shared ETS row keyed by ccid — CallTree writes it once; children
        read on init via `bootstrap_from/1`.
