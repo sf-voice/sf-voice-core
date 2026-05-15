@@ -11,7 +11,7 @@ apps/
   resto_booking_app/   ─ Phoenix booking app for The Seasons
   ellie_ai/            ─ voice AI orchestration for the booking app written in elixir
 core/
-  backend/api/         ─ Rust + Axum API powering sf-voice
+  backend/api/         ─ Rust + Axum API 
   frontend/            ─ React + rspack + Tailwind frontend for sf-voice
   inference/           ─ Python wrapper for hosted inference 
 infra/
