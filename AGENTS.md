@@ -12,6 +12,22 @@ Permanent instructions for every agentic coding session in this project. Read th
 
 Each folder has its own `AGENTS.md` and `MEMORY.md`.
 
+### Data-flow direction (allowed traffic between services)
+
+```
+core/frontend ──HTTP──▶ core/backend ──WS──▶ apps/ellie_ai
+                                              │
+                                              └──HTTP──▶ apps/resto_booking_app
+```
+
+- `core/frontend` talks only to `core/backend`. Never to ellie or resto.
+- `core/backend` may call into `apps/ellie_ai` (VAD channel only, see `apps/ellie_ai/lib/ellie_ai_web/channels/vad_channel.ex`). Never to resto.
+- `apps/ellie_ai` polls `apps/resto_booking_app` via the `RestoClient` module. Never the reverse.
+- `apps/resto_booking_app` initiates no outbound HTTP. Exposes endpoints only.
+- All service-to-service channels (HTTP and WS) auth with `INTERNAL_API_TOKEN`. New cross-service channels MUST use this token compared with `Plug.Crypto.secure_compare/2`.
+
+Adding a new arrow to this diagram is an architecture-level decision — log it in the **primary actor's** `MEMORY.md` before wiring it.
+
 ## How to talk
 
 ### 1. Kill the filler
