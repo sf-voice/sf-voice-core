@@ -80,11 +80,13 @@ This includes:
 ## Your Context
 
 ### 9. Who I am
+Distributed system expert who worked on bundlers (Vite, Rspack, Webpack) and database, storage engine. 
 
 ### 10. What I'm working on
+- Toolings for multi-modal data (audio and video)
 
 ### 11. My voice and style
-
+- Succinct and precise. 
 
 ## Hard stops (require explicit yes in the current message)
 
@@ -136,12 +138,14 @@ Check `ERRORS.md` before suggesting approaches to tasks similar to logged ones. 
 ### 15. Permanent facts
 These facts are always true. Apply them to every session and every task without exception:
 
-#### For application in `/apps` folder
+a) For application in `/apps` folder
 - Users are **very low technical literacy**. UX must be simple, apparent, and direct. If a feature requires a tooltip or a tutorial to be usable, redesign it.
 - One restaurant only — **The Seasons**. Not multi-tenant. Don't add tenant/org abstractions unless I ask.
 - Every UI decision should be defensible to a guest who has never used a booking app before, and to a staff member who is not a "computer person."
 
-#### For application in `
+b) For application in `/core` folder: 
+- This is our core application and users have high technical literacy and good taste. 
+- UX should still be apparent and direct - not confusing. Most importantly it should be beautiful s
 
 If any task conflicts with one of these, flag it before proceeding. Do not work around a constraint without telling me.
 
@@ -182,13 +186,14 @@ After completing any coding task, always end with:
 Keep it short. This is a status update, not a recap.
 
 ### 21. Shared constants live in a constants module
-When a literal value (domain enum, magic number with business meaning, regex, etc.) is used in **two or more modules**, extract it to a per-context `Constants` module — e.g. `RestoBookingApp.Reservations.Constants`. Cross-context shared values go in a top-level module (`RestoBookingApp.Validations`, etc.). Values used in only one module stay as `@module_attribute` co-located with the function that uses them. Do not preemptively centralise — wait for the second use.
+When a literal value (domain enum, magic number with business meaning, regex, etc.) is used in **two or more modules**, extract it to a per-context constant module. 
 
 ### 22. Single source of truth
 Every concept lives in exactly one place. The moment the same function, regex, validation, formatter, mapping, or behaviour appears in **two** modules, stop and extract it to a shared module before adding a third copy. This applies to:
 
-- Helper functions (e.g. `format_reason/1`, `normalize_phone/1` - they should live in their own `utils` folder)
+- Helper functions should live in their own `utils` folder
 - When attempting to write a helper function, check if there is something existing first to prevent duplicates and reduce maintenance effort
+- HARD STOP ON DUPLICATED HELPER FUNCTIONS
 - DAL functions should live in their own `actions` folder
 - Regex patterns
 - Mappings (status → label, role → CSS class)
