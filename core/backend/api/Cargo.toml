@@ -26,6 +26,8 @@ duckdb = { version = "1", features = ["bundled"] }
 
 
 sqlx = { version = "0.8", default-features = false, features = ["mysql", "runtime-tokio", "tls-rustls", "macros", "migrate", "uuid", "chrono", "json"] }
+sea-orm = { version = "=2.0.0-rc.38", features = ["sqlx-mysql", "runtime-tokio-rustls", "macros", "with-uuid", "with-chrono", "with-json", "schema-sync", "entity-registry"] }
+entities = { path = "../entities" }
 uuid = { version = "1", features = ["v7", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 thiserror = "1"
