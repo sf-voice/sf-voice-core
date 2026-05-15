@@ -30,6 +30,10 @@ defmodule EllieAi.Application do
         TwMerge.Cache,
         {DNSCluster, query: Application.get_env(:ellie_ai, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: EllieAi.PubSub},
+        # supervisor for unsupervised background tasks (tool runs, future
+        # post-call summarizer). per-call code uses Task.Supervisor.async_nolink/3 against
+        # this name so crashes don't propagate into AudioBridge.
+        {Task.Supervisor, name: EllieAi.TaskSupervisor},
         # registry for per-call processes (CallServer, AudioBridge,
         # MediaStreamingSocket) keyed by telnyx ccid.
         EllieAi.Calls.CallRegistry,
@@ -112,7 +116,7 @@ defmodule EllieAi.Application do
   defp port do
     Application.get_env(:ellie_ai, EllieAiWeb.Endpoint, [])
     |> Keyword.get(:http, [])
-    |> Keyword.get(:port, 4321)
+    |> Keyword.get(:port, 4001)
   end
 
   defp env do
