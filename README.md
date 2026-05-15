@@ -55,17 +55,3 @@ That opens:
 - **Frontend** on http://localhost:3000 — landing on the public light-theme shell. 
 
 - **Backend API** on http://localhost:8080 — `GET /healthz` for liveness, `GET /api/hello` for a sanity check.
-
-
-Dev escape hatch: `SF_VOICE_SKIP_AWS_VERIFY=1` lets you click through the bucket-connect flow without provisioning anything in AWS.
-
-## Production
-
-The deploy story for sf-voice lives in `infra/deploy/`:
-
-- `docker-compose.api.yml`, `docker-compose.frontend.yml`, `docker-compose.mysql.yml` — one compose file per service so each can be redeployed independently.
-- `bootstrap-*.sh` — first-boot provisioning for each service on a fresh DO droplet.
-- `Caddyfile` — TLS-terminating edge proxy for `api.sf-voice.sh` and `app.sf-voice.sh`.
-- `mysql-backup.sh` — nightly logical dump.
-
-Each service's GitHub Actions workflow lives under `.github/workflows/` (`frontend.yml`, `sf-voice-api.yml`, `caddy.yml`, etc).
