@@ -6,7 +6,7 @@ defmodule EllieAi.Reconciliation do
   import Ecto.Query
   require Logger
 
-  alias EllieAi.{Customers, Menu, Orgs, Repo, Resto}
+  alias EllieAi.{Customers, Menu, Orgs, Repo, RestoClient}
   alias EllieAi.Calls.{Call, Constants}
 
   # cadences are domain decisions, not ops knobs — no runtime config block.
@@ -70,7 +70,7 @@ defmodule EllieAi.Reconciliation do
   end
 
   defp do_menu(org) do
-    case Resto.list_menu_items(org) do
+    case RestoClient.list_menu_items(org) do
       {:ok, items} -> Menu.reconcile(org.id, items)
       {:error, _} = err -> err
     end
