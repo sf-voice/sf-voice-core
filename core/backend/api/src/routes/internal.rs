@@ -1,18 +1,3 @@
-//! /api/_internal — admin-gated endpoints for sf-voice staff only.
-//!
-//! NOT merged into routes::router(). mounted separately in main.rs so the
-//! customer router can never accidentally inherit these handlers. each
-//! handler extracts AdminContext, which enforces:
-//!   - session cookie present (or 401)
-//!   - user's email matches @sf-voice.sh (or 403)
-//!
-//! data model: the `documents` table replaces the old
-//! internal_media_sources. each youtube ingest produces:
-//!   - 1 parent doc (raw.mp4, source_url = the youtube link)
-//!   - 3 derived docs (video.mp4, audio.m4a, audio.wav) pointing at
-//!     the parent via source_id
-//! see migrations/0006_documents.sql for the full schema + comments.
-
 use std::convert::Infallible;
 use std::time::Duration;
 
@@ -35,10 +20,6 @@ use crate::{
     state::AppState,
 };
 
-/// fixed org used as the jobs.org_id for every internal job. the jobs
-/// table requires an org FK, but internal work doesn't belong to a real
-/// tenant — this synthetic row exists for referential integrity only.
-/// seeded by migration 0004.
 const INTERNAL_ORG_ID: Uuid = Uuid::from_u128(0x01900000_0000_7000_8000_000000000fff);
 
 pub fn router() -> Router<AppState> {
@@ -275,9 +256,8 @@ async fn list_documents(
 ) -> Result<Json<Vec<DocumentRow>>, AppError> {
     // list only top-level sources (source_id IS NULL). derived rows
     // appear nested under their parent via GET /documents/:id.
-    let sql = format!(
-        "{DOCUMENT_SELECT} WHERE d.source_id IS NULL ORDER BY d.created_at DESC LIMIT 200"
-    );
+    let sql =
+        format!("{DOCUMENT_SELECT} WHERE d.source_id IS NULL ORDER BY d.created_at DESC LIMIT 200");
     let rows: Vec<DocumentRow> = sqlx::query_as::<_, DocumentRow>(&sql)
         .fetch_all(&state.pool)
         .await?;
@@ -301,9 +281,7 @@ async fn get_document(
 
     // derived list. ordered by filename so the ui shows audio/video in
     // a stable order across reloads.
-    let derived_sql = format!(
-        "{DOCUMENT_SELECT} WHERE d.source_id = ? ORDER BY d.filename ASC"
-    );
+    let derived_sql = format!("{DOCUMENT_SELECT} WHERE d.source_id = ? ORDER BY d.filename ASC");
     let derived: Vec<DocumentRow> = sqlx::query_as::<_, DocumentRow>(&derived_sql)
         .bind(id.as_bytes().as_slice())
         .fetch_all(&state.pool)
