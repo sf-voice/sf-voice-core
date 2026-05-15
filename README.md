@@ -3,7 +3,7 @@
 This repo is a monorepo housing two related products:
 
 - **The Seasons booking system** — Example application. Single-tenant restaurant booking app. Elixir/Phoenix. Lives under `apps/resto_booking_app` (the integration service) and `apps/ellie_ai` (a zero-franework voice AI app).
-- **Core** — Core platform. Rust API (Control Plane) + C++ DBMS storage engine (Data Plane) + React frontend. Lives under `core/`.
+- **Core** — Core platform. Rust API (Control Plane) + C++ DBMS (Data Plane) + React frontend. Lives under `core/`.
 
 
 ```
