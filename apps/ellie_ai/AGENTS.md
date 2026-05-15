@@ -56,8 +56,36 @@ Tables and lists where the row navigates somewhere: the **whole row is the click
 
 ## Per-call state lives in `EllieAi.Calls.Memory`
 
-Don't thread `org` / `org_id` / per-call metadata through function arguments during a call. Read it from `EllieAi.Calls.Memory` at the point of use.
+`EllieAi.Calls.Memory` is the in-memory state for a live call. It holds two kinds of shared call-scoped state — nothing else.
 
-Per-call modules (`AudioBridge`, `VadGate`, `Archivist`, tool implementations) must **not** `alias EllieAi.Orgs.Org`. The org is data carried in the call's Memory; not a typed argument the call modules know about.
+### What Memory holds
 
-This keeps the call tree's supervision boundary clean: a process that crashes and respawns reads fresh state from `Memory` rather than relying on an arg that the supervisor doesn't carry.
+1. **Immutable per-call entities** (org, user, call config). Loaded at entity call sites under `/entity` and handed to `CallTree`, which writes the ETS row once on bootstrap. Mirrored into the process dict so workers read them via `Memory.org/0` and friends as constant-time dict reads. `Memory.async/1` propagates the dict into spawned tasks.
+
+2. **Append-only live state** (transcript turns, event log). Grown **one finalized turn at a time** via `Memory.append_*` functions during the live call. ETS only — not mirrored into the dict. Readers always see a consistent prefix; nothing is rewritten in place.
+
+### What Memory does NOT hold
+
+- **No database I/O.** Memory is a cache, not a repository. DB fetches happen at `/entity` call sites; results are handed to `CallTree`. `Repo.*` inside `Memory` or a per-call worker is a layering violation.
+- **No interim / partial ASR.** In-progress transcription lives in the worker that owns the ASR session (typically `AudioBridge`) and is discarded when the turn finalizes. Only finalized turns are appended.
+- **No per-worker private state.** File handles, Silero VAD state, audio frame counters, sequence numbers, in-progress ASR buffers — those stay in the worker's `GenServer` state.
+
+### Per-call workers
+
+Per-call workers (`AudioBridge`, `VadGate`, `Archivist`, `Escalator`, `Sentiment`) MUST NOT accept `%Org{}`, `org_id`, `%User{}`, or any other per-call entity as a function argument. Read entities from `Memory.org/0` and friends — populated by `bootstrap_from/1` on init, or by `Memory.async/1` for spawned tasks.
+
+Per-call worker modules MUST NOT `alias EllieAi.Orgs.Org` (or any other entity module). Aliasing implies pattern-matching or constructing the struct, both of which bypass Memory. Read fields off `Memory.org/0` instead.
+
+The supervision boundary depends on this: a process that crashes and respawns reads fresh state from Memory rather than relying on an arg the supervisor doesn't carry.
+
+### Tools
+
+Tools follow the `EllieAi.Tools.Tool` behaviour and accept `%Org{}` via the **context map** — not through Memory. Tools may run outside a live-call process tree (eval, replay, synchronous invocation) where Memory isn't populated.
+
+Even so:
+
+- Tool files MUST NOT `alias EllieAi.Orgs.Org`.
+- Tool files MUST NOT pattern-match `%Org{...} = context.org`.
+- Read fields off `context.org` directly: `context.org.id`, `context.org.time_zone`, etc.
+
+The alias-ban is a forcing function for "fields only, never struct shape" — if the `Org` schema gains or loses a field, tools that only read named fields keep working.
