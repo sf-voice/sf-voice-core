@@ -446,10 +446,11 @@ defmodule EllieAi.Calls.AudioBridge do
     end
   end
 
-  # outer spawn is an unlinked sentinel; the Task links only to it, so a
-  # tool crash dies with the sentinel and the bridge keeps running.
-  # tool_call_id may be nil (pending insert failed) — we still ship the
-  # result so the caller hears a recovery.
+  # outer spawn is an unlinked sentinel that owns the yield/shutdown
+  # lifecycle; the Task itself runs under EllieAi.TaskSupervisor and is
+  # not linked to the bridge, so a tool crash dies in the supervisor's
+  # domain and the bridge keeps running. tool_call_id may be nil (pending
+  # insert failed) — we still ship the result so the caller hears a recovery.
   defp spawn_supervised_tool(
          bridge_pid,
          openai_call_id,
@@ -460,7 +461,7 @@ defmodule EllieAi.Calls.AudioBridge do
        ) do
     spawn(fn ->
       task =
-        Task.async(fn ->
+        Task.Supervisor.async_nolink(EllieAi.TaskSupervisor, fn ->
           try do
             fun.()
           rescue
