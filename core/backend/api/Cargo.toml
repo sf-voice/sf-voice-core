@@ -1,7 +1,4 @@
-# the sf-voice api service — api.sf-voice.sh. kept as a single bin crate
-# until there's a real reason to split (e.g. a separate `worker` crate
-# sharing a `core` library crate). add new sibling crates as workspace
-# members in the root Cargo.toml.
+
 [package]
 name = "sf-voice-api"
 version = "0.0.0"
@@ -15,10 +12,8 @@ name = "sf-voice-api"
 path = "src/main.rs"
 
 [dependencies]
-# minimal axum server. tokio = full so we don't have to think about
-# feature flags for a scaffold. tower-http brings cors so the frontend
-# (different origin in dev + prod) can hit us.
-axum = "0.7"
+
+axum = { version = "0.7", features = ["macros"] }
 tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 serde = { version = "1", features = ["derive"] }
@@ -26,8 +21,48 @@ serde_json = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-# duckdb embedded analytical store. `bundled` compiles libduckdb from
-# source so there's no system `libduckdb` dependency on dev machines /
-# ci / prod containers. cost: first build adds ~1–2 min of c++ compile;
-# subsequent builds are cached.
+
 duckdb = { version = "1", features = ["bundled"] }
+
+
+sqlx = { version = "0.8", default-features = false, features = ["mysql", "runtime-tokio", "tls-rustls", "macros", "migrate", "uuid", "chrono", "json"] }
+uuid = { version = "1", features = ["v7", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "1"
+
+# http client for slack webhook, whisper, diarization, eot-vad. rustls
+# to match the rest of the stack.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream", "multipart"] }
+# adapt tokio broadcast / sse streams for axum.
+tokio-stream = { version = "0.1", features = ["sync"] }
+bytes = "1"
+
+# auth: argon2id for passwords, cookies for sessions, random token
+# generation, base64 encoding for cookie values. axum-extra's cookie
+# builder takes time::Duration so we add the `time` crate directly.
+argon2 = "0.5"
+axum-extra = { version = "0.9", features = ["cookie", "typed-header"] }
+rand = "0.8"
+base64 = "0.22"
+time = "0.3"
+
+# bucket credentials encryption. xchacha20poly1305 = aead with 24-byte
+# nonces so we can use random nonces without birthday-bound concerns.
+# urlencoding for cloudformation quickcreate links (template params).
+chacha20poly1305 = "0.10"
+urlencoding = "2"
+
+# aws sdks for sts:AssumeRole + s3:ListObjects verification on bucket
+# save. behavior-version-latest = opt in to current default config.
+# default-features off + rustls keeps the runner image small and consistent
+# with the rest of the stack.
+aws-config = { version = "1", default-features = false, features = ["behavior-version-latest", "rustls", "rt-tokio", "credentials-process"] }
+aws-sdk-sts = { version = "1", default-features = false, features = ["behavior-version-latest", "rustls", "rt-tokio"] }
+aws-sdk-s3 = { version = "1", default-features = false, features = ["behavior-version-latest", "rustls", "rt-tokio"] }
+aws-credential-types = "1"
+aws-types = "1"
+
+
+tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "rustls-tls-native-roots"] }
+futures-util = "0.3"
+anyhow = "1"
