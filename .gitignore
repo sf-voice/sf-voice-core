@@ -21,6 +21,7 @@ erl_crash.dump
 # reason to commit either.
 **/priv/dev/captured.json
 **/priv/dev/captured_audio.*
+.claude
 
 
 # package tarballs
@@ -72,6 +73,9 @@ multi-region-support.md
 debug.log
 .gstack/
 **/.design-audit-shots/
+
+
+
 
 
 ## rust
