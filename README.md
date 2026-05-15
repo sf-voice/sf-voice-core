@@ -27,7 +27,7 @@ Workspace tooling lives at the root: `mix.exs` + `.workspace.exs` + `workspace.l
 
 ## Tooling — `mise`
 
-[`mise`](https://mise.jdx.dev) pins Erlang, Elixir, Node, pnpm, Rust, and the DuckDB CLI to the versions CI uses, and exposes every dev task. After `mise install` from this directory:
+[`mise`](https://mise.jdx.dev) pins Erlang, Elixir, Node, C++, pnpm, Rust, and the DuckDB CLI to the versions CI uses, and exposes every dev task. After `mise install` from this directory:
 
 ```sh
 mise tasks                  # list everything available
