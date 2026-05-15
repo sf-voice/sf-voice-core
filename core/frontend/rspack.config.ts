@@ -1,6 +1,7 @@
 import { defineConfig } from "@rspack/cli";
 import { HtmlRspackPlugin } from "@rspack/core";
 import path from "node:path";
+import { RsdoctorRspackPlugin } from "@rsdoctor/rspack-plugin";
 
 export default defineConfig({
    entry: { main: "./src/index.tsx" },
@@ -13,6 +14,10 @@ export default defineConfig({
       new HtmlRspackPlugin({
          template: "./index.html",
       }),
+      process.env.RSDOCTOR &&
+         new RsdoctorRspackPlugin({
+            // plugin options
+         }),
    ],
    devServer: {
       port: 3000,
