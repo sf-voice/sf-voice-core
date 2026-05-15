@@ -3,7 +3,7 @@ defmodule EllieAi.Tools.CreateReservation do
 
   @behaviour EllieAi.Tools.Tool
 
-  alias EllieAi.{Customers, Orgs, Resto}
+  alias EllieAi.{Customers, Orgs, RestoClient}
   alias EllieAi.Customers.CustomerSummary
   alias EllieAi.Tools.CustomerPreconditions
 
@@ -44,7 +44,7 @@ defmodule EllieAi.Tools.CreateReservation do
     with :ok <- CustomerPreconditions.check(ccid),
          {:ok, summary} <- resolve_summary(org, ccid),
          {:ok, payload} <- build_payload(summary, args),
-         {:ok, reservation} <- Resto.create_reservation(org, payload) do
+         {:ok, reservation} <- RestoClient.create_reservation(org, payload) do
       maybe_reconcile(org, summary, reservation)
       {:ok, %{reservation: reservation}}
     else
