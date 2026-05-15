@@ -110,7 +110,7 @@ export function WaveformTrack({
     return (
       <div
         style={{ width: widthPx, height: heightPx }}
-        className="rounded bg-neutral-900/60 border border-dashed border-neutral-800 flex items-center justify-center text-xs text-neutral-600"
+        className="rounded bg-neutral-900/60 border border-dashed border-neutral-800 flex items-center justify-center text-xs text-neutral-300"
       >
         no audio
       </div>
