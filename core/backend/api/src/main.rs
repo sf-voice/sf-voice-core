@@ -4,6 +4,7 @@ mod aws;
 mod aws_creds;
 mod cloudformation;
 mod db;
+mod diarize;
 mod duckdb_schema;
 mod encryption;
 mod error;
@@ -17,6 +18,7 @@ mod routes;
 mod slack;
 mod state;
 mod vad;
+mod whisper;
 
 use std::{
     net::SocketAddr,
@@ -150,12 +152,34 @@ async fn main() {
         .expect("reqwest client builds");
     let broker = Arc::new(EventBroker::new());
 
+    // ml model bootstrap
+    let model_paths = ai_models::bootstrap()
+        .await
+        .unwrap_or_else(|e| panic!("ai_models bootstrap failed: {e}"));
+    let whisper_paths = model_paths.clone();
+    let whisper_loaded =
+        tokio::task::spawn_blocking(move || whisper::Whisper::load(&whisper_paths.whisper))
+            .await
+            .unwrap_or_else(|e| panic!("whisper load join: {e}"))
+            .unwrap_or_else(|e| panic!("whisper load: {e}"));
+    let diar_paths = model_paths.clone();
+    let diarizer_loaded = tokio::task::spawn_blocking(move || {
+        diarize::Diarizer::load(&diar_paths.diar_segmentation, &diar_paths.diar_embedding)
+    })
+    .await
+    .unwrap_or_else(|e| panic!("diarizer load join: {e}"))
+    .unwrap_or_else(|e| panic!("diarizer load: {e}"));
+    tracing::info!("ml models ready");
+
     let state = AppState {
         orm,
         db: duckdb_arc,
         db_path,
         http,
         broker,
+        model_paths: Arc::new(model_paths),
+        whisper: Arc::new(whisper_loaded),
+        diarizer: Arc::new(diarizer_loaded),
     };
 
     // job runner — single in-process worker. polls jobs.status='queued'.
