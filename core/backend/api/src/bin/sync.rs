@@ -1,3 +1,7 @@
+//! standalone schema bootstrap. used by `mise run db:migrate` to land
+//! schema changes without booting the full api. mirrors the DDL block
+//! in main.rs.
+
 use sea_orm::Database;
 
 #[tokio::main]
@@ -9,14 +13,9 @@ async fn main() {
         .await
         .unwrap_or_else(|e| panic!("mysql connect failed: {e}"));
 
-    db.get_schema_registry("entities::*")
-        .sync(&db)
+    entities::bootstrap_schema(&db)
         .await
-        .unwrap_or_else(|e| panic!("schema-sync failed: {e}"));
+        .unwrap_or_else(|e| panic!("schema bootstrap failed: {e}"));
 
-    entities::apply_extras(&db)
-        .await
-        .unwrap_or_else(|e| panic!("apply_extras failed: {e}"));
-
-    eprintln!("schema synced");
+    eprintln!("schema bootstrapped");
 }
