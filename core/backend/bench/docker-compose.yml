@@ -1,0 +1,29 @@
+# bench/docker-compose.yml — local only, never on the droplet.
+# bring both stores up, point bench-load/query at localhost, tear down
+# when done. duckdb is in-process via the api crate's existing duckdb
+# feature, no container needed.
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.13.0
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - ./.bench/qdrant:/qdrant/storage
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.1
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    environment:
+      CLICKHOUSE_DB: bench
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ""
+    volumes:
+      - ./.bench/clickhouse:/var/lib/clickhouse

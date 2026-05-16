@@ -335,11 +335,21 @@ Single `useShortcuts()` hook reads from the registry. Features don't invent thei
 
 ### 17.6 Three-tier component layering
 
-- `src/components/ui/` — primitives (Button, Input, Popover, Dialog, Tabs, Tooltip, Avatar). No domain logic.
+Long-term target:
+
+- `src/components/ui/` — primitives (Button, Input, Popover, Dialog, Tabs, Tooltip, Avatar, icons). No domain logic.
 - `src/components/patterns/` — generic compositions (SettingRow, StateContainer, RightRail, FilterChip, EmptyState, IntegrationCard).
 - `src/components/features/` — domain-specific (LogRow, OrgSwitcher, CallWaveform, TimelineTrack).
 
-Today most things are flat in `components/` with a few subfolders. Re-bucket on touch; don't move untouched files.
+**Current landed structure (2026-05-15).** No more loose files at the root of `components/`. Every component sits inside a domain folder:
+
+- `components/ui/` — primitives + shared `icons.tsx`.
+- `components/layout/` — `Layout`, `PublicLayout`.
+- `components/call/` — `CallList`, `ABPlayer`, `ProgressDrawer` (the call-detail-specific surfaces).
+- `components/prompt/` — `PromptFlow`, `PromptInput`, `ReasoningPath` (the slice/sandbox surfaces).
+- `components/timeline/`, `components/brand/`, `components/empty/` — pre-existing groupings, kept.
+
+`patterns/` and `features/` don't exist yet — that's the next migration. Move into them opportunistically as the component grows or gets touched; don't move untouched files just to re-bucket.
 
 ### 17.7 `<StateContainer>` pattern
 
@@ -351,11 +361,49 @@ One component wraps `{ isLoading, error, data, empty? }` and renders the right s
 
 ### 17.9 Route folders, not flat files
 
-Move from `routes/calls-index.tsx`, `call-detail.tsx`, `slice-detail.tsx` to `routes/calls/index.tsx`, `$callId.tsx`, `$callId.slices.$sliceId.tsx`. Settings: `routes/settings/{index,team,integrations,notifications}.tsx`. TanStack Router file-based nesting. Apply when adding new routes; migrate existing ones on touch.
+Routes are grouped by domain. Landed grouping (2026-05-15):
 
-### 17.10 Data layer split when it grows
+- `routes/calls/` — `calls-index.tsx`, `call-detail.tsx`, `slice-detail.tsx`.
+- `routes/admin/` — `admin.tsx`, `youtube.tsx` (formerly `internal-youtube.tsx`; route path stays `/admin/_internal/youtube`).
+- Still flat at `routes/`: `_authed`, `_public`, `root`, `accept-invite`, `create-org`, `login`, `signup`, `user-settings`, `settings-*`. Migrate to `routes/settings/{index,team,integrations,notifications,billing,buckets}.tsx` on next touch.
 
-`src/lib/queries.ts` is fine until it exceeds ~400 lines or has >8 resources. Then split per-resource: `lib/queries/calls.ts`, `lib/queries/logs.ts`, sharing `lib/api.ts` client. No premature split.
+`router.tsx` assembles the tree manually (not file-based); moving a route is "rename file + update one import in `router.tsx`". When we eventually adopt TanStack Router file-based nesting, the grouping above maps directly to `routes/calls/index.tsx`, `$callId.tsx`, etc.
+
+### 17.10 Data layer split — landed
+
+Split already happened (2026-05-15). Both `lib/api/` and `lib/queries/` are per-domain folders behind a barrel re-export. Call-sites stay on `@/lib/api` and `@/lib/queries` — the barrel makes the split invisible.
+
+```
+lib/api/
+  client.ts        // request() + ApiError + base url. only file that talks to fetch.
+  types.ts         // every DTO. types are re-exported from index.ts.
+  auth.ts          // signup, login, logout, me.
+  calls.ts         // listCalls, getCall, listTranscripts, createSlice,
+                   //   createTranscribeRun, getSlice.
+  org.ts           // org settings + multi-org + bucket setup.
+  profile.ts       // updateProfile, password, email, sessions.
+  invites.ts       // members + invite lifecycle.
+  index.ts         // assembles `api` from per-domain method bags; re-exports types.
+
+lib/queries/
+  keys.ts          // qk — every cache key in one place.
+  auth.ts          // useMe, useSignup, useLogin, useLogout.
+  calls.ts         // useCalls, useCall, useTranscripts, useSlice, useCreateSlice,
+                   //   useCreateTranscribeRun.
+  org.ts           // useOrg, useUpdateOrg, useMyOrgs, useSwitchOrg, useCreateOrg, useBucket.
+  profile.ts       // useUpdateProfile, useChangePassword, useChangeEmail,
+                   //   useSessions, useRevokeSession.
+  invites.ts       // useMembers, useInvites, useCreateInvite, useRevokeInvite,
+                   //   useInvitePreview, useAcceptInvite.
+  index.ts         // barrel.
+```
+
+Rules going forward:
+
+- New endpoint → add a method to the matching per-domain `lib/api/<domain>.ts`. New domain → new file + add to `index.ts`. **Never** put fetch logic anywhere outside `client.ts`.
+- New hook → matching `lib/queries/<domain>.ts`. Cache key must live in `keys.ts` (qk) — feature code never reaches into `["calls", id]` directly.
+- DTOs live in `lib/api/types.ts`. Per-domain DTO files are fine if `types.ts` grows past ~300 lines.
+- Barrels are append-only: re-exports stay, names stay stable. Call-sites don't churn.
 
 ### 17.11 Icon set
 

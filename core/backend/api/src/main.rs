@@ -134,17 +134,14 @@ async fn main() {
         .await
         .unwrap_or_else(|e| panic!("mysql connect failed: {e}"));
 
-    entities::pre_sync_extras(&orm)
+    // hand-managed schema. sea-orm 2.0 RC's schema-sync emits
+    // malformed DDL on a few entity patterns and wedges boot; we own
+    // the DDL ourselves in `entities::bootstrap_schema`. entities are
+    // still used for queries / inserts; only DDL generation is bypassed.
+    entities::bootstrap_schema(&orm)
         .await
-        .unwrap_or_else(|e| panic!("pre_sync_extras failed: {e}"));
-    orm.get_schema_registry("entities::*")
-        .sync(&orm)
-        .await
-        .unwrap_or_else(|e| panic!("schema-sync failed: {e}"));
-    entities::apply_extras(&orm)
-        .await
-        .unwrap_or_else(|e| panic!("apply_extras failed: {e}"));
-    tracing::info!("mysql schema synced");
+        .unwrap_or_else(|e| panic!("schema bootstrap failed: {e}"));
+    tracing::info!("mysql schema bootstrapped");
 
     let http = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(15))

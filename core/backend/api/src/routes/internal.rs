@@ -31,6 +31,7 @@ pub fn router() -> Router<AppState> {
         .route("/youtube", post(create_youtube_ingest))
         .route("/documents", get(list_documents))
         .route("/documents/:id", get(get_document))
+        .route("/documents/:id/retry", post(retry_document))
         .route("/jobs/:id/events", get(job_events))
 }
 
@@ -285,6 +286,80 @@ async fn list_documents(
         })
         .collect();
     Ok(Json(rows))
+}
+
+/// soft retry: re-enqueue a youtube_ingest job for an existing failed
+/// document without wiping derived rows or the parent's metadata. the
+/// job itself is idempotent — already-downloaded files on disk + already
+/// -uploaded objects on s3 are skipped (see `youtube_ingest::run_steps`).
+/// returns the new job_id so the frontend can swap its SSE subscription.
+async fn retry_document(
+    State(state): State<AppState>,
+    _admin: AdminContext,
+    Path(id): Path<Uuid>,
+) -> Result<Json<CreateYoutubeResponse>, AppError> {
+    let doc = entities::documents::Entity::find_by_id(id.as_bytes().to_vec())
+        .one(&state.orm)
+        .await?
+        .ok_or_else(|| AppError::BadRequest("document not found".into()))?;
+
+    if doc.source_kind != "youtube" {
+        return Err(AppError::BadRequest(
+            "retry only supports youtube documents for now".into(),
+        ));
+    }
+    if doc.processing_status != "failed" {
+        return Err(AppError::BadRequest(format!(
+            "retry only allowed on failed docs (current: {})",
+            doc.processing_status
+        )));
+    }
+    let source_url = doc
+        .source_url
+        .clone()
+        .ok_or_else(|| AppError::Internal("failed youtube doc has no source_url".into()))?;
+
+    let txn = state.orm.begin().await?;
+
+    let job_id = Uuid::now_v7();
+    let payload = serde_json::json!({
+        "document_id": id.to_string(),
+        "source_url": source_url,
+    });
+    entities::jobs::ActiveModel {
+        id: Set(job_id.as_bytes().to_vec()),
+        org_id: Set(INTERNAL_ORG_ID.as_bytes().to_vec()),
+        kind: Set("youtube_ingest".into()),
+        subject_type: Set("document".into()),
+        subject_id: Set(Some(id.as_bytes().to_vec())),
+        status: Set("queued".into()),
+        payload: Set(Some(payload)),
+        ..Default::default()
+    }
+    .insert(&txn)
+    .await?;
+
+    // flip parent back to 'queued' + clear the failure marker; the
+    // running ingest job will overwrite this as it moves through steps.
+    // we deliberately do NOT delete derived rows or wipe bucket/s3_key —
+    // the idempotent job will skip uploads of objects that already exist.
+    entities::documents::ActiveModel {
+        id: Set(id.as_bytes().to_vec()),
+        job_id: Set(Some(job_id.as_bytes().to_vec())),
+        processing_status: Set("queued".into()),
+        processing_error: Set(None),
+        ..Default::default()
+    }
+    .update(&txn)
+    .await?;
+
+    txn.commit().await?;
+
+    Ok(Json(CreateYoutubeResponse {
+        document_id: id,
+        job_id: Some(job_id),
+        existing: false,
+    }))
 }
 
 async fn get_document(
