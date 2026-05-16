@@ -3,23 +3,14 @@
 // customer-bucket auth is v2.
 
 import { createRoute } from "@tanstack/react-router";
+import { useState } from "react";
 import { useOrg, useUpdateOrg } from "@/lib/queries";
-import { useEffect, useState } from "react";
+import type { Org } from "@/lib/api";
+import { MonoField } from "@/components/ui/MonoField";
 import { authedLayoutRoute } from "./_authed";
 
 function SettingsBucketsPage() {
   const { data: org, isLoading } = useOrg();
-  const update = useUpdateOrg();
-
-  const [bucketName, setBucketName] = useState("");
-  const [bucketPrefix, setBucketPrefix] = useState("");
-  const [bucketRegion, setBucketRegion] = useState("");
-
-  useEffect(() => {
-    setBucketName(org?.bucket_name ?? "");
-    setBucketPrefix(org?.bucket_prefix ?? "");
-    setBucketRegion(org?.bucket_region ?? "");
-  }, [org]);
 
   return (
     <div className="px-8 py-6 max-w-2xl">
@@ -29,85 +20,74 @@ function SettingsBucketsPage() {
         buckets; this form persists but the values aren't used until v2.
       </p>
 
-      <form
-        className="mt-8 space-y-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          update.mutate({
-            bucket_name: bucketName || null,
-            bucket_prefix: bucketPrefix || null,
-            bucket_region: bucketRegion || null,
-          } as never);
-        }}
-      >
-        <Field
-          label="bucket name"
-          placeholder="my-voice-recordings"
-          value={bucketName}
-          onChange={setBucketName}
-          disabled={isLoading}
-        />
-        <Field
-          label="prefix"
-          placeholder="calls/2026/"
-          value={bucketPrefix}
-          onChange={setBucketPrefix}
-          disabled={isLoading}
-        />
-        <Field
-          label="region"
-          placeholder="us-west-2"
-          value={bucketRegion}
-          onChange={setBucketRegion}
-          disabled={isLoading}
-        />
-
-        <div className="flex items-center gap-3 pt-2">
-          <button
-            type="submit"
-            disabled={update.isPending}
-            className="rounded-md bg-neutral-100 text-neutral-900 px-3 py-1.5 text-sm font-medium hover:bg-white disabled:opacity-50"
-          >
-            {update.isPending ? "saving…" : "save"}
-          </button>
-          {update.isError ? (
-            <span className="text-xs text-red-300">
-              {(update.error as Error).message}
-            </span>
-          ) : update.isSuccess ? (
-            <span className="text-xs text-neutral-500">saved.</span>
-          ) : null}
-        </div>
-      </form>
+      {/* key remounts the form once org loads (and on org switch), so we
+          can seed useState from `org` directly instead of mirroring via
+          useEffect — derived state belongs in render, not in effects. */}
+      <BucketsForm key={org?.id ?? "loading"} org={org} isLoading={isLoading} />
     </div>
   );
 }
 
-function Field({
-  label,
-  placeholder,
-  value,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  placeholder?: string;
-  value: string;
-  onChange: (v: string) => void;
-  disabled?: boolean;
-}) {
+function BucketsForm({ org, isLoading }: { org: Org | null | undefined; isLoading: boolean }) {
+  const update = useUpdateOrg();
+  const [bucketName, setBucketName] = useState(org?.bucket_name ?? "");
+  const [bucketPrefix, setBucketPrefix] = useState(org?.bucket_prefix ?? "");
+  const [bucketRegion, setBucketRegion] = useState(org?.bucket_region ?? "");
+
+  // lock during the initial load (no org yet) and during a save in
+  // flight (avoid edits racing with the response).
+  const busy = isLoading || update.isPending;
+
   return (
-    <label className="block">
-      <div className="text-xs text-neutral-400">{label}</div>
-      <input
-        type="text"
-        value={value}
-        placeholder={placeholder}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-md border border-neutral-800 bg-neutral-950 px-3 py-1.5 text-sm font-mono text-neutral-100 placeholder:text-neutral-700 focus:outline-none focus:ring-1 focus:ring-neutral-500"
+    <form
+      className="mt-8 space-y-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        update.mutate({
+          bucket_name: bucketName || null,
+          bucket_prefix: bucketPrefix || null,
+          bucket_region: bucketRegion || null,
+        });
+      }}
+    >
+      <MonoField
+        label="bucket name"
+        placeholder="my-voice-recordings"
+        value={bucketName}
+        onChange={setBucketName}
+        disabled={busy}
       />
-    </label>
+      <MonoField
+        label="prefix"
+        placeholder="calls/2026/"
+        value={bucketPrefix}
+        onChange={setBucketPrefix}
+        disabled={busy}
+      />
+      <MonoField
+        label="region"
+        placeholder="us-west-2"
+        value={bucketRegion}
+        onChange={setBucketRegion}
+        disabled={busy}
+      />
+
+      <div className="flex items-center gap-3 pt-2">
+        <button
+          type="submit"
+          disabled={busy}
+          className="rounded-md bg-neutral-100 text-neutral-900 px-3 py-1.5 text-sm font-medium hover:bg-white disabled:opacity-50"
+        >
+          {update.isPending ? "saving…" : "save"}
+        </button>
+        {update.isError && (
+          <span className="text-xs text-red-300">{update.error.message}</span>
+        )}
+        {update.isSuccess && (
+          <span className="text-xs text-neutral-500">saved.</span>
+        )}
+      </div>
+    </form>
   );
 }
 

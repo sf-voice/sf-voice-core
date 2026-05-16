@@ -5,10 +5,10 @@
 
 import { Link, createRoute } from "@tanstack/react-router";
 import { useCall, useSlice } from "@/lib/queries";
-import { ReasoningPath } from "@/components/ReasoningPath";
-import { ABPlayer } from "@/components/ABPlayer";
+import { ReasoningPath } from "@/components/prompt/ReasoningPath";
+import { ABPlayer } from "@/components/call/ABPlayer";
 import { fmtMs } from "@/lib/timeline";
-import { authedLayoutRoute } from "./_authed";
+import { authedLayoutRoute } from "../_authed";
 
 const SANDBOX_STEPS = [
   "slice captured",

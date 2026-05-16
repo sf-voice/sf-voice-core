@@ -1,9 +1,9 @@
 // GET / — the call list. primary landing screen.
 
 import { createRoute } from "@tanstack/react-router";
-import { CallList } from "@/components/CallList";
+import { CallList } from "@/components/call/CallList";
 import { useCalls } from "@/lib/queries";
-import { authedLayoutRoute } from "./_authed";
+import { authedLayoutRoute } from "../_authed";
 
 function CallsIndexPage() {
   const { data, isLoading, error } = useCalls();
