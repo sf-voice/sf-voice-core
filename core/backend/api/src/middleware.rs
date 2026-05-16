@@ -47,9 +47,7 @@ pub async fn maybe_auth(
                 // attaching the context so downstream handlers see the
                 // already-rewritten user_id + current_org_id.
                 if let Some(spoof_email) = spoof_from_query(req.uri().query()) {
-                    if let Ok(Some(spoofed)) =
-                        resolve_spoof(&state, &ctx, &spoof_email).await
-                    {
+                    if let Ok(Some(spoofed)) = resolve_spoof(&state, &ctx, &spoof_email).await {
                         tracing::info!(
                             actor_user_id = %ctx.user_id,
                             spoofed_user_id = %spoofed.user_id,
@@ -152,10 +150,7 @@ where
     S: Send + Sync,
 {
     type Rejection = AppError;
-    async fn from_request_parts(
-        parts: &mut Parts,
-        _state: &S,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         parts
             .extensions
             .get::<AuthContext>()
@@ -170,10 +165,7 @@ where
     S: Send + Sync,
 {
     type Rejection = AppError;
-    async fn from_request_parts(
-        parts: &mut Parts,
-        _state: &S,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         parts
             .extensions
             .get::<SessionToken>()

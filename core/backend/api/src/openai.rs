@@ -116,10 +116,7 @@ struct EmbedDatum {
 /// batch-embed a list of strings. OpenAI accepts up to 2048 inputs per
 /// call; we cap at 100 to keep payloads manageable and re-batch if
 /// callers send more.
-pub async fn embed_texts(
-    http: &Client,
-    texts: &[&str],
-) -> Result<Vec<Vec<f32>>, AppError> {
+pub async fn embed_texts(http: &Client, texts: &[&str]) -> Result<Vec<Vec<f32>>, AppError> {
     if texts.is_empty() {
         return Ok(vec![]);
     }

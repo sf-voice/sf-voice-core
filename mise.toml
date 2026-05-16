@@ -103,12 +103,18 @@ dir = "apps/resto_booking_app"
 run = "mix test.watch"
 
 [tasks.format]
-description = "mix format across every app"
-run = "mix workspace.run -t format"
+description = "mix format + cargo fmt across the workspace"
+run = [
+  "cargo fmt --all",
+  "mix workspace.run -t format",
+]
 
 [tasks."format.check"]
-description = "ci-style formatting check (fails on diffs)"
-run = "mix workspace.run -t format -- --check-formatted"
+description = "ci-style formatting check (mix + cargo, fails on diffs)"
+run = [
+   "cargo fmt --all -- --check",
+  "mix workspace.run -t format -- --check-formatted",
+]
 
 [tasks.compile]
 description = "compile every app with --warnings-as-errors"

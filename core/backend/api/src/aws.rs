@@ -32,9 +32,7 @@ pub async fn verify_role(
     region: &str,
 ) -> Result<(), AppError> {
     if skip_verify() {
-        tracing::warn!(
-            "SF_VOICE_SKIP_AWS_VERIFY set — skipping verify_role for {role_arn}"
-        );
+        tracing::warn!("SF_VOICE_SKIP_AWS_VERIFY set — skipping verify_role for {role_arn}");
         return Ok(());
     }
 
@@ -60,9 +58,9 @@ pub async fn verify_role(
             ))
         })?;
 
-    let creds = assumed.credentials.ok_or_else(|| {
-        AppError::Internal("STS returned no credentials".into())
-    })?;
+    let creds = assumed
+        .credentials
+        .ok_or_else(|| AppError::Internal("STS returned no credentials".into()))?;
 
     let s3_creds = Credentials::new(
         creds.access_key_id.clone(),
@@ -101,9 +99,7 @@ pub async fn verify_keys(
     region: &str,
 ) -> Result<(), AppError> {
     if skip_verify() {
-        tracing::warn!(
-            "SF_VOICE_SKIP_AWS_VERIFY set — skipping verify_keys for {access_key_id}"
-        );
+        tracing::warn!("SF_VOICE_SKIP_AWS_VERIFY set — skipping verify_keys for {access_key_id}");
         return Ok(());
     }
 

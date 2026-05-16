@@ -175,7 +175,7 @@ impl VadClient {
 
         let join_msg = serde_json::json!([
             self.join_ref,
-            self.join_ref,  // ref == join_ref for the join itself
+            self.join_ref, // ref == join_ref for the join itself
             self.topic,
             "phx_join",
             join_payload,

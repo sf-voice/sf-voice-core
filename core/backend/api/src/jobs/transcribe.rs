@@ -8,8 +8,9 @@
 
 use duckdb::params;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::{NotSet, Set}, ColumnTrait, ConnectionTrait,
-    DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
+    ActiveModelTrait,
+    ActiveValue::{NotSet, Set},
+    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
 };
 use uuid::Uuid;
 
@@ -52,11 +53,21 @@ pub async fn run(
         .and_then(|c| c.audio_uri)
         .ok_or_else(|| AppError::Internal("call has no audio_uri".into()))?;
     let (bucket_name, key) = parse_s3_uri(&audio_uri).ok_or_else(|| {
-        AppError::BadRequest(format!("audio_uri not in s3://bucket/key form: {audio_uri}"))
+        AppError::BadRequest(format!(
+            "audio_uri not in s3://bucket/key form: {audio_uri}"
+        ))
     })?;
 
     // 3. download the audio.
-    append_step(state, org_id, job_id, "downloading audio", StepStatus::Running, None).await?;
+    append_step(
+        state,
+        org_id,
+        job_id,
+        "downloading audio",
+        StepStatus::Running,
+        None,
+    )
+    .await?;
     let bucket = aws_creds::open_for_org(&state.orm, org_id).await?;
     let bytes = bucket
         .s3
@@ -83,7 +94,15 @@ pub async fn run(
     .await?;
 
     // 4. whisper.
-    append_step(state, org_id, job_id, "transcribing with whisper", StepStatus::Running, None).await?;
+    append_step(
+        state,
+        org_id,
+        job_id,
+        "transcribing with whisper",
+        StepStatus::Running,
+        None,
+    )
+    .await?;
     let filename = key.rsplit('/').next().unwrap_or("audio").to_string();
     let resp = openai::transcribe_audio(&state.http, &filename, bytes).await?;
     let segments = resp.segments;
@@ -143,7 +162,15 @@ pub async fn run(
 
     // 6. embeddings → duckdb. failure here is recoverable — surface as a
     // warning step but don't fail the whole run.
-    append_step(state, org_id, job_id, "embedding utterances", StepStatus::Running, None).await?;
+    append_step(
+        state,
+        org_id,
+        job_id,
+        "embedding utterances",
+        StepStatus::Running,
+        None,
+    )
+    .await?;
     match embed_and_store(state, org_id, call_id, job_id).await {
         Ok(n) => {
             append_step(
@@ -274,7 +301,14 @@ async fn embed_and_store(
             );
             tx.execute(
                 &sql,
-                params![row.id, call_id_str, org_id_str, job_id_str, EMBED_MODEL, row.text],
+                params![
+                    row.id,
+                    call_id_str,
+                    org_id_str,
+                    job_id_str,
+                    EMBED_MODEL,
+                    row.text
+                ],
             )?;
             count += 1;
         }

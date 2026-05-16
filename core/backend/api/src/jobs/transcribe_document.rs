@@ -10,7 +10,8 @@ use std::path::Path;
 use std::time::Duration;
 
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::{NotSet, Set},
+    ActiveModelTrait,
+    ActiveValue::{NotSet, Set},
     ColumnTrait, EntityTrait, QueryFilter,
 };
 use serde::Deserialize;
@@ -18,11 +19,7 @@ use tokio::process::Command;
 use uuid::Uuid;
 
 use crate::{
-    error::AppError,
-    internal_bucket,
-    jobs::append_step,
-    models::StepStatus,
-    state::AppState,
+    error::AppError, internal_bucket, jobs::append_step, models::StepStatus, state::AppState,
     whisper::align_speakers,
 };
 
@@ -93,7 +90,15 @@ async fn run_steps(
     work_dir: &Path,
 ) -> Result<(), AppError> {
     // download.
-    append_step(state, org_id, job_id, "downloading audio", StepStatus::Running, None).await?;
+    append_step(
+        state,
+        org_id,
+        job_id,
+        "downloading audio",
+        StepStatus::Running,
+        None,
+    )
+    .await?;
     let raw_path = work_dir.join("audio_raw.wav");
     let bucket = internal_bucket::open().await?;
     if bucket.bucket != bucket_name {
@@ -131,10 +136,26 @@ async fn run_steps(
 
     // resample to mono 16khz f32 — both whisper.cpp and sherpa's
     // pyannote/3d-speaker pipeline expect that exact shape.
-    append_step(state, org_id, job_id, "resampling audio", StepStatus::Running, None).await?;
+    append_step(
+        state,
+        org_id,
+        job_id,
+        "resampling audio",
+        StepStatus::Running,
+        None,
+    )
+    .await?;
     let pcm_path = work_dir.join("audio_16k.wav");
     ffmpeg_to_16k_mono_f32(&raw_path, &pcm_path).await?;
-    append_step(state, org_id, job_id, "resampling audio", StepStatus::Done, None).await?;
+    append_step(
+        state,
+        org_id,
+        job_id,
+        "resampling audio",
+        StepStatus::Done,
+        None,
+    )
+    .await?;
 
     // load samples once; pass to whisper + diarize.
     let pcm_path_str = pcm_path
@@ -150,7 +171,15 @@ async fn run_steps(
     .map_err(|e| AppError::Internal(format!("read audio join: {e}")))??;
 
     // whisper transcription. cpu-bound → spawn_blocking.
-    append_step(state, org_id, job_id, "transcribing", StepStatus::Running, None).await?;
+    append_step(
+        state,
+        org_id,
+        job_id,
+        "transcribing",
+        StepStatus::Running,
+        None,
+    )
+    .await?;
     let whisper = state.whisper.clone();
     let whisper_samples = samples.clone();
     let segments = tokio::task::spawn_blocking(move || whisper.transcribe(&whisper_samples))
@@ -168,7 +197,15 @@ async fn run_steps(
 
     // diarization. also cpu-bound + serialised inside a Mutex (the
     // job runner is single-worker so no contention in v1).
-    append_step(state, org_id, job_id, "diarizing", StepStatus::Running, None).await?;
+    append_step(
+        state,
+        org_id,
+        job_id,
+        "diarizing",
+        StepStatus::Running,
+        None,
+    )
+    .await?;
     let diarizer = state.diarizer.clone();
     let turns = tokio::task::spawn_blocking(move || diarizer.diarize(samples))
         .await
@@ -191,7 +228,15 @@ async fn run_steps(
     let labeled = align_speakers(segments, &turns);
 
     // delete-then-insert. re-runs land in a clean canonical state.
-    append_step(state, org_id, job_id, "writing transcripts", StepStatus::Running, None).await?;
+    append_step(
+        state,
+        org_id,
+        job_id,
+        "writing transcripts",
+        StepStatus::Running,
+        None,
+    )
+    .await?;
     entities::transcripts::Entity::delete_many()
         .filter(entities::transcripts::Column::DocumentId.eq(document_id_bytes.clone()))
         .exec(&state.orm)
@@ -243,8 +288,19 @@ async fn ffmpeg_to_16k_mono_f32(src: &Path, dst: &Path) -> Result<(), AppError> 
         Duration::from_secs(600),
         Command::new("ffmpeg")
             .args([
-                "-y", "-hide_banner", "-loglevel", "error", "-i", src_s, "-ac", "1", "-ar",
-                "16000", "-c:a", "pcm_f32le", dst_s,
+                "-y",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-i",
+                src_s,
+                "-ac",
+                "1",
+                "-ar",
+                "16000",
+                "-c:a",
+                "pcm_f32le",
+                dst_s,
             ])
             .status(),
     )

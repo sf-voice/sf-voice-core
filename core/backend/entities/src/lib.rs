@@ -42,100 +42,135 @@ const DEFAULT_CHARSET: &str = "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf
 pub async fn bootstrap_schema(db: &DatabaseConnection) -> Result<(), DbErr> {
     // --- tables, in FK-safe order (parents first) -----------------------
 
-    create(db, "users", &[
-        "id BINARY(16) NOT NULL PRIMARY KEY",
-        "email VARCHAR(254) NOT NULL",
-        "password_hash VARCHAR(255) NULL",
-        "display_name VARCHAR(120) NULL",
-        "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
-        "updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
-        "UNIQUE KEY uq_users_email (email)",
-    ]).await?;
+    create(
+        db,
+        "users",
+        &[
+            "id BINARY(16) NOT NULL PRIMARY KEY",
+            "email VARCHAR(254) NOT NULL",
+            "password_hash VARCHAR(255) NULL",
+            "display_name VARCHAR(120) NULL",
+            "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+            "updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+            "UNIQUE KEY uq_users_email (email)",
+        ],
+    )
+    .await?;
 
-    create(db, "orgs", &[
-        "id BINARY(16) NOT NULL PRIMARY KEY",
-        "name VARCHAR(255) NOT NULL",
-        "slug VARCHAR(64) NOT NULL",
-        "bucket_name VARCHAR(255) NULL",
-        "bucket_prefix VARCHAR(512) NULL",
-        "bucket_region VARCHAR(32) NULL",
-        "bucket_role_arn VARCHAR(512) NULL",
-        "bucket_external_id VARCHAR(128) NULL",
-        "bucket_auth_method VARCHAR(16) NULL COMMENT \"'role' | 'keys'\"",
-        "bucket_access_key_id VARCHAR(128) NULL",
-        "bucket_secret_access_key_encrypted VARBINARY(512) NULL",
-        "bucket_verified_at DATETIME NULL",
-        "bucket_account_id VARCHAR(16) NULL",
-        "config_repo_url VARCHAR(512) NULL",
-        "slack_webhook_url VARCHAR(512) NULL",
-        "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
-        "updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
-        "UNIQUE KEY uq_orgs_slug (slug)",
-    ]).await?;
+    create(
+        db,
+        "orgs",
+        &[
+            "id BINARY(16) NOT NULL PRIMARY KEY",
+            "name VARCHAR(255) NOT NULL",
+            "slug VARCHAR(64) NOT NULL",
+            "bucket_name VARCHAR(255) NULL",
+            "bucket_prefix VARCHAR(512) NULL",
+            "bucket_region VARCHAR(32) NULL",
+            "bucket_role_arn VARCHAR(512) NULL",
+            "bucket_external_id VARCHAR(128) NULL",
+            "bucket_auth_method VARCHAR(16) NULL COMMENT \"'role' | 'keys'\"",
+            "bucket_access_key_id VARCHAR(128) NULL",
+            "bucket_secret_access_key_encrypted VARBINARY(512) NULL",
+            "bucket_verified_at DATETIME NULL",
+            "bucket_account_id VARCHAR(16) NULL",
+            "config_repo_url VARCHAR(512) NULL",
+            "slack_webhook_url VARCHAR(512) NULL",
+            "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+            "updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+            "UNIQUE KEY uq_orgs_slug (slug)",
+        ],
+    )
+    .await?;
 
-    create(db, "org_users", &[
-        "id BINARY(16) NOT NULL PRIMARY KEY",
-        "org_id BINARY(16) NOT NULL",
-        "user_id BINARY(16) NOT NULL",
-        "role VARCHAR(16) NOT NULL DEFAULT 'member' COMMENT \"'owner' | 'member'\"",
-        "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
-        "KEY idx_org_users_user (user_id)",
-    ]).await?;
+    create(
+        db,
+        "org_users",
+        &[
+            "id BINARY(16) NOT NULL PRIMARY KEY",
+            "org_id BINARY(16) NOT NULL",
+            "user_id BINARY(16) NOT NULL",
+            "role VARCHAR(16) NOT NULL DEFAULT 'member' COMMENT \"'owner' | 'member'\"",
+            "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+            "KEY idx_org_users_user (user_id)",
+        ],
+    )
+    .await?;
 
-    create(db, "auth_identities", &[
-        "id BINARY(16) NOT NULL PRIMARY KEY",
-        "user_id BINARY(16) NOT NULL",
-        "provider VARCHAR(32) NOT NULL",
-        "subject VARCHAR(255) NOT NULL",
-        "email VARCHAR(254) NULL",
-        "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
-    ]).await?;
+    create(
+        db,
+        "auth_identities",
+        &[
+            "id BINARY(16) NOT NULL PRIMARY KEY",
+            "user_id BINARY(16) NOT NULL",
+            "provider VARCHAR(32) NOT NULL",
+            "subject VARCHAR(255) NOT NULL",
+            "email VARCHAR(254) NULL",
+            "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        ],
+    )
+    .await?;
 
-    create(db, "sessions", &[
-        "id BINARY(32) NOT NULL PRIMARY KEY",
-        "user_id BINARY(16) NOT NULL",
-        "current_org_id BINARY(16) NOT NULL",
-        "expires_at DATETIME NOT NULL",
-        "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
-        "last_used_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
-        "ip VARCHAR(45) NULL",
-        "user_agent VARCHAR(255) NULL",
-        "KEY idx_sessions_user (user_id)",
-        "KEY idx_sessions_expires (expires_at)",
-    ]).await?;
+    create(
+        db,
+        "sessions",
+        &[
+            "id BINARY(32) NOT NULL PRIMARY KEY",
+            "user_id BINARY(16) NOT NULL",
+            "current_org_id BINARY(16) NOT NULL",
+            "expires_at DATETIME NOT NULL",
+            "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+            "last_used_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+            "ip VARCHAR(45) NULL",
+            "user_agent VARCHAR(255) NULL",
+            "KEY idx_sessions_user (user_id)",
+            "KEY idx_sessions_expires (expires_at)",
+        ],
+    )
+    .await?;
 
-    create(db, "invites", &[
-        "id BINARY(16) NOT NULL PRIMARY KEY",
-        "org_id BINARY(16) NOT NULL",
-        "email VARCHAR(254) NOT NULL",
-        "role VARCHAR(16) NOT NULL DEFAULT 'member' COMMENT \"'owner' | 'member'\"",
-        "token VARCHAR(64) NOT NULL",
-        "invited_by BINARY(16) NOT NULL",
-        "accepted_at DATETIME NULL",
-        "expires_at DATETIME NOT NULL",
-        "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
-        "KEY idx_invites_org (org_id)",
-        "KEY idx_invites_email (email)",
-        "UNIQUE KEY uq_invites_token (token)",
-    ]).await?;
+    create(
+        db,
+        "invites",
+        &[
+            "id BINARY(16) NOT NULL PRIMARY KEY",
+            "org_id BINARY(16) NOT NULL",
+            "email VARCHAR(254) NOT NULL",
+            "role VARCHAR(16) NOT NULL DEFAULT 'member' COMMENT \"'owner' | 'member'\"",
+            "token VARCHAR(64) NOT NULL",
+            "invited_by BINARY(16) NOT NULL",
+            "accepted_at DATETIME NULL",
+            "expires_at DATETIME NOT NULL",
+            "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+            "KEY idx_invites_org (org_id)",
+            "KEY idx_invites_email (email)",
+            "UNIQUE KEY uq_invites_token (token)",
+        ],
+    )
+    .await?;
 
-    create(db, "calls", &[
-        "id BINARY(16) NOT NULL PRIMARY KEY",
-        "org_id BINARY(16) NOT NULL",
-        "external_id VARCHAR(255) NULL",
-        "started_at DATETIME NOT NULL",
-        "ended_at DATETIME NULL",
-        "duration_ms INT NULL",
-        "caller_number VARCHAR(32) NULL",
-        "destination_number VARCHAR(32) NULL",
-        "termination_reason VARCHAR(64) NULL",
-        "audio_uri VARCHAR(1024) NULL",
-        "caller_audio_uri VARCHAR(1024) NULL",
-        "ai_audio_uri VARCHAR(1024) NULL",
-        "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
-        "updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
-        "KEY idx_calls_org (org_id)",
-    ]).await?;
+    create(
+        db,
+        "calls",
+        &[
+            "id BINARY(16) NOT NULL PRIMARY KEY",
+            "org_id BINARY(16) NOT NULL",
+            "external_id VARCHAR(255) NULL",
+            "started_at DATETIME NOT NULL",
+            "ended_at DATETIME NULL",
+            "duration_ms INT NULL",
+            "caller_number VARCHAR(32) NULL",
+            "destination_number VARCHAR(32) NULL",
+            "termination_reason VARCHAR(64) NULL",
+            "audio_uri VARCHAR(1024) NULL",
+            "caller_audio_uri VARCHAR(1024) NULL",
+            "ai_audio_uri VARCHAR(1024) NULL",
+            "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+            "updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+            "KEY idx_calls_org (org_id)",
+        ],
+    )
+    .await?;
 
     create(db, "documents", &[
         "id BINARY(16) NOT NULL PRIMARY KEY",
@@ -211,38 +246,53 @@ pub async fn bootstrap_schema(db: &DatabaseConnection) -> Result<(), DbErr> {
         "CONSTRAINT chk_transcripts_subject CHECK ((call_id IS NOT NULL) <> (document_id IS NOT NULL))",
     ]).await?;
 
-    create(db, "embeddings", &[
-        "id BINARY(16) NOT NULL PRIMARY KEY",
-        "document_id BINARY(16) NOT NULL",
-        "chunk_index INT NOT NULL",
-        "start_ms INT NULL",
-        "end_ms INT NULL",
-        "source_locator JSON NULL",
-        "text TEXT NOT NULL",
-        "model VARCHAR(64) NOT NULL",
-        "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
-        "KEY idx_embeddings_document (document_id)",
-        "UNIQUE KEY uq_embeddings_chunk (document_id, chunk_index)",
-    ]).await?;
+    create(
+        db,
+        "embeddings",
+        &[
+            "id BINARY(16) NOT NULL PRIMARY KEY",
+            "document_id BINARY(16) NOT NULL",
+            "chunk_index INT NOT NULL",
+            "start_ms INT NULL",
+            "end_ms INT NULL",
+            "source_locator JSON NULL",
+            "text TEXT NOT NULL",
+            "model VARCHAR(64) NOT NULL",
+            "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+            "KEY idx_embeddings_document (document_id)",
+            "UNIQUE KEY uq_embeddings_chunk (document_id, chunk_index)",
+        ],
+    )
+    .await?;
 
-    create(db, "chat_threads", &[
-        "id BINARY(16) NOT NULL PRIMARY KEY",
-        "user_id BINARY(16) NOT NULL",
-        "title VARCHAR(256) NOT NULL",
-        "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
-        "KEY idx_chat_threads_user (user_id)",
-    ]).await?;
+    create(
+        db,
+        "chat_threads",
+        &[
+            "id BINARY(16) NOT NULL PRIMARY KEY",
+            "user_id BINARY(16) NOT NULL",
+            "title VARCHAR(256) NOT NULL",
+            "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+            "KEY idx_chat_threads_user (user_id)",
+        ],
+    )
+    .await?;
 
-    create(db, "chat_messages", &[
-        "id BINARY(16) NOT NULL PRIMARY KEY",
-        "thread_id BINARY(16) NOT NULL",
-        "role VARCHAR(16) NOT NULL COMMENT \"'user' | 'assistant'\"",
-        "content TEXT NOT NULL",
-        "citations JSON NOT NULL",
-        "pending_doc_ids JSON NOT NULL",
-        "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
-        "KEY idx_chat_messages_thread (thread_id)",
-    ]).await?;
+    create(
+        db,
+        "chat_messages",
+        &[
+            "id BINARY(16) NOT NULL PRIMARY KEY",
+            "thread_id BINARY(16) NOT NULL",
+            "role VARCHAR(16) NOT NULL COMMENT \"'user' | 'assistant'\"",
+            "content TEXT NOT NULL",
+            "citations JSON NOT NULL",
+            "pending_doc_ids JSON NOT NULL",
+            "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+            "KEY idx_chat_messages_thread (thread_id)",
+        ],
+    )
+    .await?;
 
     // --- post-table extras schema-sync would have flagged as drift -------
 
@@ -269,17 +319,13 @@ pub async fn bootstrap_schema(db: &DatabaseConnection) -> Result<(), DbErr> {
     // call_id NOT NULL + run_id NOT NULL + FK to transcript_runs.
     if column_exists(db, "transcripts", "call_id").await? {
         // if it's still NOT NULL, relax it. ALTER MODIFY is idempotent.
-        db.execute_unprepared(
-            "ALTER TABLE transcripts MODIFY COLUMN call_id BINARY(16) NULL",
-        )
-        .await?;
+        db.execute_unprepared("ALTER TABLE transcripts MODIFY COLUMN call_id BINARY(16) NULL")
+            .await?;
     }
     if column_exists(db, "transcripts", "run_id").await? {
         if fk_exists(db, "transcripts", "fk_transcripts_run").await? {
-            db.execute_unprepared(
-                "ALTER TABLE transcripts DROP FOREIGN KEY fk_transcripts_run",
-            )
-            .await?;
+            db.execute_unprepared("ALTER TABLE transcripts DROP FOREIGN KEY fk_transcripts_run")
+                .await?;
         }
         db.execute_unprepared("ALTER TABLE transcripts DROP COLUMN run_id")
             .await?;
@@ -290,18 +336,12 @@ pub async fn bootstrap_schema(db: &DatabaseConnection) -> Result<(), DbErr> {
 
 async fn create(db: &DatabaseConnection, table: &str, columns: &[&str]) -> Result<(), DbErr> {
     let body = columns.join(",\n  ");
-    let sql = format!(
-        "CREATE TABLE IF NOT EXISTS `{table}` (\n  {body}\n) {DEFAULT_CHARSET}"
-    );
+    let sql = format!("CREATE TABLE IF NOT EXISTS `{table}` (\n  {body}\n) {DEFAULT_CHARSET}");
     db.execute_unprepared(&sql).await?;
     Ok(())
 }
 
-async fn column_exists(
-    db: &DatabaseConnection,
-    table: &str,
-    column: &str,
-) -> Result<bool, DbErr> {
+async fn column_exists(db: &DatabaseConnection, table: &str, column: &str) -> Result<bool, DbErr> {
     let backend = db.get_database_backend();
     let row = db
         .query_one_raw(Statement::from_sql_and_values(
@@ -317,11 +357,7 @@ async fn column_exists(
     Ok(count > 0)
 }
 
-async fn fk_exists(
-    db: &DatabaseConnection,
-    table: &str,
-    fk_name: &str,
-) -> Result<bool, DbErr> {
+async fn fk_exists(db: &DatabaseConnection, table: &str, fk_name: &str) -> Result<bool, DbErr> {
     let backend = db.get_database_backend();
     let row = db
         .query_one_raw(Statement::from_sql_and_values(
