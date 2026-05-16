@@ -1,3 +1,4 @@
+mod ai_models;
 mod auth;
 mod aws;
 mod aws_creds;
@@ -131,6 +132,9 @@ async fn main() {
         .await
         .unwrap_or_else(|e| panic!("mysql connect failed: {e}"));
 
+    entities::pre_sync_extras(&orm)
+        .await
+        .unwrap_or_else(|e| panic!("pre_sync_extras failed: {e}"));
     orm.get_schema_registry("entities::*")
         .sync(&orm)
         .await
