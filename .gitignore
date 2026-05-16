@@ -91,3 +91,8 @@ models/
 ## tree more thoroughly (venv, pytest cache, ruff cache).
 __pycache__/
 *.py[cod]
+
+# benchmark
+.bench/
+data/
+report.md
