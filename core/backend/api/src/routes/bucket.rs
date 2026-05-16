@@ -4,7 +4,13 @@ use axum::{
     Json, Router,
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD as B64URL, Engine as _};
+use chrono::Utc;
 use rand::RngCore;
+use sea_orm::{
+    ActiveModelTrait,
+    ActiveValue::{NotSet, Set},
+    EntityTrait,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -44,40 +50,23 @@ async fn get_status(
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<BucketStatus>, AppError> {
-    let row: Option<(
-        Option<String>,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-        Option<chrono::DateTime<chrono::Utc>>,
-    )> = sqlx::query_as(
-        r#"
-        SELECT bucket_auth_method,
-               bucket_name, bucket_prefix, bucket_region, bucket_account_id,
-               bucket_role_arn, bucket_access_key_id,
-               bucket_external_id, bucket_verified_at
-        FROM orgs WHERE id = ?
-        "#,
-    )
-    .bind(auth.current_org_id.as_bytes().as_slice())
-    .fetch_optional(&state.pool)
-    .await?;
+    let org = entities::orgs::Entity::find_by_id(auth.current_org_id.as_bytes().to_vec())
+        .one(&state.orm)
+        .await?
+        .ok_or(AppError::NotFound)?;
 
-    let r = row.ok_or(AppError::NotFound)?;
     Ok(Json(BucketStatus {
-        method: r.0,
-        bucket_name: r.1,
-        bucket_prefix: r.2,
-        bucket_region: r.3,
-        bucket_account_id: r.4,
-        bucket_role_arn: r.5,
-        bucket_access_key_id: r.6,
-        bucket_external_id: r.7,
-        verified_at: r.8,
+        method: org.bucket_auth_method,
+        bucket_name: org.bucket_name,
+        bucket_prefix: org.bucket_prefix,
+        bucket_region: org.bucket_region,
+        bucket_account_id: org.bucket_account_id,
+        bucket_role_arn: org.bucket_role_arn,
+        bucket_access_key_id: org.bucket_access_key_id,
+        bucket_external_id: org.bucket_external_id,
+        verified_at: org
+            .bucket_verified_at
+            .map(|t| chrono::DateTime::<Utc>::from_naive_utc_and_offset(t, Utc)),
     }))
 }
 
@@ -110,48 +99,37 @@ async fn setup_info(
     let region = q.bucket_region.unwrap_or_else(|| "us-east-1".into());
     let account_id = q.aws_account_id.unwrap_or_default();
 
-    // fetch + lazy-create external_id, then persist the draft form fields
-    // on the same row. only sets fields the caller actually provided so
-    // we don't clobber a verified connection if the wizard rehydrates
-    // with empty strings mid-edit.
-    let existing: Option<(Option<String>,)> =
-        sqlx::query_as("SELECT bucket_external_id FROM orgs WHERE id = ?")
-            .bind(auth.current_org_id.as_bytes().as_slice())
-            .fetch_optional(&state.pool)
-            .await?;
-    let external_id = match existing.and_then(|(eid,)| eid) {
+    let org_id_bytes = auth.current_org_id.as_bytes().to_vec();
+    let org = entities::orgs::Entity::find_by_id(org_id_bytes.clone())
+        .one(&state.orm)
+        .await?
+        .ok_or(AppError::NotFound)?;
+
+    let external_id = match org.bucket_external_id.clone() {
         Some(eid) => eid,
-        None => {
-            let new = generate_external_id();
-            sqlx::query("UPDATE orgs SET bucket_external_id = ? WHERE id = ?")
-                .bind(&new)
-                .bind(auth.current_org_id.as_bytes().as_slice())
-                .execute(&state.pool)
-                .await?;
-            new
-        }
+        None => generate_external_id(),
     };
 
-    // autosave: each call to /setup also persists the latest form draft.
-    // COALESCE on empties keeps previously-saved values when the caller
-    // omits a field, so partial calls don't blow away other fields.
-    sqlx::query(
-        r#"
-        UPDATE orgs SET
-          bucket_name       = COALESCE(NULLIF(?, ''), bucket_name),
-          bucket_prefix     = COALESCE(NULLIF(?, ''), bucket_prefix),
-          bucket_region     = COALESCE(NULLIF(?, ''), bucket_region),
-          bucket_account_id = COALESCE(NULLIF(?, ''), bucket_account_id)
-        WHERE id = ?
-        "#,
-    )
-    .bind(&bucket_name)
-    .bind(&bucket_prefix)
-    .bind(&region)
-    .bind(&account_id)
-    .bind(auth.current_org_id.as_bytes().as_slice())
-    .execute(&state.pool)
-    .await?;
+    let mut active = entities::orgs::ActiveModel {
+        id: Set(org_id_bytes),
+        ..Default::default()
+    };
+    if org.bucket_external_id.is_none() {
+        active.bucket_external_id = Set(Some(external_id.clone()));
+    }
+    if !bucket_name.is_empty() {
+        active.bucket_name = Set(Some(bucket_name.clone()));
+    }
+    if !bucket_prefix.is_empty() {
+        active.bucket_prefix = Set(Some(bucket_prefix.clone()));
+    }
+    if !region.is_empty() {
+        active.bucket_region = Set(Some(region.clone()));
+    }
+    if !account_id.is_empty() {
+        active.bucket_account_id = Set(Some(account_id));
+    }
+    active.update(&state.orm).await?;
 
     Ok(Json(SetupResponse {
         quick_create_url: quick_create_url(&region, &external_id, &bucket_name, &bucket_prefix),
@@ -188,28 +166,17 @@ async fn save_role(
         ));
     }
 
-    // we need the org's external_id to call AssumeRole. fetch + create
-    // if it doesn't exist yet — most users will have hit /setup before
-    // landing here, so this is usually a no-op.
-    let existing: Option<(Option<String>,)> =
-        sqlx::query_as("SELECT bucket_external_id FROM orgs WHERE id = ?")
-            .bind(auth.current_org_id.as_bytes().as_slice())
-            .fetch_optional(&state.pool)
-            .await?;
-    let external_id = match existing.and_then(|(eid,)| eid) {
-        Some(eid) => eid,
-        None => {
-            return Err(AppError::BadRequest(
-                "no external_id on this org — open AWS console step first".into(),
-            ));
-        }
-    };
+    let org_id_bytes = auth.current_org_id.as_bytes().to_vec();
+    let org = entities::orgs::Entity::find_by_id(org_id_bytes.clone())
+        .one(&state.orm)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    let external_id = org.bucket_external_id.ok_or_else(|| {
+        AppError::BadRequest("no external_id on this org — open AWS console step first".into())
+    })?;
 
     let bucket_prefix = body.bucket_prefix.as_deref().unwrap_or("");
 
-    // verify before persisting. AssumeRole with external_id → S3
-    // ListObjects. failure returns a customer-facing error explaining
-    // which step failed.
     aws::verify_role(
         &body.role_arn,
         &external_id,
@@ -219,27 +186,20 @@ async fn save_role(
     )
     .await?;
 
-    sqlx::query(
-        r#"
-        UPDATE orgs SET
-          bucket_auth_method = 'role',
-          bucket_name        = ?,
-          bucket_prefix      = ?,
-          bucket_region      = ?,
-          bucket_role_arn    = ?,
-          -- clear stored-keys fields when switching to role
-          bucket_access_key_id = NULL,
-          bucket_secret_access_key_encrypted = NULL,
-          bucket_verified_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-        "#,
-    )
-    .bind(&body.bucket_name)
-    .bind(bucket_prefix)
-    .bind(&body.bucket_region)
-    .bind(&body.role_arn)
-    .bind(auth.current_org_id.as_bytes().as_slice())
-    .execute(&state.pool)
+    entities::orgs::ActiveModel {
+        id: Set(org_id_bytes),
+        bucket_auth_method: Set(Some("role".into())),
+        bucket_name: Set(Some(body.bucket_name)),
+        bucket_prefix: Set(Some(bucket_prefix.to_string())),
+        bucket_region: Set(Some(body.bucket_region)),
+        bucket_role_arn: Set(Some(body.role_arn)),
+        // clear stored-keys fields when switching to role
+        bucket_access_key_id: Set(None),
+        bucket_secret_access_key_encrypted: Set(None),
+        bucket_verified_at: Set(Some(Utc::now().naive_utc())),
+        ..Default::default()
+    }
+    .update(&state.orm)
     .await?;
 
     get_status(State(state), auth).await
@@ -288,16 +248,14 @@ async fn probe_role(
     }
 
     // role name is fixed by the CFN template — see cloudformation.rs.
-    // template uses `sf-voice-readonly-${AWS::StackName}` and we always
-    // create the stack as `sf-voice-readonly`. so role name is determined.
     let role_arn = format!("arn:aws:iam::{account_id}:role/sf-voice-readonly-sf-voice-readonly");
 
-    let existing: Option<(Option<String>,)> =
-        sqlx::query_as("SELECT bucket_external_id FROM orgs WHERE id = ?")
-            .bind(auth.current_org_id.as_bytes().as_slice())
-            .fetch_optional(&state.pool)
-            .await?;
-    let external_id = existing.and_then(|(eid,)| eid).ok_or_else(|| {
+    let org_id_bytes = auth.current_org_id.as_bytes().to_vec();
+    let org = entities::orgs::Entity::find_by_id(org_id_bytes.clone())
+        .one(&state.orm)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    let external_id = org.bucket_external_id.ok_or_else(|| {
         AppError::BadRequest("no external_id on this org — open AWS console step first".into())
     })?;
 
@@ -313,35 +271,24 @@ async fn probe_role(
     .await
     {
         Ok(()) => {
-            sqlx::query(
-                r#"
-                UPDATE orgs SET
-                  bucket_auth_method = 'role',
-                  bucket_name        = ?,
-                  bucket_prefix      = ?,
-                  bucket_region      = ?,
-                  bucket_account_id  = ?,
-                  bucket_role_arn    = ?,
-                  bucket_access_key_id = NULL,
-                  bucket_secret_access_key_encrypted = NULL,
-                  bucket_verified_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-                "#,
-            )
-            .bind(&body.bucket_name)
-            .bind(bucket_prefix)
-            .bind(&body.bucket_region)
-            .bind(account_id)
-            .bind(&role_arn)
-            .bind(auth.current_org_id.as_bytes().as_slice())
-            .execute(&state.pool)
+            entities::orgs::ActiveModel {
+                id: Set(org_id_bytes),
+                bucket_auth_method: Set(Some("role".into())),
+                bucket_name: Set(Some(body.bucket_name)),
+                bucket_prefix: Set(Some(bucket_prefix.to_string())),
+                bucket_region: Set(Some(body.bucket_region)),
+                bucket_account_id: Set(Some(account_id.to_string())),
+                bucket_role_arn: Set(Some(role_arn.clone())),
+                bucket_access_key_id: Set(None),
+                bucket_secret_access_key_encrypted: Set(None),
+                bucket_verified_at: Set(Some(Utc::now().naive_utc())),
+                ..Default::default()
+            }
+            .update(&state.orm)
             .await?;
             let bucket = get_status(State(state), auth).await?.0;
             Ok(Json(ProbeRoleResponse::Verified { role_arn, bucket }))
         }
-        // mid-provision: role doesn't exist yet, or trust policy hasn't
-        // propagated. these are the "keep polling" cases. anything else
-        // (access denied with wrong external id, etc.) is terminal.
         Err(AppError::BadRequest(msg)) => {
             let pending = msg.contains("NoSuchEntity")
                 || msg.contains("does not exist")
@@ -401,28 +348,20 @@ async fn save_keys(
 
     let encrypted = encryption::encrypt(body.secret_access_key.as_bytes())?;
 
-    sqlx::query(
-        r#"
-        UPDATE orgs SET
-          bucket_auth_method = 'keys',
-          bucket_name        = ?,
-          bucket_prefix      = ?,
-          bucket_region      = ?,
-          bucket_access_key_id = ?,
-          bucket_secret_access_key_encrypted = ?,
-          -- clear role fields when switching to keys
-          bucket_role_arn = NULL,
-          bucket_verified_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-        "#,
-    )
-    .bind(&body.bucket_name)
-    .bind(bucket_prefix)
-    .bind(&body.bucket_region)
-    .bind(&body.access_key_id)
-    .bind(&encrypted)
-    .bind(auth.current_org_id.as_bytes().as_slice())
-    .execute(&state.pool)
+    entities::orgs::ActiveModel {
+        id: Set(auth.current_org_id.as_bytes().to_vec()),
+        bucket_auth_method: Set(Some("keys".into())),
+        bucket_name: Set(Some(body.bucket_name)),
+        bucket_prefix: Set(Some(bucket_prefix.to_string())),
+        bucket_region: Set(Some(body.bucket_region)),
+        bucket_access_key_id: Set(Some(body.access_key_id)),
+        bucket_secret_access_key_encrypted: Set(Some(encrypted)),
+        // clear role fields when switching to keys
+        bucket_role_arn: Set(None),
+        bucket_verified_at: Set(Some(Utc::now().naive_utc())),
+        ..Default::default()
+    }
+    .update(&state.orm)
     .await?;
 
     get_status(State(state), auth).await
@@ -432,29 +371,22 @@ async fn disconnect(
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<BucketStatus>, AppError> {
-    sqlx::query(
-        r#"
-        UPDATE orgs SET
-          bucket_auth_method = NULL,
-          bucket_name = NULL,
-          bucket_prefix = NULL,
-          bucket_region = NULL,
-          bucket_role_arn = NULL,
-          bucket_access_key_id = NULL,
-          bucket_secret_access_key_encrypted = NULL,
-          bucket_verified_at = NULL
-        WHERE id = ?
-        "#,
-    )
-    .bind(auth.current_org_id.as_bytes().as_slice())
-    .execute(&state.pool)
+    entities::orgs::ActiveModel {
+        id: Set(auth.current_org_id.as_bytes().to_vec()),
+        bucket_auth_method: Set(None),
+        bucket_name: Set(None),
+        bucket_prefix: Set(None),
+        bucket_region: Set(None),
+        bucket_role_arn: Set(None),
+        bucket_access_key_id: Set(None),
+        bucket_secret_access_key_encrypted: Set(None),
+        bucket_verified_at: Set(None),
+        ..Default::default()
+    }
+    .update(&state.orm)
     .await?;
     get_status(State(state), auth).await
 }
-
-// ─────────────────────────────────────────────────────────────────────
-// POST /api/org/bucket/ingest — enqueue an ingest job for the current org
-// ─────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Serialize)]
 pub struct IngestEnqueuedResponse {
@@ -465,38 +397,32 @@ async fn ingest_now(
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<IngestEnqueuedResponse>, AppError> {
-    // gate: the org must have a bucket configured. avoids a job that
-    // would fail at the first aws_creds lookup.
-    let configured: Option<(Option<String>,)> =
-        sqlx::query_as("SELECT bucket_auth_method FROM orgs WHERE id = ?")
-            .bind(auth.current_org_id.as_bytes().as_slice())
-            .fetch_optional(&state.pool)
-            .await?;
-    let method = configured
-        .and_then(|(m,)| m)
+    let org_id_bytes = auth.current_org_id.as_bytes().to_vec();
+    let org = entities::orgs::Entity::find_by_id(org_id_bytes.clone())
+        .one(&state.orm)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    let method = org
+        .bucket_auth_method
         .ok_or_else(|| AppError::BadRequest("no bucket connected for this org".into()))?;
     tracing::info!(org_id = %auth.current_org_id, %method, "ingest enqueue");
 
     let job_id = uuid::Uuid::now_v7();
-    sqlx::query(
-        r#"
-        INSERT INTO jobs (id, org_id, kind, subject_type, subject_id, status, created_at)
-        VALUES (?, ?, 'ingest', 'org', ?, 'queued', CURRENT_TIMESTAMP)
-        "#,
-    )
-    .bind(job_id.as_bytes().as_slice())
-    .bind(auth.current_org_id.as_bytes().as_slice())
-    .bind(auth.current_org_id.as_bytes().as_slice())
-    .execute(&state.pool)
+    entities::jobs::ActiveModel {
+        id: Set(job_id.as_bytes().to_vec()),
+        org_id: Set(org_id_bytes.clone()),
+        kind: Set("ingest".into()),
+        subject_type: Set("org".into()),
+        subject_id: Set(Some(org_id_bytes)),
+        status: Set("queued".into()),
+        payload: NotSet,
+        ..Default::default()
+    }
+    .insert(&state.orm)
     .await?;
 
     Ok(Json(IngestEnqueuedResponse { job_id }))
 }
-
-// ─────────────────────────────────────────────────────────────────────
-// GET /cfn/sf-voice-readonly.yaml — serve the cloudformation template
-// ─────────────────────────────────────────────────────────────────────
-
 async fn template_yaml() -> impl axum::response::IntoResponse {
     (
         [(axum::http::header::CONTENT_TYPE, "application/x-yaml")],
@@ -505,8 +431,6 @@ async fn template_yaml() -> impl axum::response::IntoResponse {
 }
 
 fn generate_external_id() -> String {
-    // 24 bytes → 32 chars url-safe base64. plenty of entropy; short
-    // enough to fit in our 128-char column.
     let mut bytes = [0u8; 24];
     rand::thread_rng().fill_bytes(&mut bytes);
     format!("sfv-{}", B64URL.encode(bytes))
