@@ -7,7 +7,7 @@ import type { Transcript } from "@/lib/api";
 import { useJobEvents } from "@/lib/events";
 import { PromptInput } from "./PromptInput";
 import { ReasoningPath } from "./ReasoningPath";
-import { ABPlayer } from "./ABPlayer";
+import { ABPlayer } from "../call/ABPlayer";
 import { useSlice } from "@/lib/queries";
 
 // canonical step order mirrors backend src/jobs/sandbox_stub.rs STEPS.

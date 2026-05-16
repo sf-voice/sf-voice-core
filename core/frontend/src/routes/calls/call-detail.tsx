@@ -7,10 +7,10 @@ import { useState } from "react";
 import { Link, createRoute } from "@tanstack/react-router";
 import { useCall, useCreateTranscribeRun, useTranscripts } from "@/lib/queries";
 import { Timeline } from "@/components/timeline/Timeline";
-import { ProgressDrawer } from "@/components/ProgressDrawer";
-import { PromptFlow } from "@/components/PromptFlow";
-import { ReasoningPath } from "@/components/ReasoningPath";
-import { authedLayoutRoute } from "./_authed";
+import { ProgressDrawer } from "@/components/call/ProgressDrawer";
+import { PromptFlow } from "@/components/prompt/PromptFlow";
+import { ReasoningPath } from "@/components/prompt/ReasoningPath";
+import { authedLayoutRoute } from "../_authed";
 
 function CallDetailPage() {
   const { callId } = callDetailRoute.useParams();

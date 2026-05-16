@@ -7,7 +7,7 @@
 // surfaces in the app.
 
 import { Link, Outlet } from "@tanstack/react-router";
-import { Watercolor } from "./brand/Watercolor";
+import { Watercolor } from "../brand/Watercolor";
 
 export function PublicLayout() {
   return (
