@@ -6,6 +6,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish = false
+default-run = "sf-voice-api"
 
 [[bin]]
 name = "sf-voice-api"
@@ -68,3 +69,15 @@ aws-types = "1"
 tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "rustls-tls-native-roots"] }
 futures-util = "0.3"
 anyhow = "1"
+
+qdrant-client = "1.13"
+clickhouse = "0.13"
+sha2 = "0.10"
+
+sherpa-rs = { version = "0.6", features = ["download-binaries"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+whisper-rs = { version = "0.16", features = ["metal"] }
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+whisper-rs = "0.16"
