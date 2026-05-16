@@ -4,6 +4,46 @@ Carry-over from the YouTube ingest + knowledge-base planning session. Pick up to
 
 ---
 
+## Status snapshot — 2026-05-15
+
+**Done**
+- Phase 0 foundations — schema + `ai_models` S3 bootstrap (whisper ggml, bge-m3, diarization).
+- Phase 1 transcription wiring — `whisper.rs` (local whisper-rs 0.16, Metal on darwin) + `diarize.rs` (sherpa-rs pyannote-3.0 + 3D-Speaker), `align_speakers()`, `jobs/transcribe_document.rs`. **Blocked only on the segmentation model upload** (correct `.onnx` from the tarball; current S3 object is the 9-byte 404 placeholder).
+- `/admin/_internal/youtube` end-to-end:
+  - Per-file upload steps in the timeline (`uploading raw.mp4`, `uploading audio.m4a`, …).
+  - Per-file size + SSE progress.
+  - `upload_with_retry` (exponential backoff, retryable-error classifier).
+  - SDK error unwrapping (no more generic "service error").
+  - Structured `document_failed` tracing event before the row state transition.
+  - **Resumable retry** (see below).
+- Resumable retry (2026-05-15):
+  - `work_dir` keyed by `document_id` (not `job_id`); survives failures.
+  - Step-level idempotency — yt-dlp / ffmpeg skip if output exists on disk; S3 upload skips if `head_object` finds the key.
+  - `POST /api/_internal/documents/:id/retry` re-enqueues against the same doc without nuking derived rows or parent state. Distinct from `force: true` (full re-download).
+  - Frontend: amber `Retry: {failed step}` button on failed rows + zinc `Re-ingest` for hard reset. Step label sourced from `progress_steps`.
+  - Work-dir cleanup logs success/failure to terminal; failed jobs leave the dir in place for the next retry.
+- Frontend chrome: org switcher banner, orgless redirect, sign-out fix (empty body handling in `request()`), missing routes + hooks registered.
+- SeaORM port progressing — pool field stays in `AppState` until full port (4/24 files done, pattern established).
+- Hand-written `entities::bootstrap_schema()` replaces sea-orm's schema-sync (root cause: 2.0-RC.38 empty-SQL bug on DROP INDEX). All 14 tables.
+
+**In progress**
+- Phase 2 — embeddings + vector search. Decision: **bge-m3** via fastembed-rs (1024d, 8192-token context), **DuckDB VSS** in-process (no Qdrant container yet). Files to write:
+  - `embed.rs` — fastembed wrapper, lazy-loaded model handle on AppState.
+  - `chunk.rs` — sliding 30s / 10s stride over transcript segments.
+  - `vector_store.rs` — `VectorStore` trait + `DuckDbVectorStore` impl.
+  - `jobs/embed_document.rs` — chunk → embed → upsert; auto-enqueued post-transcribe.
+  - `GET /api/_internal/search?q=…` — embed query → k-NN → join back to MySQL for snippets.
+
+**Remaining (later phases unchanged)**
+- Phase 3 — thumbnails (ffmpeg @ 10%) + player + presigned URLs (`aws-sdk-s3` `.presigned()`).
+- Phase 4 — summaries (Claude Sonnet) + RAG answers (GPT-4o-mini) with citations.
+- Phase 5 — chat threads (`search_threads`, `search_messages`).
+
+**Blockers**
+- Upload correct `segmentation-3.0.onnx` (~6MB) extracted from `sherpa-onnx-pyannote-segmentation-3-0.tar.bz2` to `s3://sf-voice-ml-models/diarization/`. Until then `transcribe_document` will start whisper but fail on diarizer init.
+
+---
+
 ## Where we are right now
 
 Working end-to-end on `/admin/_internal/youtube`:
