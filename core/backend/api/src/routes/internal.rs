@@ -9,6 +9,10 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use futures_util::stream::{Stream, StreamExt};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, TransactionTrait,
+};
 use serde::{Deserialize, Serialize};
 use tokio_stream::wrappers::BroadcastStream;
 use uuid::Uuid;
@@ -59,91 +63,84 @@ async fn create_youtube_ingest(
         ));
     }
 
-    // single lookup: is there a top-level youtube doc with this url?
-    let existing: Option<(Vec<u8>, String, Option<Vec<u8>>)> = sqlx::query_as(
-        "SELECT id, processing_status, job_id FROM documents \
-         WHERE source_url = ? AND source_kind = 'youtube' AND source_id IS NULL \
-         ORDER BY created_at DESC LIMIT 1",
-    )
-    .bind(&url)
-    .fetch_optional(&state.pool)
-    .await?;
+    // check is there a top-level youtube doc with this url?
+    let existing = entities::documents::Entity::find()
+        .filter(entities::documents::Column::SourceUrl.eq(url.clone()))
+        .filter(entities::documents::Column::SourceKind.eq("youtube"))
+        .filter(entities::documents::Column::SourceId.is_null())
+        .order_by_desc(entities::documents::Column::CreatedAt)
+        .one(&state.orm)
+        .await?;
 
     // dedup short-circuit: non-failed doc + !force → return it as-is.
-    if let Some((id_bytes, status, job_bytes)) = &existing {
-        if !body.force && status != "failed" {
+    if let Some(ref existing) = existing {
+        if !body.force && existing.processing_status != "failed" {
             let doc_id =
-                Uuid::from_slice(id_bytes).map_err(|e| AppError::Internal(e.to_string()))?;
+                Uuid::from_slice(&existing.id).map_err(|e| AppError::Internal(e.to_string()))?;
             tracing::info!(
                 document_id = %doc_id,
                 url = %url,
                 "youtube_ingest: returning existing non-failed doc (dedup)"
             );
+            let job_id = existing
+                .job_id
+                .as_deref()
+                .map(Uuid::from_slice)
+                .transpose()
+                .map_err(|e| AppError::Internal(e.to_string()))?;
             return Ok(Json(CreateYoutubeResponse {
                 document_id: doc_id,
-                job_id: job_bytes
-                    .as_deref()
-                    .map(Uuid::from_slice)
-                    .transpose()
-                    .map_err(|e| AppError::Internal(e.to_string()))?,
+                job_id,
                 existing: true,
             }));
         }
     }
 
-    let now = Utc::now();
-    let mut tx = state.pool.begin().await?;
+    let txn = state.orm.begin().await?;
 
-    // determine the doc id we'll work with. branches:
-    //   reset path  → existing parent (failed or force=true). delete
-    //                 its derived rows, then clear its file fields and
-    //                 reset processing_status='queued'.
-    //   fresh path  → no existing parent. INSERT new uuid v7.
-    let document_id = match &existing {
-        Some((id_bytes, _, _)) => {
+    let document_id = match existing {
+        Some(existing) => {
             let existing_id =
-                Uuid::from_slice(id_bytes).map_err(|e| AppError::Internal(e.to_string()))?;
+                Uuid::from_slice(&existing.id).map_err(|e| AppError::Internal(e.to_string()))?;
 
             // derived rows must go first — fk_documents_source would
             // block the parent reset otherwise. cascade-on-delete is
-            // overkill; one explicit query is clearer.
-            sqlx::query("DELETE FROM documents WHERE source_id = ?")
-                .bind(existing_id.as_bytes().as_slice())
-                .execute(&mut *tx)
+            // overkill; one explicit delete is clearer.
+            entities::documents::Entity::delete_many()
+                .filter(entities::documents::Column::SourceId.eq(existing.id.clone()))
+                .exec(&txn)
                 .await?;
 
-            sqlx::query(
-                r#"
-                UPDATE documents
-                SET bucket=NULL, s3_key=NULL, filename=NULL, mime_type=NULL,
-                    duration_ms=NULL, title=NULL,
-                    processing_status='queued', processing_error=NULL,
-                    updated_at=?
-                WHERE id=?
-                "#,
-            )
-            .bind(now)
-            .bind(existing_id.as_bytes().as_slice())
-            .execute(&mut *tx)
+            entities::documents::ActiveModel {
+                id: Set(existing.id.clone()),
+                bucket: Set(None),
+                s3_key: Set(None),
+                filename: Set(None),
+                mime_type: Set(None),
+                duration_ms: Set(None),
+                title: Set(None),
+                processing_status: Set("queued".into()),
+                processing_error: Set(None),
+                ..Default::default()
+            }
+            .update(&txn)
             .await?;
 
             existing_id
         }
         None => {
             let new_id = Uuid::now_v7();
-            sqlx::query(
-                r#"
-                INSERT INTO documents
-                    (id, type, media_kind, source_kind, source_id, source_url,
-                     processing_status, created_at, updated_at)
-                VALUES (?, 'internal', 'video', 'youtube', NULL, ?, 'queued', ?, ?)
-                "#,
-            )
-            .bind(new_id.as_bytes().as_slice())
-            .bind(&url)
-            .bind(now)
-            .bind(now)
-            .execute(&mut *tx)
+            entities::documents::ActiveModel {
+                id: Set(new_id.as_bytes().to_vec()),
+                r#type: Set("internal".into()),
+                media_kind: Set("video".into()),
+                source_kind: Set("youtube".into()),
+                source_id: Set(None),
+                source_url: Set(Some(url.clone())),
+                processing_status: Set("queued".into()),
+                ..Default::default()
+            }
+            .insert(&txn)
             .await?;
             new_id
         }
@@ -158,28 +155,28 @@ async fn create_youtube_ingest(
         "source_url": url,
     });
 
-    sqlx::query(
-        r#"
-        INSERT INTO jobs
-            (id, org_id, kind, subject_type, subject_id, status, payload, created_at)
-        VALUES (?, ?, 'youtube_ingest', 'document', ?, 'queued', ?, ?)
-        "#,
-    )
-    .bind(job_id.as_bytes().as_slice())
-    .bind(INTERNAL_ORG_ID.as_bytes().as_slice())
-    .bind(document_id.as_bytes().as_slice())
-    .bind(serde_json::to_string(&payload).map_err(|e| AppError::Internal(e.to_string()))?)
-    .bind(now)
-    .execute(&mut *tx)
+    entities::jobs::ActiveModel {
+        id: Set(job_id.as_bytes().to_vec()),
+        org_id: Set(INTERNAL_ORG_ID.as_bytes().to_vec()),
+        kind: Set("youtube_ingest".into()),
+        subject_type: Set("document".into()),
+        subject_id: Set(Some(document_id.as_bytes().to_vec())),
+        status: Set("queued".into()),
+        payload: Set(Some(payload)),
+        ..Default::default()
+    }
+    .insert(&txn)
     .await?;
 
-    sqlx::query("UPDATE documents SET job_id=? WHERE id=?")
-        .bind(job_id.as_bytes().as_slice())
-        .bind(document_id.as_bytes().as_slice())
-        .execute(&mut *tx)
-        .await?;
+    entities::documents::ActiveModel {
+        id: Set(document_id.as_bytes().to_vec()),
+        job_id: Set(Some(job_id.as_bytes().to_vec())),
+        ..Default::default()
+    }
+    .update(&txn)
+    .await?;
 
-    tx.commit().await?;
+    txn.commit().await?;
 
     Ok(Json(CreateYoutubeResponse {
         document_id,
@@ -188,10 +185,7 @@ async fn create_youtube_ingest(
     }))
 }
 
-// matches every column we select from `documents`. `type` is renamed
-// to `doc_type` because `type` is a rust reserved keyword; serde
-// rewrites it back to "type" on the wire.
-#[derive(Debug, Serialize, sqlx::FromRow)]
+#[derive(Debug, Serialize)]
 pub struct DocumentRow {
     pub id: Uuid,
     #[serde(rename = "type")]
@@ -224,31 +218,48 @@ pub struct DocumentDetail {
     pub derived: Vec<DocumentRow>,
 }
 
-// shared SELECT body — the `type AS doc_type` alias keeps rust's
-// reserved-keyword issue out of the FromRow derive. LEFT JOIN on
-// jobs.id supplies the timeline events for the timeline ui.
-const DOCUMENT_SELECT: &str = r#"
-    SELECT d.id,
-           d.type AS doc_type,
-           d.media_kind,
-           d.source_kind,
-           d.source_id,
-           d.source_url,
-           d.bucket,
-           d.s3_key,
-           d.filename,
-           d.mime_type,
-           d.duration_ms,
-           d.processing_status,
-           d.processing_error,
-           d.job_id,
-           d.title,
-           d.created_at,
-           d.updated_at,
-           j.progress_steps
-    FROM documents d
-    LEFT JOIN jobs j ON j.id = d.job_id
-"#;
+fn document_row(
+    m: entities::documents::Model,
+    progress_steps: Option<serde_json::Value>,
+) -> DocumentRow {
+    DocumentRow {
+        id: Uuid::from_slice(&m.id).expect("documents.id is BINARY(16)"),
+        doc_type: m.r#type,
+        media_kind: m.media_kind,
+        source_kind: m.source_kind,
+        source_id: m.source_id.as_deref().map(|b| Uuid::from_slice(b).unwrap()),
+        source_url: m.source_url,
+        bucket: m.bucket,
+        s3_key: m.s3_key,
+        filename: m.filename,
+        mime_type: m.mime_type,
+        duration_ms: m.duration_ms,
+        processing_status: m.processing_status,
+        processing_error: m.processing_error,
+        job_id: m.job_id.as_deref().map(|b| Uuid::from_slice(b).unwrap()),
+        title: m.title,
+        created_at: DateTime::<Utc>::from_naive_utc_and_offset(m.created_at, Utc),
+        updated_at: DateTime::<Utc>::from_naive_utc_and_offset(m.updated_at, Utc),
+        progress_steps,
+    }
+}
+
+async fn progress_for_jobs(
+    state: &AppState,
+    job_ids: Vec<Vec<u8>>,
+) -> Result<std::collections::HashMap<Vec<u8>, serde_json::Value>, AppError> {
+    if job_ids.is_empty() {
+        return Ok(Default::default());
+    }
+    let jobs = entities::jobs::Entity::find()
+        .filter(entities::jobs::Column::Id.is_in(job_ids))
+        .all(&state.orm)
+        .await?;
+    Ok(jobs
+        .into_iter()
+        .filter_map(|j| j.progress_steps.map(|p| (j.id, p)))
+        .collect())
+}
 
 async fn list_documents(
     State(state): State<AppState>,
@@ -256,11 +267,23 @@ async fn list_documents(
 ) -> Result<Json<Vec<DocumentRow>>, AppError> {
     // list only top-level sources (source_id IS NULL). derived rows
     // appear nested under their parent via GET /documents/:id.
-    let sql =
-        format!("{DOCUMENT_SELECT} WHERE d.source_id IS NULL ORDER BY d.created_at DESC LIMIT 200");
-    let rows: Vec<DocumentRow> = sqlx::query_as::<_, DocumentRow>(&sql)
-        .fetch_all(&state.pool)
+    let docs = entities::documents::Entity::find()
+        .filter(entities::documents::Column::SourceId.is_null())
+        .order_by_desc(entities::documents::Column::CreatedAt)
+        .limit(200)
+        .all(&state.orm)
         .await?;
+
+    let job_ids: Vec<Vec<u8>> = docs.iter().filter_map(|d| d.job_id.clone()).collect();
+    let progress = progress_for_jobs(&state, job_ids).await?;
+
+    let rows = docs
+        .into_iter()
+        .map(|d| {
+            let p = d.job_id.as_ref().and_then(|id| progress.get(id).cloned());
+            document_row(d, p)
+        })
+        .collect();
     Ok(Json(rows))
 }
 
@@ -269,31 +292,47 @@ async fn get_document(
     _admin: AdminContext,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Option<DocumentDetail>>, AppError> {
-    let doc_sql = format!("{DOCUMENT_SELECT} WHERE d.id = ?");
-    let doc: Option<DocumentRow> = sqlx::query_as::<_, DocumentRow>(&doc_sql)
-        .bind(id.as_bytes().as_slice())
-        .fetch_optional(&state.pool)
+    let doc = entities::documents::Entity::find_by_id(id.as_bytes().to_vec())
+        .one(&state.orm)
         .await?;
-
     let Some(doc) = doc else {
         return Ok(Json(None));
     };
 
-    // derived list. ordered by filename so the ui shows audio/video in
-    // a stable order across reloads.
-    let derived_sql = format!("{DOCUMENT_SELECT} WHERE d.source_id = ? ORDER BY d.filename ASC");
-    let derived: Vec<DocumentRow> = sqlx::query_as::<_, DocumentRow>(&derived_sql)
-        .bind(id.as_bytes().as_slice())
-        .fetch_all(&state.pool)
+    let derived = entities::documents::Entity::find()
+        .filter(entities::documents::Column::SourceId.eq(doc.id.clone()))
+        .order_by_asc(entities::documents::Column::Filename)
+        .all(&state.orm)
         .await?;
 
-    Ok(Json(Some(DocumentDetail { doc, derived })))
+    let mut job_ids: Vec<Vec<u8>> = Vec::new();
+    if let Some(j) = doc.job_id.clone() {
+        job_ids.push(j);
+    }
+    for d in &derived {
+        if let Some(j) = d.job_id.clone() {
+            job_ids.push(j);
+        }
+    }
+    let progress = progress_for_jobs(&state, job_ids).await?;
+
+    let parent_progress = doc.job_id.as_ref().and_then(|id| progress.get(id).cloned());
+    let parent = document_row(doc, parent_progress);
+
+    let derived = derived
+        .into_iter()
+        .map(|d| {
+            let p = d.job_id.as_ref().and_then(|id| progress.get(id).cloned());
+            document_row(d, p)
+        })
+        .collect();
+
+    Ok(Json(Some(DocumentDetail {
+        doc: parent,
+        derived,
+    })))
 }
 
-// admin-gated mirror of /api/jobs/:id/events. shape identical; the only
-// difference is the AdminContext extractor. event encoding + replay
-// logic live in events::{load_existing_steps, make_sse_event} so the
-// two endpoints can't drift.
 async fn job_events(
     State(state): State<AppState>,
     _admin: AdminContext,
