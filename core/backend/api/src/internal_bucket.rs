@@ -30,12 +30,10 @@ pub struct InternalBucket {
 }
 
 pub async fn open() -> Result<InternalBucket, AppError> {
-    let bucket = std::env::var("S3_BUCKET_NAME").map_err(|_| {
-        AppError::Internal("S3_BUCKET_NAME not set".into())
-    })?;
-    let region = std::env::var("AWS_REGION").map_err(|_| {
-        AppError::Internal("AWS_REGION not set".into())
-    })?;
+    let bucket = std::env::var("S3_BUCKET_NAME")
+        .map_err(|_| AppError::Internal("S3_BUCKET_NAME not set".into()))?;
+    let region =
+        std::env::var("AWS_REGION").map_err(|_| AppError::Internal("AWS_REGION not set".into()))?;
 
     let conf = aws_config::defaults(BehaviorVersion::latest())
         .region(Region::new(region.clone()))

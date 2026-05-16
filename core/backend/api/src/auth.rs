@@ -180,10 +180,7 @@ pub async fn create_session(
     Ok((token_bytes, token_str))
 }
 
-pub async fn delete_session(
-    db: &DatabaseConnection,
-    token: [u8; 32],
-) -> Result<(), AppError> {
+pub async fn delete_session(db: &DatabaseConnection, token: [u8; 32]) -> Result<(), AppError> {
     entities::sessions::Entity::delete_by_id(token.to_vec())
         .exec(db)
         .await?;
@@ -210,10 +207,7 @@ pub async fn switch_session_org(
 /// look up an org_users membership row. returns the org_id of the
 /// caller's first (oldest) membership, or NotFound if they have none.
 /// used by login + create_org to pick a default current_org.
-pub async fn first_org_for_user(
-    db: &DatabaseConnection,
-    user_id: Uuid,
-) -> Result<Uuid, AppError> {
+pub async fn first_org_for_user(db: &DatabaseConnection, user_id: Uuid) -> Result<Uuid, AppError> {
     use sea_orm::QueryOrder;
     let membership = entities::org_users::Entity::find()
         .filter(entities::org_users::Column::UserId.eq(user_id.as_bytes().to_vec()))

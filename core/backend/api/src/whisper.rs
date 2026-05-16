@@ -8,9 +8,7 @@
 
 use std::path::Path;
 
-use whisper_rs::{
-    FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters,
-};
+use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
 use crate::error::AppError;
 
@@ -127,7 +125,11 @@ pub fn align_speakers(
         .collect()
 }
 
-fn best_speaker(seg_start: i32, seg_end: i32, turns: &[crate::diarize::SpeakerTurn]) -> Option<i32> {
+fn best_speaker(
+    seg_start: i32,
+    seg_end: i32,
+    turns: &[crate::diarize::SpeakerTurn],
+) -> Option<i32> {
     let mut best_overlap = 0i32;
     let mut best_id: Option<i32> = None;
     for t in turns {

@@ -7,9 +7,7 @@ use std::process::Stdio;
 use std::time::Duration;
 
 use aws_sdk_s3::primitives::ByteStream;
-use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, EntityTrait, TransactionTrait,
-};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait, TransactionTrait};
 use serde::Deserialize;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
@@ -154,7 +152,15 @@ async fn run_steps(
     let document_id_bytes = document_id.as_bytes().to_vec();
 
     // step 1: metadata via `yt-dlp -J`.
-    append_step(state, org_id, job_id, "fetching metadata", StepStatus::Running, None).await?;
+    append_step(
+        state,
+        org_id,
+        job_id,
+        "fetching metadata",
+        StepStatus::Running,
+        None,
+    )
+    .await?;
     let meta = fetch_metadata(source_url).await?;
     append_step(
         state,
@@ -199,9 +205,25 @@ async fn run_steps(
         )
         .await?;
     } else {
-        append_step(state, org_id, job_id, "downloading media", StepStatus::Running, None).await?;
+        append_step(
+            state,
+            org_id,
+            job_id,
+            "downloading media",
+            StepStatus::Running,
+            None,
+        )
+        .await?;
         run_yt_dlp_download(state, org_id, job_id, source_url, &raw_path).await?;
-        append_step(state, org_id, job_id, "downloading media", StepStatus::Done, None).await?;
+        append_step(
+            state,
+            org_id,
+            job_id,
+            "downloading media",
+            StepStatus::Done,
+            None,
+        )
+        .await?;
     }
 
     // step 3: extract audio variants (m4a re-encode aac for container
@@ -226,14 +248,30 @@ async fn run_steps(
         )
         .await?;
     } else {
-        append_step(state, org_id, job_id, "extracting audio", StepStatus::Running, None).await?;
+        append_step(
+            state,
+            org_id,
+            job_id,
+            "extracting audio",
+            StepStatus::Running,
+            None,
+        )
+        .await?;
         if !file_nonempty(&m4a_path) {
             ffmpeg_extract_audio_aac(&raw_path, &m4a_path).await?;
         }
         if !file_nonempty(&wav_path) {
             ffmpeg_extract_audio_wav(&raw_path, &wav_path).await?;
         }
-        append_step(state, org_id, job_id, "extracting audio", StepStatus::Done, None).await?;
+        append_step(
+            state,
+            org_id,
+            job_id,
+            "extracting audio",
+            StepStatus::Done,
+            None,
+        )
+        .await?;
     }
 
     // step 4: extract video-only with stream copy. fast, no re-encode.
@@ -249,9 +287,25 @@ async fn run_steps(
         )
         .await?;
     } else {
-        append_step(state, org_id, job_id, "extracting video", StepStatus::Running, None).await?;
+        append_step(
+            state,
+            org_id,
+            job_id,
+            "extracting video",
+            StepStatus::Running,
+            None,
+        )
+        .await?;
         ffmpeg_extract_video_copy(&raw_path, &video_path).await?;
-        append_step(state, org_id, job_id, "extracting video", StepStatus::Done, None).await?;
+        append_step(
+            state,
+            org_id,
+            job_id,
+            "extracting video",
+            StepStatus::Done,
+            None,
+        )
+        .await?;
     }
 
     // step 5: upload all four to s3.
@@ -273,10 +327,10 @@ async fn run_steps(
     // running. wrapped in upload_with_retry so transient s3 errors
     // (5xx, throttling, io reset) don't fail the whole job.
     let uploads: &[(&str, &Path, &str, &str)] = &[
-        ("raw.mp4",   &raw_path,   &raw_key,   "video/mp4"),
+        ("raw.mp4", &raw_path, &raw_key, "video/mp4"),
         ("video.mp4", &video_path, &video_key, "video/mp4"),
-        ("audio.m4a", &m4a_path,   &m4a_key,   "audio/mp4"),
-        ("audio.wav", &wav_path,   &wav_key,   "audio/wav"),
+        ("audio.m4a", &m4a_path, &m4a_key, "audio/mp4"),
+        ("audio.wav", &wav_path, &wav_key, "audio/wav"),
     ];
     for (name, path, key, mime) in uploads {
         let step_label = format!("uploading {name}");
@@ -527,23 +581,49 @@ fn parse_download_progress(line: &str) -> Option<String> {
 
 async fn ffmpeg_extract_audio_aac(src: &Path, dst: &Path) -> Result<(), AppError> {
     ffmpeg(&[
-        "-y", "-hide_banner", "-loglevel", "error", "-i", path_str(src)?, "-vn", "-c:a", "aac",
-        "-b:a", "192k", path_str(dst)?,
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        path_str(src)?,
+        "-vn",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        path_str(dst)?,
     ])
     .await
 }
 
 async fn ffmpeg_extract_audio_wav(src: &Path, dst: &Path) -> Result<(), AppError> {
     ffmpeg(&[
-        "-y", "-hide_banner", "-loglevel", "error", "-i", path_str(src)?, "-vn", "-c:a",
-        "pcm_s16le", path_str(dst)?,
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        path_str(src)?,
+        "-vn",
+        "-c:a",
+        "pcm_s16le",
+        path_str(dst)?,
     ])
     .await
 }
 
 async fn ffmpeg_extract_video_copy(src: &Path, dst: &Path) -> Result<(), AppError> {
     ffmpeg(&[
-        "-y", "-hide_banner", "-loglevel", "error", "-i", path_str(src)?, "-an", "-c:v", "copy",
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        path_str(src)?,
+        "-an",
+        "-c:v",
+        "copy",
         path_str(dst)?,
     ])
     .await
@@ -600,9 +680,7 @@ async fn upload(
             }
             other => other.to_string(),
         };
-        return Err(AppError::Internal(format!(
-            "s3 put_object {key}: {detail}"
-        )));
+        return Err(AppError::Internal(format!("s3 put_object {key}: {detail}")));
     }
     Ok(())
 }

@@ -9,14 +9,10 @@
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter,
-};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter};
 use uuid::Uuid;
 
-use crate::{
-    aws_creds, error::AppError, jobs::append_step, models::StepStatus, state::AppState,
-};
+use crate::{aws_creds, error::AppError, jobs::append_step, models::StepStatus, state::AppState};
 
 const AUDIO_EXTS: &[&str] = &["wav", "mp3", "m4a", "flac", "ogg", "webm"];
 
@@ -26,7 +22,15 @@ pub async fn run(
     org_id: Uuid,
     _payload: Option<serde_json::Value>,
 ) -> Result<(), AppError> {
-    append_step(state, org_id, job_id, "resolving credentials", StepStatus::Running, None).await?;
+    append_step(
+        state,
+        org_id,
+        job_id,
+        "resolving credentials",
+        StepStatus::Running,
+        None,
+    )
+    .await?;
 
     let bucket = aws_creds::open_for_org(&state.orm, org_id).await?;
 
@@ -40,7 +44,15 @@ pub async fn run(
     )
     .await?;
 
-    append_step(state, org_id, job_id, "listing bucket", StepStatus::Running, None).await?;
+    append_step(
+        state,
+        org_id,
+        job_id,
+        "listing bucket",
+        StepStatus::Running,
+        None,
+    )
+    .await?;
 
     // single page is fine for v1. paginate when customers cross 1000
     // objects in a single ingest.
@@ -63,7 +75,10 @@ pub async fn run(
         job_id,
         "listing bucket",
         StepStatus::Done,
-        Some(format!("{total} object{} discovered", if total == 1 { "" } else { "s" })),
+        Some(format!(
+            "{total} object{} discovered",
+            if total == 1 { "" } else { "s" }
+        )),
     )
     .await?;
 
@@ -134,7 +149,10 @@ pub async fn run(
         job_id,
         "enqueuing transcribe jobs",
         StepStatus::Done,
-        Some(format!("{transcribe_jobs} new audio file{}", if transcribe_jobs == 1 { "" } else { "s" })),
+        Some(format!(
+            "{transcribe_jobs} new audio file{}",
+            if transcribe_jobs == 1 { "" } else { "s" }
+        )),
     )
     .await?;
 
@@ -143,5 +161,7 @@ pub async fn run(
 
 fn is_audio(key: &str) -> bool {
     let lower = key.to_lowercase();
-    AUDIO_EXTS.iter().any(|ext| lower.ends_with(&format!(".{ext}")))
+    AUDIO_EXTS
+        .iter()
+        .any(|ext| lower.ends_with(&format!(".{ext}")))
 }

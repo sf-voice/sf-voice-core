@@ -23,21 +23,18 @@ pub struct OrgBucket {
 
 const SESSION_NAME: &str = "sf-voice-ingest";
 
-pub async fn open_for_org(
-    db: &DatabaseConnection,
-    org_id: Uuid,
-) -> Result<OrgBucket, AppError> {
+pub async fn open_for_org(db: &DatabaseConnection, org_id: Uuid) -> Result<OrgBucket, AppError> {
     let org = entities::orgs::Entity::find_by_id(org_id.as_bytes().to_vec())
         .one(db)
         .await?
         .ok_or(AppError::NotFound)?;
 
-    let method = org.bucket_auth_method.ok_or_else(|| {
-        AppError::BadRequest("no bucket connected for this org".into())
-    })?;
-    let bucket = org.bucket_name.ok_or_else(|| {
-        AppError::BadRequest("bucket_name missing despite method set".into())
-    })?;
+    let method = org
+        .bucket_auth_method
+        .ok_or_else(|| AppError::BadRequest("no bucket connected for this org".into()))?;
+    let bucket = org
+        .bucket_name
+        .ok_or_else(|| AppError::BadRequest("bucket_name missing despite method set".into()))?;
     let prefix = org.bucket_prefix.unwrap_or_default();
     let region = org.bucket_region.unwrap_or_else(|| "us-east-1".to_string());
 

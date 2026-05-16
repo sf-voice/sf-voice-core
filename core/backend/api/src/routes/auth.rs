@@ -195,8 +195,7 @@ async fn login(
     if !verify_password(&body.password, hash) {
         return Err(AppError::Unauthorized);
     }
-    let user_id =
-        Uuid::from_slice(&user.id).map_err(|e| AppError::Internal(e.to_string()))?;
+    let user_id = Uuid::from_slice(&user.id).map_err(|e| AppError::Internal(e.to_string()))?;
 
     // pick the first org this user belongs to as the current org. org
     // switcher (phase I) lets them change later.
@@ -236,8 +235,7 @@ async fn me(
         .one(&state.orm)
         .await?
         .ok_or(AppError::Unauthorized)?;
-    let resp =
-        hydrate_authed(&state.orm, auth.user_id, auth.current_org_id, user.email).await?;
+    let resp = hydrate_authed(&state.orm, auth.user_id, auth.current_org_id, user.email).await?;
     Ok(Json(resp))
 }
 

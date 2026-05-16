@@ -92,10 +92,8 @@ async fn list_transcripts(
         .into_iter()
         .map(|t| TranscriptRow {
             id: t.id,
-            call_id: Uuid::from_slice(
-                t.call_id.as_deref().expect("call-route row has call_id"),
-            )
-            .expect("transcripts.call_id BINARY(16)"),
+            call_id: Uuid::from_slice(t.call_id.as_deref().expect("call-route row has call_id"))
+                .expect("transcripts.call_id BINARY(16)"),
             speaker_label: t.speaker_label,
             start_ms: t.start_ms,
             end_ms: t.end_ms,
