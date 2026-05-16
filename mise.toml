@@ -298,6 +298,17 @@ docker compose -f infra/dev/docker-compose.yml down -v
 rm -f data/sf_voice.duckdb data/sf_voice.duckdb.wal
 """
 
+[tasks."db:reset"]
+description = "destructive — drop + recreate sf_voice_dev (keeps the container) + clear duckdb. faster than db:nuke."
+run = """
+set -e
+docker compose -f infra/dev/docker-compose.yml exec -T mysql \
+  mysql -usf_voice -psf_voice \
+  -e "DROP DATABASE IF EXISTS sf_voice_dev; CREATE DATABASE sf_voice_dev;"
+rm -f data/sf_voice.duckdb data/sf_voice.duckdb.wal
+echo "[db:reset] sf_voice_dev recreated; duckdb file cleared. next api boot will rebuild schema."
+"""
+
 [tasks."db:logs"]
 description = "tail mysql container logs"
 run = "docker compose -f infra/dev/docker-compose.yml logs -f"
