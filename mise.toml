@@ -169,6 +169,25 @@ run = [
   "mix workspace.run -t deps.compile",
 ]
 
+[tasks."repo:pull"]
+description = "pull this repo and update submodules to the recorded commits"
+run = "git pull --recurse-submodules"
+
+[tasks."repo:submodules"]
+description = "sync, initialize, and checkout submodules at the commits recorded by this repo"
+run = [
+  "git submodule sync --recursive",
+  "git submodule update --init --recursive",
+]
+
+[tasks."repo:submodules:recurse"]
+description = "enable submodule recursion for this repo so plain git pull updates submodules"
+run = "git config submodule.recurse true"
+
+[tasks."repo:submodules:bump-core"]
+description = "advance core to latest origin/main, then review and commit the parent pointer"
+run = "git submodule update --remote --merge core"
+
 
 [tasks."web:dev"]
 description = "core/frontend dev server (rspack, app.sf-voice.sh)"
