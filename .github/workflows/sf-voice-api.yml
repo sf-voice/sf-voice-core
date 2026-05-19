@@ -36,12 +36,12 @@ jobs:
       steps:
          - uses: actions/checkout@v4
            with:
-              # core/ is a git submodule pinned to a commit SHA in the parent
-              # repo. without this, the directory is an empty placeholder and
-              # cargo can't resolve the workspace members inside it.
-              # if core/ is private and GITHUB_TOKEN lacks cross-repo access,
-              # add: token: ${{ secrets.GH_PAT }}
+              # core/ is a private submodule in a separate repo. GITHUB_TOKEN
+              # is scoped to sf-voice-core only — GH_PAT is a fine-grained PAT
+              # with Contents:Read on both sf-voice-core and core. checkout
+              # rewrites the ssh url to https and uses the token automatically.
               submodules: true
+              token: ${{ secrets.GH_PAT }}
 
          - name: install rust toolchain
            uses: dtolnay/rust-toolchain@stable
@@ -83,10 +83,10 @@ jobs:
       steps:
          - uses: actions/checkout@v4
            with:
-              # same as the test job — docker build context is the repo root and
-              # the Dockerfile is at core/backend/api/Dockerfile, so the submodule
-              # must be populated or the build context is missing all rust source.
+              # same as the test job — Dockerfile is at core/backend/api/Dockerfile
+              # so the submodule must be populated for the build context to work.
               submodules: true
+              token: ${{ secrets.GH_PAT }}
 
          - name: set up buildx
            uses: docker/setup-buildx-action@v3

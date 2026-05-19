@@ -186,8 +186,24 @@ description = "one-time config: makes plain git pull recurse into core/ automati
 run = "git config submodule.recurse true"
 
 [tasks."repo:submodules:bump-core"]
-description = "move core/ to the latest origin/main and stage the new pin — commit + push the parent yourself after"
-run = "git submodule update --remote --merge core"
+description = "pull core/ to latest origin/main, commit the updated pin in the parent, and push — one step"
+run = """
+set -e
+git submodule update --remote --merge core
+
+# stage the updated pin — if core was already current this will be empty
+git add core
+if git diff --cached --quiet; then
+  echo "[repo:submodules:bump-core] core is already up to date"
+  exit 0
+fi
+
+# include the new SHA in the message so git log is self-documenting
+SHORT_SHA=$(cd core && git rev-parse --short HEAD)
+git commit -m "chore: bump core to $SHORT_SHA"
+git push
+echo "[repo:submodules:bump-core] done"
+"""
 
 [tasks."repo:push"]
 description = "push core/ first, then the parent — core must land on its remote before the parent so CI can fetch the pinned SHA"
