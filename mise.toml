@@ -13,7 +13,7 @@ duckdb = "latest"
 "_".file = ".env"
 
 [tasks.setup]
-description = "first-time setup: install deps, create dbs, migrate, seed"
+description = "first-time: deps, dbs, migrate, seed"
 run = [
   "mix deps.get",
   "mix workspace.run -t ecto.create",
@@ -22,18 +22,17 @@ run = [
 ]
 
 [tasks."server:resto"]
-description = "run resto_booking_app with iex (port from RESTO_BOOKING_APP_PORT)"
+description = "start resto iex server"
 dir = "apps/resto_booking_app"
 run = "iex -S mix phx.server"
 
 [tasks."server:ellie"]
-description = "run ellie_ai with iex (port from ELLIE_AI_PORT)"
+description = "start ellie iex server"
 dir = "apps/ellie_ai"
 run = "iex -S mix phx.server"
 
 [tasks.dev]
-description = "full local stack: ngrok tunnel for ellie + both phoenix apps"
-
+description = "elixir dev stack with ngrok"
 run = """
 set -e
 
@@ -87,11 +86,11 @@ wait
 """
 
 [tasks.test]
-description = "run tests across every app in the workspace"
+description = "run tests across every app"
 run = "mix workspace.run -t test"
 
 [tasks.ci]
-description = "simulate the CI run locally (format-check → compile → test)"
+description = "local CI: format, compile, test"
 run = [
   "mix workspace.run -t format -- --check-formatted",
   "mix workspace.run -t compile -- --warnings-as-errors",
@@ -99,7 +98,7 @@ run = [
 ]
 
 [tasks."test.watch"]
-description = "watch tests for resto (the app with the bigger suite)"
+description = "watch mode: resto tests"
 dir = "apps/resto_booking_app"
 run = "mix test.watch"
 
@@ -108,7 +107,7 @@ description = "mix format across every app"
 run = "mix workspace.run -t format"
 
 [tasks."format.check"]
-description = "ci-style formatting check (fails on diffs)"
+description = "format check (fails on diffs)"
 run = "mix workspace.run -t format -- --check-formatted"
 
 [tasks.compile]
@@ -120,12 +119,12 @@ description = "run pending migrations across every app"
 run = "mix workspace.run -t ecto.migrate"
 
 [tasks."migrate.rollback"]
-description = "rollback the last migration in resto"
+description = "rollback last migration (resto)"
 dir = "apps/resto_booking_app"
 run = "mix ecto.rollback"
 
 [tasks.seed]
-description = "reseed both apps' dev dbs (resto's 4-day demo window + ellie's orgs/prompts/settings)"
+description = "reseed dev dbs for both apps"
 run = """
 set -e
 echo "[seed] resto:"
@@ -140,12 +139,12 @@ dir = "apps/resto_booking_app"
 run = "iex -S mix"
 
 [tasks."console:ellie"]
-description = "iex console for ellie_ai (no server)"
+description = "iex console for ellie (no server)"
 dir = "apps/ellie_ai"
 run = "iex -S mix"
 
 [tasks."sqlite:reset"]
-description = "drop + recreate + migrate + seed both elixir apps' sqlite dbs (destructive — wipes resto + ellie)"
+description = "destructive: reset sqlite for both apps"
 run = """
 set -e
 echo "[sqlite:reset] resto: drop + create + migrate + seed"
@@ -171,22 +170,24 @@ run = [
 ]
 
 [tasks."repo:pull"]
-description = "git pull + fast-forward core/ to the SHA pinned here — normal day-to-day pull"
+description = "pull + fast-forward core/ submodule"
 run = "git pull --recurse-submodules"
 
 [tasks."repo:submodules"]
-description = "first-time setup: populate empty core/ after a plain clone, or re-sync if .gitmodules URLs changed"
+hide = true
+description = "init or re-sync core/ submodule"
 run = [
   "git submodule sync --recursive",
   "git submodule update --init --recursive",
 ]
 
 [tasks."repo:submodules:recurse"]
-description = "one-time config: makes plain git pull recurse into core/ automatically — run once per machine"
+hide = true
+description = "one-time: enable submodule.recurse"
 run = "git config submodule.recurse true"
 
 [tasks."repo:submodules:bump-core"]
-description = "pull core/ to latest origin/main, commit the updated pin in the parent, and push — one step"
+description = "bump core/ pin to latest origin/main"
 run = """
 set -e
 git submodule update --remote --merge core
@@ -206,7 +207,7 @@ echo "[repo:submodules:bump-core] done"
 """
 
 [tasks."repo:push"]
-description = "push core/ first, then the parent — core must land on its remote before the parent so CI can fetch the pinned SHA"
+description = "push core/ then parent (in order)"
 run = """
 set -e
 
@@ -222,43 +223,27 @@ git push
 echo "[repo:push] done."
 """
 
-[tasks."add"]
-description = "stage all changes in core/ and the parent repo — run before commit"
-run = """
-set -e
-echo "[add] core..."
-(cd core && git add -A)
-
-echo "[add] parent..."
-git add -A
-
-echo "[add] done — run: mise run commit -- \"your message\""
-"""
-
 [tasks."commit"]
-description = "commit staged changes in both core/ and the parent with the same message"
+description = "stage + commit both repos with the same message"
 run = """
 set -e
-# mise doesn't pass positional args to heredoc scripts via $1 — use the
-# {{arg()}} template instead, which interpolates the value before the script runs.
 MSG="{{arg(i=0, name='message')}}"
 
 echo "[commit] core..."
-# only commit if something is actually staged — no-op otherwise
-(cd core && git diff --cached --quiet || git commit -m "$MSG")
+(cd core && git add -A && (git diff --cached --quiet || git commit -m "$MSG"))
 
-# committing in core changed its HEAD, so re-stage the updated submodule
-# pin in the parent before we commit here.
+# re-stage the updated submodule pin after core commits
 git add core
 
 echo "[commit] parent..."
+git add -A
 git diff --cached --quiet || git commit -m "$MSG"
 
 echo "[commit] done — run: mise run repo:push"
 """
 
 [tasks."ship"]
-description = "stage + commit + push core/, then bump and push the parent pin — one command from parent root"
+description = "stage, commit + push both repos"
 run = """
 set -e
 MSG="{{arg(i=0, name='message')}}"
@@ -282,63 +267,62 @@ git diff --cached --quiet || git commit -m "chore: bump core — $MSG"
 echo "[ship] pushing parent..."
 git push
 
-echo "[hip] done."
+echo "[ship] done."
 """
 
 
 [tasks."web:dev"]
-description = "core/frontend dev server (rspack, app.sf-voice.sh)"
+description = "frontend dev server"
 dir = "core/frontend"
 run = "pnpm dev"
 
 [tasks."web:build"]
-description = "core/frontend production build"
+description = "frontend production build"
 dir = "core/frontend"
 run = "pnpm build"
 
 [tasks."web:typecheck"]
-description = "tsc --noEmit for core/frontend"
+description = "frontend type check"
 dir = "core/frontend"
 run = "pnpm typecheck"
 
 [tasks."api:dev"]
-description = "core/backend/api — cargo run (api.sf-voice.sh)"
+description = "api dev server"
 run = "cargo run -p sf-voice-api"
 
 [tasks."api:build"]
-description = "core/backend/api — cargo build --release"
+description = "api release build"
 run = "cargo build -p sf-voice-api --release"
 
 
-
 [tasks."db:migrate"]
-description = "run pending migrations against DATABASE_URL"
+description = "run pending migrations"
 dir = "core/backend"
 run = "sea-orm-cli migrate up"
 
 [tasks."db:migrate:status"]
-description = "show which migrations have and haven't been applied"
+description = "show migration status"
 dir = "core/backend"
 run = "sea-orm-cli migrate status"
 
 [tasks."db:migrate:down"]
-description = "roll back the last applied migration"
+description = "roll back last migration"
 dir = "core/backend"
 run = "sea-orm-cli migrate down"
 
 [tasks."db:migrate:fresh"]
-description = "destructive — drop all tables and re-apply every migration from scratch"
+description = "destructive: drop + reapply all migrations"
 dir = "core/backend"
 run = "sea-orm-cli migrate fresh"
 
 [tasks."inference:install"]
-description = "core/inference — sync python deps (placeholder)"
+description = "sync inference python deps (placeholder)"
 dir = "core/inference"
 run = "echo 'inference scaffold — wire uv/pip once dependencies exist'"
 
 
 [tasks.install]
-description = "one-time bootstrap: tool versions, then deps for every stack"
+description = "one-time bootstrap: all stacks"
 run = """
 set -e
 
@@ -367,7 +351,7 @@ echo "[install] done."
 """
 
 [tasks."core:dev"]
-description = "full core stack: mysql + duckdb + frontend + backend (+ inference)"
+description = "full core dev stack"
 run = """
 set -e
 
@@ -413,25 +397,25 @@ wait
 """
 
 [tasks."db:start"]
-description = "start the dev data layer (mysql in docker, duckdb is just a file)"
+description = "start mysql dev container"
 run = """
 mkdir -p data
 docker compose -f infra/dev/docker-compose.yml up -d
 """
 
 [tasks."db:stop"]
-description = "stop the dev data layer (mysql). volume preserved."
+description = "stop mysql dev container"
 run = "docker compose -f infra/dev/docker-compose.yml down"
 
 [tasks."db:nuke"]
-description = "destructive — wipe mysql volume + delete the duckdb file"
+description = "destructive: wipe mysql volume + duckdb"
 run = """
 docker compose -f infra/dev/docker-compose.yml down -v
 rm -f data/sf_voice.duckdb data/sf_voice.duckdb.wal
 """
 
 [tasks."db:reset"]
-description = "destructive — drop + recreate sf_voice_dev (keeps the container) + clear duckdb. faster than db:nuke."
+description = "destructive: reset sf_voice_dev db"
 run = """
 set -e
 docker compose -f infra/dev/docker-compose.yml exec -T mysql \
