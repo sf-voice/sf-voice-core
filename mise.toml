@@ -222,30 +222,28 @@ git push
 echo "[repo:push] done."
 """
 
-[tasks."mr:add"]
-description = "stage all changes in core/ and the parent repo — run before mr:commit"
+[tasks."add"]
+description = "stage all changes in core/ and the parent repo — run before commit"
 run = """
 set -e
-echo "[mr:add] core..."
+echo "[add] core..."
 (cd core && git add -A)
 
-echo "[mr:add] parent..."
+echo "[add] parent..."
 git add -A
 
-echo "[mr:add] done — run: mise run mr:commit -- \"your message\""
+echo "[add] done — run: mise run commit -- \"your message\""
 """
 
-[tasks."mr:commit"]
+[tasks."commit"]
 description = "commit staged changes in both core/ and the parent with the same message"
 run = """
 set -e
-MSG="$1"
-if [ -z "$MSG" ]; then
-  echo "usage: mise run mr:commit -- \"your message\"" >&2
-  exit 1
-fi
+# mise doesn't pass positional args to heredoc scripts via $1 — use the
+# {{arg()}} template instead, which interpolates the value before the script runs.
+MSG="{{arg(i=0, name='message')}}"
 
-echo "[mr:commit] core..."
+echo "[commit] core..."
 # only commit if something is actually staged — no-op otherwise
 (cd core && git diff --cached --quiet || git commit -m "$MSG")
 
@@ -253,10 +251,38 @@ echo "[mr:commit] core..."
 # pin in the parent before we commit here.
 git add core
 
-echo "[mr:commit] parent..."
+echo "[commit] parent..."
 git diff --cached --quiet || git commit -m "$MSG"
 
-echo "[mr:commit] done — run: mise run repo:push"
+echo "[commit] done — run: mise run repo:push"
+"""
+
+[tasks."ship"]
+description = "stage + commit + push core/, then bump and push the parent pin — one command from parent root"
+run = """
+set -e
+MSG="{{arg(i=0, name='message')}}"
+
+echo "[ship] staging core..."
+(cd core && git add -A)
+
+# no-op if core has nothing staged (e.g. already committed manually)
+echo "[ship] committing core..."
+(cd core && git diff --cached --quiet || git commit -m "$MSG")
+
+# core must land on its remote before the parent pushes the updated pin
+echo "[ship] pushing core..."
+(cd core && git push)
+
+# re-read the pin now that core has a new remote commit, stage it
+git add core
+echo "[ship] bumping parent pin..."
+git diff --cached --quiet || git commit -m "chore: bump core — $MSG"
+
+echo "[ship] pushing parent..."
+git push
+
+echo "[hip] done."
 """
 
 
