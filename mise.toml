@@ -6,6 +6,7 @@ node = "22"
 pnpm = "9"
 rust = "stable"
 duckdb = "latest"
+"cargo:sea-orm-cli" = "2.0.0-rc.38"
 
 
 [env]
@@ -215,8 +216,24 @@ run = "cargo build -p sf-voice-api --release"
 
 
 [tasks."db:migrate"]
-description = "run schema-sync against DATABASE_URL (no api boot needed)"
-run = "cargo run -p sf-voice-api --bin sync"
+description = "run pending migrations against DATABASE_URL"
+dir = "core/backend"
+run = "sea-orm-cli migrate up"
+
+[tasks."db:migrate:status"]
+description = "show which migrations have and haven't been applied"
+dir = "core/backend"
+run = "sea-orm-cli migrate status"
+
+[tasks."db:migrate:down"]
+description = "roll back the last applied migration"
+dir = "core/backend"
+run = "sea-orm-cli migrate down"
+
+[tasks."db:migrate:fresh"]
+description = "destructive — drop all tables and re-apply every migration from scratch"
+dir = "core/backend"
+run = "sea-orm-cli migrate fresh"
 
 [tasks."inference:install"]
 description = "core/inference — sync python deps (placeholder)"
