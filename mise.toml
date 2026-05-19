@@ -206,6 +206,43 @@ git push
 echo "[repo:push] done."
 """
 
+[tasks."mr:add"]
+description = "stage all changes in core/ and the parent repo — run before mr:commit"
+run = """
+set -e
+echo "[mr:add] core..."
+(cd core && git add -A)
+
+echo "[mr:add] parent..."
+git add -A
+
+echo "[mr:add] done — run: mise run mr:commit -- \"your message\""
+"""
+
+[tasks."mr:commit"]
+description = "commit staged changes in both core/ and the parent with the same message"
+run = """
+set -e
+MSG="$1"
+if [ -z "$MSG" ]; then
+  echo "usage: mise run mr:commit -- \"your message\"" >&2
+  exit 1
+fi
+
+echo "[mr:commit] core..."
+# only commit if something is actually staged — no-op otherwise
+(cd core && git diff --cached --quiet || git commit -m "$MSG")
+
+# committing in core changed its HEAD, so re-stage the updated submodule
+# pin in the parent before we commit here.
+git add core
+
+echo "[mr:commit] parent..."
+git diff --cached --quiet || git commit -m "$MSG"
+
+echo "[mr:commit] done — run: mise run repo:push"
+"""
+
 
 [tasks."web:dev"]
 description = "core/frontend dev server (rspack, app.sf-voice.sh)"
