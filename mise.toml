@@ -171,23 +171,40 @@ run = [
 ]
 
 [tasks."repo:pull"]
-description = "pull this repo and update submodules to the recorded commits"
+description = "git pull + fast-forward core/ to the SHA pinned here — normal day-to-day pull"
 run = "git pull --recurse-submodules"
 
 [tasks."repo:submodules"]
-description = "sync, initialize, and checkout submodules at the commits recorded by this repo"
+description = "first-time setup: populate empty core/ after a plain clone, or re-sync if .gitmodules URLs changed"
 run = [
   "git submodule sync --recursive",
   "git submodule update --init --recursive",
 ]
 
 [tasks."repo:submodules:recurse"]
-description = "enable submodule recursion for this repo so plain git pull updates submodules"
+description = "one-time config: makes plain git pull recurse into core/ automatically — run once per machine"
 run = "git config submodule.recurse true"
 
 [tasks."repo:submodules:bump-core"]
-description = "advance core to latest origin/main, then review and commit the parent pointer"
+description = "move core/ to the latest origin/main and stage the new pin — commit + push the parent yourself after"
 run = "git submodule update --remote --merge core"
+
+[tasks."repo:push"]
+description = "push core/ first, then the parent — core must land on its remote before the parent so CI can fetch the pinned SHA"
+run = """
+set -e
+
+# core must be on the remote before the parent pushes the updated pin.
+# if parent lands first with a SHA that doesn't exist on core's remote yet,
+# CI's submodules:true checkout will fail with a 'reference not found' error.
+echo "[repo:push] core..."
+(cd core && git push)
+
+echo "[repo:push] parent..."
+git push
+
+echo "[repo:push] done."
+"""
 
 
 [tasks."web:dev"]

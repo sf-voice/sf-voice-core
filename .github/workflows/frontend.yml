@@ -34,6 +34,12 @@ jobs:
       runs-on: ubuntu-latest
       steps:
          - uses: actions/checkout@v4
+           with:
+              # core/ is a git submodule. without this, core/frontend/ is an
+              # empty placeholder and pnpm install / typecheck / build all fail.
+              # if core/ is private and GITHUB_TOKEN lacks cross-repo access,
+              # add: token: ${{ secrets.GH_PAT }}
+              submodules: true
 
          - name: setup pnpm + node
            uses: actions/setup-node@v4
@@ -70,6 +76,10 @@ jobs:
          packages: write
       steps:
          - uses: actions/checkout@v4
+           with:
+              # same as the test job — Dockerfile is at core/frontend/Dockerfile
+              # so the submodule must be populated for the build context to work.
+              submodules: true
 
          - name: set up buildx
            uses: docker/setup-buildx-action@v3

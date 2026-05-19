@@ -35,6 +35,13 @@ jobs:
       runs-on: ubuntu-latest
       steps:
          - uses: actions/checkout@v4
+           with:
+              # core/ is a git submodule pinned to a commit SHA in the parent
+              # repo. without this, the directory is an empty placeholder and
+              # cargo can't resolve the workspace members inside it.
+              # if core/ is private and GITHUB_TOKEN lacks cross-repo access,
+              # add: token: ${{ secrets.GH_PAT }}
+              submodules: true
 
          - name: install rust toolchain
            uses: dtolnay/rust-toolchain@stable
@@ -75,6 +82,11 @@ jobs:
          packages: write
       steps:
          - uses: actions/checkout@v4
+           with:
+              # same as the test job — docker build context is the repo root and
+              # the Dockerfile is at core/backend/api/Dockerfile, so the submodule
+              # must be populated or the build context is missing all rust source.
+              submodules: true
 
          - name: set up buildx
            uses: docker/setup-buildx-action@v3

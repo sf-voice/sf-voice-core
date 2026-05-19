@@ -12,6 +12,28 @@ Permanent instructions for every agentic coding session in this project. Read th
 
 Each folder has its own `AGENTS.md` and `MEMORY.md`.
 
+### Monorepo + submodule topology
+
+The parent repo is `git@github.com:sf-voice/sf-voice-core.git`. It is a
+**polyglot workspace root** — three package managers share one checkout:
+
+| Ecosystem | Manifest | Scope |
+|-----------|----------|-------|
+| Rust | `Cargo.toml` (workspace) | `core/backend/api`, `core/backend/entities` |
+| JS/TS | `pnpm-workspace.yaml` | `core/frontend`, `core/*` |
+| Elixir | `mix.exs` | `apps/ellie_ai`, `apps/resto_booking_app` |
+
+**`core/` is a git submodule** (`git@github.com:sf-voice/core.git`, branch `main`).
+This means:
+
+- The parent repo pins `core/` to a specific commit. `git status` in the parent
+  will show `m core` if the submodule's working tree has local changes.
+- To commit work inside `core/`: cd into `core/`, commit there, then update the
+  pin in the parent with a second commit.
+- To pull the latest `core/` tip: `git submodule update --remote core`.
+- Clone the whole thing: `git clone --recurse-submodules <parent-url>`.
+  After a plain clone, run `git submodule update --init` to populate `core/`.
+
 ### Data-flow direction (allowed traffic between services)
 
 ```
