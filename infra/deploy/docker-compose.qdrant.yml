@@ -1,0 +1,25 @@
+# installed at /srv/qdrant/docker-compose.yml on the droplet.
+# no public port — only containers on proxy_net can reach qdrant:6334 (gRPC).
+# api reaches it via QDRANT_URL=http://qdrant:6334 in docker-compose.api.yml.
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.13.6
+    container_name: qdrant
+    restart: unless-stopped
+    volumes:
+      - ./data:/qdrant/storage
+    expose:
+      - "6333"
+      - "6334"
+    networks:
+      - proxy_net
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/6333 && printf \"GET /readyz HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n\" >&3 && grep -q 200 <&3'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+networks:
+  proxy_net:
+    external: true

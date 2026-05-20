@@ -21,16 +21,6 @@ run = [
   "mise run seed",
 ]
 
-[tasks."server:resto"]
-description = "start resto iex server"
-dir = "apps/resto_booking_app"
-run = "iex -S mix phx.server"
-
-[tasks."server:ellie"]
-description = "start ellie iex server"
-dir = "apps/ellie_ai"
-run = "iex -S mix phx.server"
-
 [tasks.dev]
 description = "elixir dev stack with ngrok"
 run = """
@@ -92,7 +82,7 @@ run = "mix workspace.run -t test"
 [tasks.ci]
 description = "local CI: format, compile, test"
 run = [
-  "mix workspace.run -t format -- --check-formatted",
+  "mix workspace.run -t format",
   "mix workspace.run -t compile -- --warnings-as-errors",
   "mix workspace.run -t test",
 ]
@@ -105,10 +95,6 @@ run = "mix test.watch"
 [tasks.format]
 description = "mix format across every app"
 run = "mix workspace.run -t format"
-
-[tasks."format.check"]
-description = "format check (fails on diffs)"
-run = "mix workspace.run -t format -- --check-formatted"
 
 [tasks.compile]
 description = "compile every app with --warnings-as-errors"
@@ -172,19 +158,6 @@ run = [
 [tasks."repo:pull"]
 description = "pull + fast-forward core/ submodule"
 run = "git pull --recurse-submodules"
-
-[tasks."repo:submodules"]
-hide = true
-description = "init or re-sync core/ submodule"
-run = [
-  "git submodule sync --recursive",
-  "git submodule update --init --recursive",
-]
-
-[tasks."repo:submodules:recurse"]
-hide = true
-description = "one-time: enable submodule.recurse"
-run = "git config submodule.recurse true"
 
 [tasks."repo:submodules:bump-core"]
 description = "bump core/ pin to latest origin/main"
@@ -315,11 +288,6 @@ description = "destructive: drop + reapply all migrations"
 dir = "core/backend"
 run = "sea-orm-cli migrate fresh"
 
-[tasks."inference:install"]
-description = "sync inference python deps (placeholder)"
-dir = "core/inference"
-run = "echo 'inference scaffold — wire uv/pip once dependencies exist'"
-
 
 [tasks.install]
 description = "one-time bootstrap: all stacks"
@@ -366,14 +334,14 @@ trap 'kill 0 2>/dev/null; pkill -P $$ 2>/dev/null; exit' EXIT INT TERM
 
 mkdir -p data
 
-echo "[core:dev] starting data layer (mysql)..."
+echo "[core:dev] starting data layer (mysql + qdrant)..."
 # --wait blocks until every service with a healthcheck is healthy (or
 # the timeout fires). much more reliable than polling `docker compose ps`
 # json, which has fragile schemas across compose versions. healthcheck
 # start_period in the compose file already gives cold-init enough room.
 if ! $COMPOSE up -d --wait --wait-timeout 180; then
   echo "[core:dev] data layer didn't come up — recent logs:" >&2
-  $COMPOSE logs --tail=40 mysql >&2 || true
+  $COMPOSE logs --tail=40 mysql qdrant >&2 || true
   exit 1
 fi
 echo "[core:dev] data layer healthy"
@@ -386,6 +354,7 @@ echo "  web     → http://localhost:5173   (app.sf-voice.sh)"
 echo "  api     → http://localhost:8080   (api.sf-voice.sh)   curl /api/hello"
 echo "  mysql   → mysql://sf_voice:sf_voice@127.0.0.1:3306/sf_voice_dev"
 echo "  duckdb  → file: ./data/sf_voice.duckdb (open with: duckdb data/sf_voice.duckdb)"
+echo "  qdrant  → http://127.0.0.1:6333   (REST)  http://127.0.0.1:6334 (gRPC)"
 echo ""
 
 # 4. app processes. each backgrounded with a sed prefix so logs interleave
