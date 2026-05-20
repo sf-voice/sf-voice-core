@@ -350,7 +350,7 @@ echo "[core:dev] data layer healthy"
 #    leave the user wondering where to look.
 echo ""
 echo "[core:dev] services:"
-echo "  web     → http://localhost:5173   (app.sf-voice.sh)"
+echo "  web     → http://localhost:3000   (app.sf-voice.sh)"
 echo "  api     → http://localhost:8080   (api.sf-voice.sh)   curl /api/hello"
 echo "  mysql   → mysql://sf_voice:sf_voice@127.0.0.1:3306/sf_voice_dev"
 echo "  duckdb  → file: ./data/sf_voice.duckdb (open with: duckdb data/sf_voice.duckdb)"
