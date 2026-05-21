@@ -29,10 +29,18 @@ jobs:
 
       # cheap config-only validation: pull the same caddy image used in
       # prod and run `caddy validate`. catches typos before they reach the
-      # droplet.
+      # droplet. stub certs are generated so caddy can satisfy the tls
+      # provisioning check without needing the real origin cert.
       - name: caddy validate
         run: |
-          docker run --rm -v "$PWD/infra/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
+          mkdir -p /tmp/certs
+          openssl req -x509 -newkey rsa:2048 \
+            -keyout /tmp/certs/origin.key \
+            -out /tmp/certs/origin.pem \
+            -days 1 -nodes -subj '/CN=ci'
+          docker run --rm \
+            -v "$PWD/infra/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            -v "/tmp/certs:/etc/caddy/certs:ro" \
             caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
 
   sync:
