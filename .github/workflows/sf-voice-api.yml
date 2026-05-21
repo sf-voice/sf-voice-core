@@ -182,11 +182,11 @@ jobs:
          - name: smoke check
            run: |
               for i in $(seq 1 30); do
-                if curl -fsS https://api.sf-voice.sh/healthz >/dev/null; then
+                if curl -fsS https://app.sf-voice.sh/healthz >/dev/null; then
                   echo "api is live"
                   exit 0
                 fi
                 sleep 2
               done
-              echo "smoke check failed — api.sf-voice.sh didn't respond within 60s"
+              echo "smoke check failed — app.sf-voice.sh/healthz didn't respond within 60s"
               exit 1
