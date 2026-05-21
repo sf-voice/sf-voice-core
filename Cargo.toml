@@ -8,6 +8,7 @@ members = [
     "core/backend/api",
     "core/backend/entities",
     "core/backend/migration",
+    "core/sdk/rust",
 ]
 exclude = []
 
