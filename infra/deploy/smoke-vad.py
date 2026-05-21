@@ -94,7 +94,8 @@ async def smoke(ws_url: str, token: str) -> None:
 
     full_url = f"{ws_url}/websocket?vsn=2.0.0&token={quote(token, safe='')}"
 
-    async with await connect_with_retry(full_url) as ws:
+    ws = await connect_with_retry(full_url)
+    try:
         # ── 1. join ──────────────────────────────────────────────────
         join_msg = [join_ref, join_ref, topic, "phx_join", {}]
         await ws.send(json.dumps(join_msg))
@@ -121,6 +122,8 @@ async def smoke(ws_url: str, token: str) -> None:
         # assert a specific upper bound because silero's output on
         # all-zero input can drift over model versions.
         print(f"smoke: ok — sample_rate={ack['sample_rate']} prob={prob}")
+    finally:
+        await ws.close()
 
 
 async def _await_phx_reply(ws, join_ref: str):
