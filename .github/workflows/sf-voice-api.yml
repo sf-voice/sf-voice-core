@@ -5,8 +5,10 @@ name: sf-voice-api
 # independently.
 
 on:
+   workflow_dispatch: {}
    pull_request:
       paths:
+         - "core"
          - "core/backend/**"
          - "Cargo.toml"
          - "Cargo.lock"
@@ -15,6 +17,7 @@ on:
    push:
       branches: [main]
       paths:
+         - "core"
          - "core/backend/**"
          - "Cargo.toml"
          - "Cargo.lock"
@@ -75,7 +78,7 @@ jobs:
    deploy:
       name: build + deploy
       needs: test
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
       runs-on: ubuntu-latest
       permissions:
          contents: read
@@ -160,6 +163,15 @@ jobs:
                  rm -f docker-compose.yml.bak
 
                  docker compose pull api
+
+                 # run pending migrations before restarting the service.
+                 # non-zero exit aborts the deploy so the old container keeps serving.
+                 docker run --rm \
+                   --env-file .env \
+                   --network proxy_net \
+                   "ghcr.io/sf-voice/sf-voice-api:sha-${{ github.sha }}" \
+                   /usr/local/bin/migrate up
+
                  docker compose up -d --no-deps api
 
                  # trim old images

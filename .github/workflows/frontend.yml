@@ -4,8 +4,10 @@ name: frontend
 # changes. ellie / resto / api pipelines have their own filters.
 
 on:
+   workflow_dispatch: {}
    pull_request:
       paths:
+         - "core"
          - "core/frontend/**"
          - "pnpm-lock.yaml"
          - "pnpm-workspace.yaml"
@@ -14,6 +16,7 @@ on:
    push:
       branches: [main]
       paths:
+         - "core"
          - "core/frontend/**"
          - "pnpm-lock.yaml"
          - "pnpm-workspace.yaml"
@@ -70,7 +73,7 @@ jobs:
    deploy:
       name: build + deploy
       needs: test
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
       runs-on: ubuntu-latest
       permissions:
          contents: read
