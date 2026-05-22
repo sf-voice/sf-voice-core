@@ -20,6 +20,15 @@
    "navigation": {
       "tabs": [
          {
+            "tab": "Changelog",
+            "groups": [
+               {
+                  "group": "Changelog",
+                  "pages": ["changelog/2026-05-22"]
+               }
+            ]
+         },
+         {
             "tab": "Documentation",
             "groups": [
                {

@@ -1,0 +1,24 @@
+---
+title: "Week of May 22, 2026"
+description: "Public ingest and search APIs, SDKs in five languages, and customer-managed API keys."
+---
+
+## New features
+
+**Public `/v1/ingest` and `/v1/search` APIs.** You can now push calls into Mise and run corpus queries directly over HTTP, without going through the dashboard. Use `/v1/ingest` to stream audio and turn metadata from any voice stack, and `/v1/search` to run plain-language queries against your indexed corpus. See [Integrations overview](/integrations/overview) for the connection pattern.
+
+**SDKs in five languages.** Official client libraries are now available for Python, TypeScript, Go, Ruby, and Rust. Each SDK wraps `/v1/ingest`, `/v1/search`, and the calls, transcripts, and slices routes so you can integrate Mise without writing HTTP plumbing.
+
+**Customer-managed API keys.** Generate and rotate your own API keys from the Mise dashboard under **Settings → API Keys**. Scope keys per environment or per integration, and revoke them at any time. Details in the [MCP setup guide](/mcp/setup#finding-your-api-key).
+
+**New routes for calls, transcripts, and slices.** Programmatic access to individual call records, full transcripts, and turn-level slices is now available. Useful for building dashboards, exporting evidence for a specific signature, or piping turn data into your own tooling.
+
+## Updates
+
+**TwelveLabs media proxy.** Media playback in [Call Replay](/features/call-replay) now routes through a proxy layer, so audio loads faster and you no longer need direct access to the underlying media store to share a call with a teammate.
+
+**API health check endpoint.** A lightweight `/health` route is now live for uptime monitoring and readiness probes.
+
+## Bug fixes
+
+- Fixed an issue where ingest credentials could fail to refresh against AWS, causing intermittent upload errors on long-running sessions.
