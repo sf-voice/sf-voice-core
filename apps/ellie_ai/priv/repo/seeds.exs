@@ -52,7 +52,11 @@ orgs = [
   }
 ]
 
-resto_base_url = System.get_env("RESTO_BASE_URL") || "http://localhost:4000"
+resto_base_url =
+  case System.get_env("RESTO_BASE_URL") do
+    url when is_binary(url) and url != "" -> url
+    _ -> "http://localhost:4000"
+  end
 
 # minimal prompt template applied to every org if it has none yet. EEx
 # placeholders pick up the org's name/location at call time. operators

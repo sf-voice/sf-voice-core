@@ -24,6 +24,11 @@ services:
       # DATABASE_URL (mysql) + INTERNAL_API_TOKEN are rendered into .env
       # by the workflow from GH secrets. INTERNAL_API_TOKEN is the bearer
       # the VAD client sends on join.
+      # ingest pipeline — all three required for bucket scan and youtube
+      # ingest to work. TWELVELABS_API_KEY is secret; inject from GH secrets.
+      INTERNAL_S3_BUCKET: ${INTERNAL_S3_BUCKET}
+      INTERNAL_S3_REGION: ${INTERNAL_S3_REGION:-us-east-1}
+      TWELVELABS_API_KEY: ${TWELVELABS_API_KEY}
     volumes:
       - ./data:/data
     expose:
