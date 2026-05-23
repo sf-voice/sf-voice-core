@@ -1,0 +1,94 @@
+---
+title: "Connect Twilio Voice to Mise via Media Streams"
+description: "Forward Twilio call audio to Mise using Media Streams. Index both call legs and make every conversation searchable by acoustic features."
+---
+
+Twilio is one of the most widely used telephony platforms for voice AI. If you run inbound or outbound voice calls through Twilio, Mise connects via Twilio Media Streams — a WebSocket-based feature that delivers real-time audio from both the caller and the agent to any endpoint you configure.
+
+<Note>
+  Mise is in private alpha. Your Mise Media Streams endpoint and API key are provided after your team is granted access. [Request access](https://sf-voice.sh/sign-up).
+</Note>
+
+## What Mise captures from Twilio
+
+For each Twilio call, Mise captures:
+
+- **Both call legs**: Inbound (caller) and outbound (agent) audio are tracked separately
+- **Call metadata**: Call SID, account SID, caller ID, called number, direction, and timestamps
+- **Turn-level acoustic features**: Tone, prosody, frustration, silence, and interruption signals, segmented per speaker
+- **Call lifecycle events**: Call initiated, answered, completed, and failed events via webhook
+
+You do not need to modify your existing Twilio phone numbers or voice applications to use Mise — Media Streams can be added without changing your current call flow.
+
+## How to connect Twilio to Mise
+
+<Steps>
+  <Step title="Request alpha access">
+    [Request access](https://sf-voice.sh/sign-up) to Mise. After onboarding, you will receive your Mise WebSocket endpoint URL and API key for Media Streams.
+  </Step>
+  <Step title="Add a Media Streams noun to your TwiML">
+    In the TwiML that handles your voice calls, add a `<Stream>` noun inside a `<Connect>` verb. Point it to your Mise WebSocket endpoint. This can be added to existing TwiML without removing any other logic.
+
+    <CodeGroup>
+
+    ```xml twiml.xml
+    <?xml version="1.0" encoding="UTF-8"?>
+    <Response>
+      <Connect>
+        <!-- Replace with your Mise endpoint, provided after alpha access -->
+        <Stream url="wss://ingest.mise.sh/v1/stream/twilio?api_key=YOUR_MISE_API_KEY" track="both_tracks" />
+      </Connect>
+      <!-- Your existing call handling continues here -->
+    </Response>
+    ```
+
+    ```python server.py
+    from flask import Flask, Response
+    from twilio.twiml.voice_response import VoiceResponse, Connect, Stream
+
+    app = Flask(__name__)
+
+    MISE_WS_ENDPOINT = "wss://ingest.mise.sh/v1/stream/twilio"  # provided after access
+    MISE_API_KEY = "your-mise-api-key"  # provided after access
+
+    @app.route("/incoming-call", methods=["POST"])
+    def incoming_call():
+        response = VoiceResponse()
+        connect = Connect()
+        connect.stream(
+            url=f"{MISE_WS_ENDPOINT}?api_key={MISE_API_KEY}",
+            track="both_tracks",
+        )
+        response.append(connect)
+        # Append your existing call handling verbs here
+        return Response(str(response), mimetype="text/xml")
+    ```
+
+    </CodeGroup>
+  </Step>
+  <Step title="Configure call event webhooks (optional)">
+    For richer metadata, configure your Twilio phone number's status callback URL to also point to Mise. This allows Mise to capture call lifecycle events alongside the audio stream.
+
+    Set your Twilio number's **Status Callback URL** to:
+    ```
+    https://ingest.mise.sh/v1/webhook/twilio?api_key=YOUR_MISE_API_KEY
+    ```
+
+    This step is optional — Mise will index calls from audio alone — but adding status callbacks improves call boundary detection and metadata fidelity.
+  </Step>
+  <Step title="Verify ingest">
+    Place a test call. After the call ends, open the Mise dashboard and confirm the call appears in your corpus. Run a test query to verify turn-level indexing.
+  </Step>
+</Steps>
+
+## Media Streams and latency
+
+Twilio Media Streams is a bidirectional WebSocket connection that runs concurrently with your call — it does not add latency to the call path. Mise receives audio as a parallel stream and indexes turns asynchronously, so there is no impact on your caller experience.
+
+<Tip>
+  If you use Twilio Flex or Twilio Studio, Media Streams can be configured at the flow level. Contact the Mise team after receiving access for guidance specific to your Twilio product.
+</Tip>
+
+<Warning>
+  Twilio Media Streams requires a WebSocket endpoint that accepts the Twilio media format (mulaw, 8000 Hz). Your Mise endpoint is pre-configured to accept this format — do not modify the encoding in your `<Stream>` noun.
+</Warning>

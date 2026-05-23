@@ -1,0 +1,81 @@
+{
+  "projectType": "saas",
+  "projectName": "Mise",
+  "projectDescription": "Voice AI observability platform that indexes acoustic features of phone calls — tone, prosody, and frustration — making conversations searchable and debuggable at scale.",
+  "theme": "luma",
+  "primaryColor": "#040404",
+  "lightColor": "#ffffff",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "how-it-works"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/overview",
+              "integrations/livekit",
+              "integrations/twilio",
+              "integrations/telnyx",
+              "integrations/pipecat",
+              "integrations/datadog"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/corpus-search",
+              "features/acoustic-indexing",
+              "features/call-replay",
+              "features/defect-signatures"
+            ]
+          },
+          {
+            "group": "MCP Server",
+            "pages": [
+              "mcp/overview",
+              "mcp/setup",
+              "mcp/ai-debugging"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "reference/query-syntax",
+              "reference/acoustic-features",
+              "reference/faq"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Natural language corpus search over voice calls",
+    "Acoustic feature indexing: tone, prosody, tension, rhythm, intent",
+    "Turn-level call replay with audio playback",
+    "Defect signature clustering across thousands of calls",
+    "MCP server for AI-native debugging workflows",
+    "Real-time signal detection during live calls",
+    "Integrations with LiveKit, Twilio, Telnyx, Pipecat, and Datadog",
+    "Structured, machine-readable output for LLM-assisted root cause analysis"
+  ],
+  "publicApiSurface": [
+    "voice.query() — natural language search over call corpus",
+    "Corpus search results with defect signatures and cluster groupings",
+    "Turn-level audio S3 keys and replay bundles",
+    "MCP server endpoints: corpus search, turn lookup, replay, defect signatures",
+    "Call data model: calls, transcript_turns, tool_calls, system_events",
+    "Acoustic feature dimensions: tone, prosody, tension, rhythm, intent",
+    "Defect signature schema for LLM-readable structured output"
+  ]
+}

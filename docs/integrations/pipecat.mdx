@@ -1,0 +1,114 @@
+---
+title: "Add Mise observability to your Pipecat pipeline"
+description: "Connect Mise to Pipecat as a passive observer. Capture turns, audio frames, and conversation events without modifying your existing pipeline logic."
+---
+
+Pipecat is an open-source Python framework for building real-time voice AI pipelines. It provides a composable, frame-based architecture where audio, transcripts, and events flow through a series of processors. Mise integrates with Pipecat as a pipeline observer — a processor that receives frames and forwards turn data to Mise without interrupting the primary pipeline flow.
+
+<Note>
+  Mise is in private alpha. The Mise SDK for Pipecat and your API key are provided after your team is granted access. [Request access](https://sf-voice.sh/sign-up).
+</Note>
+
+## What Mise captures from Pipecat
+
+For each Pipecat session, Mise captures:
+
+- **Turn events**: `TranscriptionFrame` and `UserStartedSpeakingFrame` / `UserStoppedSpeakingFrame` events define turn boundaries
+- **Audio frames**: Raw audio frames per turn for acoustic indexing (tone, prosody, frustration, interruptions)
+- **Pipeline events**: Bot speech start and stop events, function call events, and interruption frames
+- **Session metadata**: Session ID, transport type (WebRTC, WebSocket, telephony), and participant identifiers
+
+Mise does not require changes to your existing processors, LLM configuration, or STT/TTS providers.
+
+## How to add Mise to your Pipecat pipeline
+
+<Steps>
+  <Step title="Request alpha access">
+    [Request access](https://sf-voice.sh/sign-up) to Mise. After onboarding, you will receive the Mise Pipecat package and your API key.
+  </Step>
+  <Step title="Install the Mise observer package">
+    Once you have access, install the Mise Pipecat package into your project environment:
+
+    <CodeGroup>
+
+    ```bash pip
+    pip install mise-pipecat
+    ```
+
+    ```bash uv
+    uv add mise-pipecat
+    ```
+
+    </CodeGroup>
+  </Step>
+  <Step title="Add the MiseObserver to your pipeline">
+    Import `MiseObserver` from the package and add it to your Pipecat pipeline. The observer runs in parallel to your existing processors and does not add latency to your pipeline.
+
+    <CodeGroup>
+
+    ```python pipeline.py
+    import asyncio
+    from pipecat.pipeline.pipeline import Pipeline
+    from pipecat.pipeline.runner import PipelineRunner
+    from pipecat.pipeline.task import PipelineTask
+    from pipecat.frames.frames import EndFrame
+
+    # Your existing processors
+    from pipecat.services.deepgram import DeepgramSTTService
+    from pipecat.services.openai import OpenAILLMService
+    from pipecat.services.cartesia import CartesiaTTSService
+
+    # Mise observer — available after alpha access
+    from mise_pipecat import MiseObserver
+
+    async def main():
+        # Your existing services
+        stt = DeepgramSTTService(api_key="your-deepgram-key")
+        llm = OpenAILLMService(api_key="your-openai-key", model="gpt-4o")
+        tts = CartesiaTTSService(api_key="your-cartesia-key", voice_id="your-voice-id")
+
+        # Add the Mise observer
+        mise = MiseObserver(
+            api_key="your-mise-api-key",   # provided after alpha access
+            session_id="unique-session-id",  # your call or session identifier
+        )
+
+        pipeline = Pipeline([
+            stt,
+            llm,
+            tts,
+            mise,  # observer runs at the end; receives all frames passively
+        ])
+
+        runner = PipelineRunner()
+        task = PipelineTask(pipeline)
+        await runner.run(task)
+
+    if __name__ == "__main__":
+        asyncio.run(main())
+    ```
+
+    </CodeGroup>
+  </Step>
+  <Step title="Verify ingest">
+    Run a test session. After the session ends, open the Mise dashboard and confirm the session appears in your corpus. Run a test query to verify turn-level acoustic features are indexed.
+  </Step>
+</Steps>
+
+## How the observer works
+
+`MiseObserver` subscribes to the Pipecat frame bus passively. It does not hold frames or delay their propagation. For each relevant frame type, it extracts turn data and queues it for asynchronous forwarding to Mise:
+
+- **`AudioRawFrame`** from the user transport triggers audio capture for the current user turn
+- **`UserStoppedSpeakingFrame`** signals the end of a user turn, after which the buffered audio is sent to Mise
+- **`BotSpeakingFrame`** and **`BotStoppedSpeakingFrame`** delimit agent turns
+- **`TranscriptionFrame`** enriches the indexed turn with transcript text if available
+- **`BotInterruptionFrame`** is logged as an interruption event against the affected turn
+
+<Tip>
+  If your pipeline uses a telephony transport (Daily, Twilio, or Telnyx via Pipecat), you can use either the platform-native Mise integration or the Pipecat observer. The Pipecat observer is the simpler path if your pipeline is already fully managed within Pipecat.
+</Tip>
+
+<Warning>
+  The `session_id` you pass to `MiseObserver` is used to identify the call in your corpus. Use a stable, unique identifier (such as your database call ID or the transport session ID) rather than a randomly generated value per process run.
+</Warning>

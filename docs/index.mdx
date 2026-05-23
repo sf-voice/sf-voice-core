@@ -1,0 +1,58 @@
+---
+title: "Mise: Voice AI observability for debugging at scale"
+description: "Mise indexes acoustic features of voice AI calls — tone, prosody, frustration — and makes every conversation searchable. Built for 10K+ calls per day."
+---
+
+Mise is an observability platform built for teams running voice AI at scale. Instead of scanning transcripts or listening through hours of recordings to find what went wrong, you search your entire call corpus in natural language. Mise indexes the acoustic depth of every conversation — sentiment, prosody, interruptions, tension — not just the words.
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Connect your first voice stack and run your first query in minutes.
+  </Card>
+  <Card title="How It Works" icon="lightbulb" href="/how-it-works">
+    Understand how Mise indexes calls and surfaces defect signatures.
+  </Card>
+  <Card title="Integrations" icon="plug" href="/integrations/overview">
+    Connect LiveKit, Twilio, Telnyx, Pipecat, or Datadog.
+  </Card>
+  <Card title="MCP Server" icon="robot" href="/mcp/overview">
+    Use Claude, Cursor, or Cline to debug voice failures directly.
+  </Card>
+</CardGroup>
+
+## What Mise does differently
+
+Most observability tools index by time series or call graph. Mise indexes by **turn and corpus** — the natural unit of a voice conversation. Every turn carries its acoustic fingerprint: not just what was said, but how it was said.
+
+<CardGroup cols={2}>
+  <Card title="Corpus Search" icon="magnifying-glass" href="/features/corpus-search">
+    Query thousands of calls in plain language. Get back ranked matches and clustered defect signatures.
+  </Card>
+  <Card title="Acoustic Indexing" icon="waveform-lines" href="/features/acoustic-indexing">
+    Tone, prosody, frustration, interruptions — indexed at every turn, not just summarized.
+  </Card>
+  <Card title="Call Replay" icon="circle-play" href="/features/call-replay">
+    Jump to the exact turn where something went wrong. Play audio, read the transcript, inspect tool calls.
+  </Card>
+  <Card title="Defect Signatures" icon="triangle-exclamation" href="/features/defect-signatures">
+    Automatically cluster similar failures across thousands of calls into named defect patterns.
+  </Card>
+</CardGroup>
+
+## Get started in three steps
+
+<Steps>
+  <Step title="Request access">
+    Mise is in private alpha. [Request access](https://sf-voice.sh/sign-up) and your team will be admitted by stack and call volume.
+  </Step>
+  <Step title="Connect your stack">
+    Add Mise to your LiveKit, Twilio, Telnyx, or Pipecat pipeline using one of the native integrations. See [Integrations](/integrations/overview).
+  </Step>
+  <Step title="Search your corpus">
+    Run your first natural language query against your call corpus and see clustered results within minutes. See [Corpus Search](/features/corpus-search).
+  </Step>
+</Steps>
+
+<Note>
+  Mise is built for teams running **10,000+ calls per day**. If your volume is lower, [talk to us](https://sf-voice.sh/sign-up) — we can still help.
+</Note>

@@ -1,0 +1,255 @@
+---
+title: "AI-assisted debugging with the MCP server"
+description: "Walk through a complete voice failure investigation — from a vague customer report to root cause — using Claude, Cursor, or Cline and the Mise MCP server."
+---
+
+The Mise MCP server turns your AI assistant into a voice debugging tool. Instead of manually querying the corpus, copying transcript data, and hunting for audio links, you describe the failure in plain language and let your assistant pull the structured data it needs to reason over.
+
+This page walks through a complete debugging session from a vague customer report to a specific root cause and recommended fix.
+
+## The scenario
+
+A customer reports: "Your agent sounded wrong on calls last Tuesday. It felt like it kept cutting me off."
+
+You have no call IDs. You have no timestamps beyond "last Tuesday." You have a qualitative description. That is enough.
+
+## The full debugging workflow
+
+<Steps>
+  <Step title="Query the corpus">
+    Open your AI assistant (Claude Desktop, Cursor, or Cline) with the Mise MCP server connected. Paste this prompt:
+
+    ```text Example prompt
+    Search my Mise corpus for calls from the past week where the agent
+    interrupted the caller before the user finished speaking.
+    Show me the top defect signatures.
+    ```
+
+    The MCP server runs a corpus search against your indexed call data. It returns clustered results — not a flat list of calls.
+
+    **What you get back:**
+
+    ```json
+    {
+      "query": "agent interrupted caller before user finished speaking",
+      "total_matches": 1284,
+      "defect_signatures": [
+        {
+          "id": "ds_abc123",
+          "label": "Agent turn-start overlap",
+          "match_count": 412,
+          "severity": 0.87,
+          "top_turn_id": "turn_7f3d9",
+          "acoustic_features": ["turn_overlap", "low_silence_gap", "high_agent_energy"]
+        },
+        {
+          "id": "ds_def456",
+          "label": "Premature barge-in on confirmation",
+          "match_count": 298,
+          "severity": 0.71,
+          "top_turn_id": "turn_2a8c1",
+          "acoustic_features": ["barge_in", "confirmation_phrase_incomplete"]
+        }
+      ]
+    }
+    ```
+
+    You have 1,284 matching calls. The top cluster — `ds_abc123`, "Agent turn-start overlap" — has 412 matches and a severity score of 0.87.
+  </Step>
+
+  <Step title="Inspect the top defect signature">
+    Ask your assistant to drill into the top signature:
+
+    ```text Example prompt
+    Show me the full details for defect signature ds_abc123, including
+    the top failing turn, model parameters, and audio link.
+    ```
+
+    The MCP server fetches the defect signature and the associated replay bundle.
+
+    **What you get back:**
+
+    ```json
+    {
+      "defect_signature": {
+        "id": "ds_abc123",
+        "label": "Agent turn-start overlap",
+        "match_count": 412,
+        "severity": 0.87
+      },
+      "top_turn": {
+        "turn_id": "turn_7f3d9",
+        "call_id": "call_99f12",
+        "turn_index": 4,
+        "role": "agent",
+        "phase": "confirmation",
+        "text": "Great, I've got that — your appointment is confirmed for—",
+        "sentiment_score": 0.42,
+        "audio_s3_key": "calls/99f12/turns/7f3d9.mp3"
+      },
+      "model_parameters": {
+        "vad_silence_threshold_ms": 200,
+        "barge_in_enabled": true,
+        "turn_detection_sensitivity": "high"
+      }
+    }
+    ```
+
+    The failing turn is index 4 in a confirmation phase. The agent started speaking 200 ms after the last detected silence — before the user had finished their confirmation sentence.
+  </Step>
+
+  <Step title="Get root cause and next step">
+    Ask your assistant to explain the root cause:
+
+    ```text Example prompt
+    Based on defect signature ds_abc123 and the top failing turn,
+    what is the root cause and what should I change to fix it?
+    ```
+
+    Claude, Cursor, or Cline will reason over the structured replay bundle and return a specific diagnosis. A typical response looks like:
+
+    > **Root cause:** The silence threshold of 200 ms is too aggressive for confirmation phrases. Callers often pause mid-confirmation ("Yes, that's — actually, wait") and the agent interprets the micro-silence as end-of-turn, triggering a barge-in. This is most pronounced in the confirmation phase (turn 4+), which matches the cluster pattern in `ds_abc123`.
+    >
+    > **Recommended fix:** Increase `vad_silence_threshold_ms` to 400–500 ms for turns in the confirmation phase, or disable `barge_in_enabled` during that phase specifically. You can test this against the 412 affected calls using corpus search before deploying.
+
+    You have a failing turn, an audio link, the model parameter that caused the issue, and a concrete next step — all without leaving the chat.
+  </Step>
+
+  <Step title="Listen to the audio (optional)">
+    The `audio_s3_key` in the replay bundle is a direct link to the audio for that turn. You can open it in your browser or pass it back to your assistant:
+
+    ```text Example prompt
+    Open the audio for turn_7f3d9 and confirm the overlap is audible.
+    ```
+
+    <Tip>
+      The audio link points to the individual turn clip, not the full call recording. You hear exactly the 3–8 seconds that failed — not 12 minutes of audio.
+    </Tip>
+  </Step>
+</Steps>
+
+## Reference prompts
+
+These prompts work well with Claude Desktop, Cursor, and Cline once the Mise MCP server is connected.
+
+<AccordionGroup>
+  <Accordion title="Corpus search prompts">
+
+    ```text Frustrated callers
+    Search my Mise corpus for calls where the caller sentiment dropped
+    significantly after the agent's response. Show defect signatures.
+    ```
+
+    ```text Long silences
+    Find calls from last week where there was more than 4 seconds of
+    silence during the agent's turn. Cluster the results.
+    ```
+
+    ```text Tool call failures
+    Search my corpus for calls where the agent made a tool call that
+    returned an error. What are the top defect signatures?
+    ```
+
+  </Accordion>
+
+  <Accordion title="Defect signature prompts">
+
+    ```text Explain a defect signature
+    What pattern explains defect signature ds_abc123?
+    Why are these 412 calls grouped together?
+    ```
+
+    ```text Compare two defect signatures
+    Compare defect signatures ds_abc123 and ds_def456.
+    Are they caused by the same underlying issue?
+    ```
+
+  </Accordion>
+
+  <Accordion title="Replay bundle prompts">
+
+    ```text Full call inspection
+    Show me the full replay bundle for call_99f12, including all
+    transcript turns, tool calls, and system events.
+    ```
+
+    ```text Specific turn inspection
+    Show me turn 4 through turn 8 of call_99f12 with sentiment
+    scores and audio links for each turn.
+    ```
+
+  </Accordion>
+</AccordionGroup>
+
+## Replay bundle schema
+
+When your assistant fetches a replay bundle, the data is structured as follows. Your assistant can reason over all of these fields without you needing to describe the schema.
+
+<Expandable title="Call fields" defaultOpen={true}>
+  <ResponseField name="id" type="string" required>
+    Unique call identifier.
+  </ResponseField>
+  <ResponseField name="summary" type="string">
+    Short natural-language summary of the call generated by Mise.
+  </ResponseField>
+  <ResponseField name="sentiment_score" type="number">
+    Overall call sentiment on a 0–1 scale. Lower values indicate caller distress.
+  </ResponseField>
+  <ResponseField name="audio_s3_key" type="string">
+    S3 key for the full call recording.
+  </ResponseField>
+  <ResponseField name="transcript_turns" type="TranscriptTurn[]">
+    Ordered array of conversational turns. See turn fields below.
+  </ResponseField>
+  <ResponseField name="tool_calls" type="object[]">
+    All tool calls the agent made during the call, with inputs, outputs, and timestamps.
+  </ResponseField>
+  <ResponseField name="system_events" type="object[]">
+    Integration-level events: call start, transfer, hold, disconnect, errors.
+  </ResponseField>
+</Expandable>
+
+<Expandable title="TranscriptTurn fields">
+  <ResponseField name="turn_index" type="number" required>
+    Zero-based position of this turn in the conversation.
+  </ResponseField>
+  <ResponseField name="role" type="string" required>
+    Either `"agent"` or `"user"`.
+  </ResponseField>
+  <ResponseField name="text" type="string" required>
+    Transcribed text of the turn.
+  </ResponseField>
+  <ResponseField name="phase" type="string">
+    Conversational phase label, e.g. `"greeting"`, `"qualification"`, `"confirmation"`, `"closing"`.
+  </ResponseField>
+  <ResponseField name="sentiment_score" type="number">
+    Turn-level sentiment on a 0–1 scale.
+  </ResponseField>
+  <ResponseField name="audio_s3_key" type="string">
+    S3 key for the audio clip of this specific turn.
+  </ResponseField>
+</Expandable>
+
+## Tips for effective AI-assisted debugging
+
+<Tip>
+  **Start with defect signatures, not individual calls.** Corpus search returns clusters. Ask your assistant to explain the cluster before drilling into individual turns — it gives you the pattern, not just an example.
+</Tip>
+
+<Tip>
+  **Include the phase in your prompts.** If you know the failure happens during greetings, handoffs, or confirmations, say so. The `phase` field is indexed and narrows results significantly.
+</Tip>
+
+<Tip>
+  **Ask for the model parameters alongside the turn.** The replay bundle always includes the model parameters active at the time of the call. If you are chasing a VAD or barge-in issue, those parameters are the first place to look.
+</Tip>
+
+<Warning>
+  Defect signature IDs (`ds_*`) are stable within a project but may be regenerated if you re-cluster the corpus. If you are sharing a signature with a teammate, include both the ID and the label.
+</Warning>
+
+## Next steps
+
+- Return to [MCP server overview](/mcp/overview) for a summary of what the server exposes.
+- See [Setup](/mcp/setup) if you have not installed the server yet.
+- See [Defect signatures](/features/defect-signatures) for more on how Mise clusters failures.

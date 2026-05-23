@@ -1,0 +1,97 @@
+---
+title: "Mise FAQ: access, integrations, and how it works"
+description: "Answers to common questions about Mise: supported voice stacks, call volume, data privacy, natural language search, and how to request alpha access."
+---
+
+Mise is in private alpha. This page covers the most common questions from teams evaluating the platform. If your question isn't answered here, reach out at [sf-voice.sh/sign-up](https://sf-voice.sh/sign-up).
+
+<AccordionGroup>
+
+  <Accordion title="What voice stacks does Mise support?">
+    Mise has native integrations for **LiveKit**, **Twilio**, **Telnyx**, and **Pipecat**. Each integration connects to your existing pipeline without requiring changes to your call handling logic.
+
+    If your stack isn't listed, [talk to us](https://sf-voice.sh/sign-up). We're actively adding integrations and can prioritize based on demand.
+
+    See the [Integrations overview](/integrations/overview) for setup guides.
+  </Accordion>
+
+  <Accordion title="What call volume do I need?">
+    Mise is optimized for teams running **10,000 or more calls per day**. At that volume, the corpus search and defect signature clustering deliver the most value — patterns that would take weeks to surface manually become visible in seconds.
+
+    Teams with lower call volume can still benefit from acoustic indexing and turn-level search. [Reach out](https://sf-voice.sh/sign-up) and we'll discuss what makes sense for your situation.
+  </Accordion>
+
+  <Accordion title="Does Mise store my audio?">
+    Mise indexes acoustic features extracted from your audio. The indexed features — tone, prosody, tension, rhythm, intent — are what power corpus search and defect signatures.
+
+    For full details on how audio data is handled, retained, and protected, see the privacy policy at [sf-voice.sh/privacy](https://sf-voice.sh/privacy).
+  </Accordion>
+
+  <Accordion title="How is Mise different from Datadog for voice?">
+    Datadog indexes **flat metrics by time series** — counters, gauges, and spans organized by timestamp. That model works well for infrastructure observability, but it doesn't map naturally to voice conversations.
+
+    Mise indexes **by turn and corpus** — the natural unit of a voice conversation. The schema is built around turns, audio, and replays. Every turn carries its acoustic fingerprint: sentiment, prosody, rhythm, and intent. You query your corpus in plain language and get back ranked calls clustered into defect signatures, not a dashboard of averages.
+
+    See the [Datadog integration](/integrations/datadog) if you use both.
+  </Accordion>
+
+  <Accordion title="Can I use Mise with my existing AI assistant?">
+    Yes. Mise provides an **MCP server** that connects to Claude, Cursor, and Cline. Once connected, you can run corpus searches, retrieve turn data, inspect replay bundles, and explore defect signatures directly from your AI assistant — without leaving your development environment.
+
+    See the [MCP Server docs](/mcp/overview) for setup instructions.
+  </Accordion>
+
+  <Accordion title="How do I get access?">
+    Mise is in private alpha. You can request access at [sf-voice.sh/sign-up](https://sf-voice.sh/sign-up).
+
+    Teams are admitted based on voice stack and call volume. If you're running a supported stack at 10K+ calls/day, you'll move through the queue quickly. If your situation is different, include details in your request and we'll follow up.
+  </Accordion>
+
+  <Accordion title="How does the natural language search work?">
+    `voice.query()` accepts a plain English description of what you're looking for:
+
+    ```javascript
+    voice.query("calls where the agent interrupted the caller.")
+    // → 1,284 matches
+    // → clustered into 6 defect signatures
+    ```
+
+    Mise maps your description to acoustic and semantic features indexed across your corpus — tone, prosody, tension, rhythm, intent, phase, and outcome. It returns a ranked list of matching calls and groups them into defect signature clusters automatically.
+
+    You don't write filters, SQL, or structured queries. If you can describe the failure, Mise can find it.
+
+    See the [Query syntax reference](/reference/query-syntax) for a full breakdown of what you can express.
+  </Accordion>
+
+  <Accordion title="What is a defect signature?">
+    A defect signature is a **named cluster of similar failures** found across your call corpus. When a query returns hundreds or thousands of matches, Mise automatically groups them into patterns based on shared acoustic and semantic characteristics.
+
+    For example, a query for "calls where the agent interrupted the caller" returning 1,284 matches might cluster into six signatures:
+
+    - "Agent interruption during complex multi-step requests"
+    - "Agent interruption immediately after a question"
+    - "Agent interruption during caller hesitation"
+
+    Each cluster is ranked by frequency so you can prioritize the most common failure patterns and fix them at the root cause — rather than reviewing individual calls one by one.
+
+    See [Defect Signatures](/features/defect-signatures) for more detail.
+  </Accordion>
+
+  <Accordion title="Does Mise work in real time?">
+    Yes. Mise can surface acoustic signals **live during a call**, not just after it ends. Sentiment is computed as an exponential moving average across turns as the call progresses, so the score reflects the current arc of the conversation at any point in time.
+
+    Real-time detection enables use cases like live escalation alerts, in-call coaching triggers, and immediate flagging of frustration or tension signals before the call ends.
+  </Accordion>
+
+  <Accordion title="What does the MCP server expose?">
+    The Mise MCP server exposes four categories of tools, all built around a voice-native schema:
+
+    - **Corpus search**: Run `voice.query()` expressions against your full call corpus
+    - **Turn lookup**: Retrieve individual turns with their acoustic feature data, transcript text, and audio references
+    - **Replay bundles**: Access structured replay data for a call — turns, audio segments, tool calls, and metadata — for debugging in context
+    - **Defect signatures**: Query and inspect named failure clusters across your corpus
+
+    The schema is organized around turns and audio, not counters and gauges. See the [MCP Server overview](/mcp/overview) to get started.
+  </Accordion>
+
+</AccordionGroup>

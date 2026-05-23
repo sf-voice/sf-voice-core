@@ -1,0 +1,209 @@
+---
+title: "Query syntax reference for voice.query()"
+description: "Complete reference for writing natural language queries in Mise. Learn how to target acoustic features, outcomes, time ranges, and combined conditions."
+---
+
+`voice.query()` accepts a plain English description of what you're looking for across your call corpus. You don't write filters or SQL — you describe a signal, and Mise maps it to the acoustic and semantic features indexed at every turn.
+
+```javascript
+voice.query("calls where the agent interrupted the caller.")
+// → 1,284 matches
+// → clustered into 6 defect signatures
+```
+
+Results include a total match count, a ranked list of individual calls, and automatically grouped defect signature clusters so you can prioritize the most common patterns first.
+
+## Basic syntax
+
+Every query follows the same form:
+
+```javascript
+voice.query("<plain english description of what you're looking for>")
+```
+
+You can call it from your application code, the MCP server, or the Mise dashboard search bar. Queries are not case-sensitive and do not require special syntax.
+
+<CodeGroup>
+
+```javascript Node.js
+const results = await mise.voice.query(
+  "calls where the caller sounded frustrated in the last two minutes"
+);
+```
+
+```python Python
+results = mise.voice.query(
+    "calls where the caller sounded frustrated in the last two minutes"
+)
+```
+
+</CodeGroup>
+
+## Example queries
+
+The table below shows how plain English maps to the acoustic dimensions Mise indexes.
+
+| Query | What it finds |
+|-------|---------------|
+| `"calls where the agent interrupted the caller"` | Rhythm: interruption events |
+| `"calls where the caller expressed frustration"` | Tension: frustration signal |
+| `"calls that ended without a resolution"` | Outcome: `no_action` or `escalated_unresolved` |
+| `"calls where the agent paused too long"` | Prosody: pause duration |
+| `"calls where the caller sounded uncertain"` | Tone: hesitancy |
+| `"calls where the caller asked to cancel"` | Intent: cancellation intent |
+| `"calls with high tension in the first 2 minutes"` | Tension: early escalation |
+| `"calls where both parties talked at the same time"` | Rhythm: overlap |
+
+## Targeting acoustic features
+
+You can query any of the five acoustic dimensions Mise indexes: tone, prosody, tension, rhythm, and intent. Name the signal in plain language — Mise resolves it to the indexed feature.
+
+<AccordionGroup>
+  <Accordion title="Tone">
+    Tone queries target sentiment, irony, sarcasm, and emotional coloring.
+
+    ```javascript
+    voice.query("calls where the caller sounded angry")
+    voice.query("calls where the agent's tone was flat or dismissive")
+    voice.query("calls where the caller seemed satisfied at the end")
+    ```
+  </Accordion>
+  <Accordion title="Prosody">
+    Prosody queries target pace, pauses, emphasis, and volume dynamics.
+
+    ```javascript
+    voice.query("calls where the agent spoke too quickly")
+    voice.query("calls where there were long silences after the caller asked a question")
+    voice.query("calls where the caller raised their voice")
+    ```
+  </Accordion>
+  <Accordion title="Tension">
+    Tension queries target frustration signals, escalation patterns, and de-escalation arcs.
+
+    ```javascript
+    voice.query("calls where tension escalated in the second half")
+    voice.query("calls where the agent successfully de-escalated the caller")
+    voice.query("calls where frustration was present throughout")
+    ```
+  </Accordion>
+  <Accordion title="Rhythm">
+    Rhythm queries target interruptions, overlap, turn-taking cadence, and conversation flow.
+
+    ```javascript
+    voice.query("calls where the agent frequently interrupted the caller")
+    voice.query("calls where both parties talked over each other")
+    voice.query("calls with unusually fast back-and-forth exchanges")
+    ```
+  </Accordion>
+  <Accordion title="Intent">
+    Intent queries target what the caller actually wanted, regardless of what they literally said.
+
+    ```javascript
+    voice.query("calls where the caller wanted to cancel but didn't say it directly")
+    voice.query("calls where the caller's goal was never identified")
+    voice.query("calls where the caller's intent shifted mid-conversation")
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Targeting outcomes
+
+Outcomes are resolved at the end of a call. You can query by what happened — or what didn't.
+
+Outcome queries describe what happened at the end of the call. You can filter by resolution, escalation, cancellation, or lack of action.
+
+```javascript
+voice.query("calls that ended without a resolution")
+
+voice.query("calls that were escalated and not resolved")
+
+voice.query("calls where the caller cancelled")
+
+voice.query("calls that were escalated to a human agent")
+```
+
+<Note>
+  Outcome is determined by post-call summarization, not real-time detection. Queries targeting outcomes search completed calls only.
+</Note>
+
+## Combining conditions
+
+You can combine multiple signals in a single query using natural language conjunctions.
+
+```javascript
+voice.query("calls where the agent interrupted the caller and the call ended unresolved")
+
+voice.query("calls where the caller expressed frustration and asked to cancel")
+
+voice.query("calls with high tension in the first two minutes and a long pause before escalation")
+```
+
+There is no limit on the number of conditions. Be as specific as you need — more precise descriptions return tighter, more actionable matches.
+
+## Scoping by time and duration
+
+You can scope queries to a time window or a minimum call length.
+
+```javascript
+// Time window
+voice.query("calls from last week where the agent paused too long")
+voice.query("calls from the past 24 hours with unresolved outcomes")
+voice.query("calls from Monday where tension escalated")
+
+// Call duration
+voice.query("calls longer than 5 minutes where the caller asked to cancel")
+voice.query("short calls where the caller hung up quickly")
+```
+
+<Tip>
+  Timeframe scoping is especially useful when investigating a deployment change or a specific shift. Combine it with an acoustic or outcome condition to narrow results to a meaningful slice.
+</Tip>
+
+## Scoping to a party
+
+When the signal is specific to one side of the conversation, name the party explicitly.
+
+```javascript
+// Caller signals
+voice.query("calls where the caller sounded frustrated")
+voice.query("calls where the caller asked to speak to a human")
+
+// Agent signals
+voice.query("calls where the agent interrupted the caller")
+voice.query("calls where the agent paused too long before responding")
+```
+
+Omitting the party returns results where either party matches the signal.
+
+## Results format
+
+Every query returns three things:
+
+<Steps>
+  <Step title="Match count">
+    The total number of calls in your corpus that match the query description.
+  </Step>
+  <Step title="Ranked calls">
+    Individual calls ordered by relevance. Each result includes the call ID, timestamp, outcome, sentiment score, and a summary.
+  </Step>
+  <Step title="Defect signature clusters">
+    Automatically grouped patterns across the matched calls. For example, 1,284 matches might cluster into six signatures such as "Agent interruption during complex requests" or "Caller frustration without resolution." Use these clusters to prioritize fixes across your corpus rather than addressing individual calls.
+  </Step>
+</Steps>
+
+## Writing effective queries
+
+<CardGroup cols={2}>
+  <Card title="Be specific about the signal" icon="crosshairs">
+    "Calls where the caller sounded frustrated" returns tighter results than "bad calls." Name the acoustic dimension you care about.
+  </Card>
+  <Card title="Name the party" icon="users">
+    Specify "caller" or "agent" when the signal is one-sided. Unattributed queries match either party.
+  </Card>
+  <Card title="Include a timeframe" icon="clock">
+    Add "from last week" or "in the past 24 hours" when investigating a specific incident or deployment window.
+  </Card>
+  <Card title="Use outcome language" icon="flag-checkered">
+    Describe what happened at the end of the call — "ended without a resolution," "was escalated," "caller cancelled" — to filter by outcome.
+  </Card>
+</CardGroup>

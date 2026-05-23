@@ -1,0 +1,63 @@
+---
+title: "Integrations: connect your voice stack to Mise"
+description: "Mise integrates with LiveKit, Twilio, Telnyx, Pipecat, and Datadog. Connect your existing pipeline and start indexing calls in minutes."
+---
+
+Mise integrates with the tools your team already uses to run voice AI. Rather than replacing your infrastructure, Mise sits alongside it: your pipeline continues to handle call routing, synthesis, and transcription while Mise indexes every turn for acoustic features and makes your full call corpus searchable.
+
+Every integration follows the same pattern: your voice stack emits audio and metadata, Mise ingests it, indexes per-turn acoustic features, and makes those features available for corpus search and call replay.
+
+<Note>
+  Mise is in private alpha. Integration credentials — API keys, ingest endpoints, and webhook URLs — are provided after your team is granted access. [Request access](https://sf-voice.sh/sign-up) to get started.
+</Note>
+
+## How the integration pattern works
+
+Regardless of which platform you use, the flow is the same:
+
+<Steps>
+  <Step title="Connect">
+    Configure your voice platform to forward audio streams or call events to Mise. Each integration provides a specific mechanism — webhooks, media streaming, or a pipeline processor.
+  </Step>
+  <Step title="Ingest">
+    Mise receives audio and metadata per call leg or turn. It segments the audio into turns, extracts acoustic features (tone, prosody, frustration, interruptions), and stores the indexed result against your call corpus.
+  </Step>
+  <Step title="Search">
+    Once calls are indexed, you can query your corpus in natural language. Results are ranked by acoustic relevance and clustered into defect signatures — not returned as flat metric rows.
+  </Step>
+</Steps>
+
+## Supported integrations
+
+<CardGroup cols={2}>
+  <Card title="LiveKit" icon="tower-broadcast" href="/integrations/livekit">
+    Index turns from WebRTC-based voice agents built on LiveKit. Captures participant audio, room metadata, and per-turn acoustic features.
+  </Card>
+  <Card title="Twilio" icon="phone" href="/integrations/twilio">
+    Connect Twilio Voice calls via Media Streams. Captures both call legs, metadata, and call events in real time.
+  </Card>
+  <Card title="Telnyx" icon="network-wired" href="/integrations/telnyx">
+    Use Telnyx Media Streaming and Call Control webhooks to forward call audio and events to Mise for turn-level indexing.
+  </Card>
+  <Card title="Pipecat" icon="pipe-section" href="/integrations/pipecat">
+    Add Mise as an observer in your Pipecat pipeline. Captures pipeline turns, audio frames, and conversation events without modifying your core logic.
+  </Card>
+  <Card title="Datadog" icon="chart-line" href="/integrations/datadog">
+    Already using Datadog? Mise complements your existing infrastructure monitoring with voice-native corpus search through the Mise MCP server.
+  </Card>
+</CardGroup>
+
+## What Mise captures
+
+Across all integrations, Mise captures the same set of per-turn data:
+
+- **Audio**: Raw audio per turn, stored for replay and acoustic analysis
+- **Acoustic features**: Tone, prosody, frustration signal, interruption events, silence patterns
+- **Metadata**: Timestamps, participant or caller identifiers, call IDs, session context
+- **Turn structure**: Speaker identity per turn, turn boundaries, and overlap events
+
+Mise does not require you to send transcripts — it generates its own turn-level acoustic index. If your pipeline produces transcripts, Mise can ingest those as well to enrich search results.
+
+<Tip>
+  If you run multiple voice platforms (for example, Twilio for inbound and Pipecat for outbound), you can connect both. Mise indexes across your full call corpus regardless of origin platform.
+</Tip>

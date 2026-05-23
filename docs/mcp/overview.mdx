@@ -1,0 +1,87 @@
+---
+title: "Mise MCP server: voice-native AI debugging"
+description: "Connect Claude, Cursor, or Cline to your Mise call corpus. Query turns, fetch replay bundles, and get to root cause without leaving your editor."
+---
+
+Debugging voice AI failures is slow because the data lives outside your AI assistant. You get a vague failure report, open Mise, copy a transcript, paste it into Claude, ask a question, go back to fetch the audio link, copy it again — and repeat. The Mise MCP server eliminates that loop.
+
+With the Mise MCP server installed, your AI assistant can query your call corpus, inspect defect signatures, and pull replay bundles directly — all within the same chat or editor session where you're already working.
+
+<Note>
+  The Mise MCP server is available to teams in private alpha. Credentials are provided after your account is activated. [Request access](https://sf-voice.sh/sign-up).
+</Note>
+
+## What the MCP server exposes
+
+The Mise MCP server gives your AI assistant structured access to four capabilities:
+
+<CardGroup cols={2}>
+  <Card title="Corpus search" icon="magnifying-glass">
+    Query your entire call corpus in natural language. Returns ranked matches and clustered defect signatures.
+  </Card>
+  <Card title="Turn lookup" icon="list-timeline">
+    Fetch any transcript turn by ID. Returns role, text, sentiment score, audio link, phase, and turn index.
+  </Card>
+  <Card title="Replay bundles" icon="circle-play">
+    Pull a complete replay bundle for any call: transcript turns, tool calls, system events, model parameters, and audio links.
+  </Card>
+  <Card title="Defect signatures" icon="triangle-exclamation">
+    Retrieve structured defect signatures by ID. Each signature includes the cluster of matching turns, acoustic features, and the top failing turn.
+  </Card>
+</CardGroup>
+
+## Why voice failures need a voice-native schema
+
+General-purpose observability tools like Datadog expose flat metrics: counters, gauges, latency histograms. That schema works for services. It does not work for voice AI, where the unit of failure is a conversational turn — not a request.
+
+When you ask Claude "why did my agent fail on these calls?", the answer is not in a p99 latency value. It is in the turn where the agent interrupted the caller, the acoustic features on that turn, the model parameters active at the time, and the audio that proves it.
+
+The Mise MCP schema is built around **turns, audio, and replays**. Every tool the server exposes returns data in the shape that voice failures actually take — structured so your AI assistant can reason over it without prompt gymnastics.
+
+## The replay → root cause workflow
+
+The core workflow is a single loop:
+
+<Steps>
+  <Step title="Paste a defect description">
+    Tell your AI assistant what went wrong in plain language: "find calls where the agent interrupted the caller before the user finished speaking."
+  </Step>
+  <Step title="Get a defect signature">
+    The MCP server queries your corpus and returns a structured defect signature — a cluster of matching turns with acoustic features, model parameters, and a severity score.
+  </Step>
+  <Step title="Fetch the failing turn">
+    Your assistant pulls the top failing turn from the signature: the exact transcript text, the audio link, the sentiment score, and the turn index in the call.
+  </Step>
+  <Step title="Get the next step">
+    Claude reasons over the replay bundle and defect signature to identify root cause and suggest a fix — model parameter, prompt change, or integration issue.
+  </Step>
+</Steps>
+
+You never leave the chat. You never copy-paste a transcript. You never manually locate an audio file.
+
+## Compatible AI assistants
+
+The Mise MCP server works with any MCP-compatible AI assistant.
+
+<CardGroup cols={3}>
+  <Card title="Claude Desktop" icon="robot" href="/mcp/setup">
+    The primary supported client. Add the Mise server to your `claude_desktop_config.json`.
+  </Card>
+  <Card title="Cursor" icon="code" href="/mcp/setup">
+    Add the Mise MCP server to your Cursor MCP configuration to debug from your editor.
+  </Card>
+  <Card title="Cline" icon="terminal" href="/mcp/setup">
+    Configure the Mise server in Cline's MCP settings to use it from VS Code.
+  </Card>
+</CardGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Set up the MCP server" icon="gear" href="/mcp/setup">
+    Install the server for Claude Desktop, Cursor, or Cline in under five minutes.
+  </Card>
+  <Card title="AI-assisted debugging" icon="bug" href="/mcp/ai-debugging">
+    Walk through a complete debugging session from failure report to root cause.
+  </Card>
+</CardGroup>

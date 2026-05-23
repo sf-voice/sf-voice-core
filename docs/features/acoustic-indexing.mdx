@@ -1,0 +1,130 @@
+---
+title: "Acoustic indexing: what Mise hears that others don't"
+description: "Mise indexes tone, prosody, tension, rhythm, and intent at every turn — not just words. Learn what acoustic indexing captures and why it matters."
+---
+
+Transcription captures what was said. Acoustic indexing captures how it was said.
+
+When a caller says "fine" after a long pause, the word carries the same transcript but a completely different meaning than when they say it quickly in a neutral tone. Keyword search misses this. Sentiment dashboards summarize it away. Acoustic indexing preserves it — at every turn, for every call.
+
+Mise indexes five acoustic dimensions at each transcript turn. These signals power corpus search, defect detection, and live alerting.
+
+## The five dimensions
+
+<CardGroup cols={2}>
+  <Card title="Tone" icon="face-smile">
+    Sentiment, irony, and sarcasm. Detects not just positive or negative valence but whether the sentiment is genuine or inverted.
+  </Card>
+  <Card title="Prosody" icon="wave-square">
+    Pace, pauses, and emphasis. Captures when a speaker speeds up, slows down, or places stress on specific words.
+  </Card>
+  <Card title="Tension" icon="triangle-exclamation">
+    Frustration and escalation signals. Identifies when a conversation is moving toward conflict or disengagement.
+  </Card>
+  <Card title="Rhythm" icon="chart-bar">
+    Cadence, interruptions, and overlap. Detects when speakers talk over each other or when silence extends past normal turn boundaries.
+  </Card>
+  <Card title="Intent" icon="bullseye">
+    What the caller actually wants. Infers underlying goals from acoustic and linguistic context, not just the surface request.
+  </Card>
+</CardGroup>
+
+### Tone
+
+Tone goes beyond positive/negative sentiment scores. Mise indexes:
+
+- **Sentiment** — the emotional valence of what's being said
+- **Irony** — when tone inverts the literal meaning
+- **Sarcasm** — a specific pattern of exaggerated or clipped delivery that signals disbelief or irritation
+
+A caller who says "great, that's really helpful" in a flat, trailing tone is not satisfied. Tone indexing surfaces this where transcription alone cannot.
+
+### Prosody
+
+Prosody is the music of speech — the variation in pace, pitch, and rhythm that carries meaning beyond words. Mise indexes:
+
+- **Pace** — speaking rate and whether it's accelerating or decelerating
+- **Pauses** — silence duration and placement (mid-sentence pauses signal confusion; post-response pauses can signal dissatisfaction)
+- **Emphasis** — which words receive stress, indicating what the caller considers important
+
+### Tension
+
+Tension signals indicate that a conversation is moving in a bad direction before the caller says so explicitly. Mise indexes:
+
+- **Frustration** — prosodic and tonal markers associated with growing impatience
+- **Escalation** — patterns that precede requests for a human agent or explicit complaints
+
+<Tip>
+  Tension indexing is one of the most useful signals for prioritizing replay review. Calls with high tension scores in the mid-conversation turns are strong candidates for defect investigation.
+</Tip>
+
+### Rhythm
+
+Rhythm captures the structural dynamics of a conversation — who speaks, when, and how turns are exchanged:
+
+- **Cadence** — the natural turn-taking pattern and whether it breaks down
+- **Interruptions** — one speaker cutting off another mid-turn
+- **Overlap** — both speakers talking simultaneously
+
+Interruptions are a leading signal for agent quality issues. Corpus Search queries like "calls where the agent interrupted the caller" are powered by rhythm indexing at the turn level.
+
+### Intent
+
+Intent indexing looks past the literal request to what the caller actually needs. A caller who says "I just wanted to check on something" while asking about a charge may actually be disputing it. Intent signals combine acoustic and linguistic context to surface:
+
+- The caller's underlying goal
+- Whether the agent's response addressed that goal
+- Mismatches between what was asked and what was answered
+
+## How this differs from transcription and keyword search
+
+<Tabs>
+  <Tab title="Keyword search">
+    Keyword search finds calls where the word "cancel" appears in the transcript. It returns every call where a customer or agent said "cancel" — including accidental mentions, confirmations of a past cancellation, and discussions of a cancellation policy.
+
+    It does not distinguish between a caller who calmly asked about cancellation options and one who threatened to cancel in a tense, elevated tone.
+  </Tab>
+  <Tab title="Transcription alone">
+    Transcription captures what was spoken. It enables keyword search and LLM summarization, but the acoustic signal — the _how_ — is discarded.
+
+    A caller who repeats the same question three times, each time with increased pace and stress, produces the same transcript as a caller who asked the same question three times calmly. The acoustic record is different; the text record is not.
+  </Tab>
+  <Tab title="Acoustic indexing">
+    Acoustic indexing retains the full signal. Every turn carries its tone, prosody, tension, rhythm, and intent scores. Corpus search queries can reference any of these dimensions, and defect signatures cluster calls by acoustic similarity — not just textual similarity.
+
+    This is why a query for "calls where the caller sounded frustrated" returns a different (and often larger) set than a keyword search for "frustrated."
+  </Tab>
+</Tabs>
+
+## Real-time vs. post-call indexing
+
+Mise indexes acoustics at two points in the call lifecycle:
+
+<Steps>
+  <Step title="Live detection (during the call)">
+    Tension, frustration, and escalation signals are surfaced in real time as calls progress. Your integrations can subscribe to these live events and trigger alerts or human escalation before the call ends.
+  </Step>
+  <Step title="Post-call indexing (after the call)">
+    Full acoustic indexing — all five dimensions, every turn — completes within seconds of call end. Post-call indexing produces the scores stored against each transcript turn and made available for corpus search.
+  </Step>
+</Steps>
+
+<Note>
+  Live detection prioritizes latency. Post-call indexing prioritizes completeness. Both use the same underlying acoustic models, but post-call indexing runs with access to the full conversation context.
+</Note>
+
+## How acoustic indexing powers other features
+
+Acoustic signals feed directly into the rest of the platform:
+
+<CardGroup cols={2}>
+  <Card title="Corpus Search" icon="magnifying-glass" href="/features/corpus-search">
+    Queries like "calls where the caller expressed frustration" resolve against turn-level acoustic scores, not keyword matches.
+  </Card>
+  <Card title="Defect Signatures" icon="triangle-exclamation" href="/features/defect-signatures">
+    Clusters are formed by acoustic similarity — calls with matching tension arcs and rhythm patterns group together even when the transcript content differs.
+  </Card>
+  <Card title="Call Replay" icon="circle-play" href="/features/call-replay">
+    Each turn in the replay timeline displays its acoustic scores, so you can see exactly when sentiment dropped or tension spiked.
+  </Card>
+</CardGroup>

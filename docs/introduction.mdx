@@ -1,0 +1,87 @@
+---
+title: "Introduction to Mise voice AI observability"
+description: "Mise indexes acoustic features of every call — tone, prosody, frustration, interruptions — so you can search and debug voice AI at scale."
+---
+
+Debugging voice AI at scale is a listening problem. When your system handles thousands of calls a day, you can't replay recordings one by one to find where the agent interrupted a caller, escalated a frustrated customer, or misread intent. Mise solves this by indexing not just what was said, but how it was said — making every conversation in your corpus searchable by acoustic signal.
+
+## The problem with transcript-only observability
+
+Most observability tools treat a phone call as a sequence of words. They index transcripts, measure call duration, and flag keywords. That approach misses the majority of the signal.
+
+A caller who says "fine, whatever" may be satisfied or deeply frustrated. An agent that speaks faster after a long pause may be interrupting. Sarcasm, resignation, and confusion don't appear in transcripts — they live in the prosody, tone, and rhythm of the conversation.
+
+<CardGroup cols={2}>
+  <Card title="What others index" icon="file-lines">
+    Words and timestamps. Keyword matches. Call duration. Transcript sentiment estimated from text alone.
+  </Card>
+  <Card title="What Mise indexes" icon="waveform-lines">
+    Tone, prosody, tension, rhythm, and intent — captured at every turn from the audio itself, not inferred from words.
+  </Card>
+</CardGroup>
+
+## Acoustic indexing, not just transcription
+
+Mise processes every turn of every call and extracts five acoustic dimensions:
+
+- **Tone** — Sentiment, irony, and sarcasm as expressed in the voice, not the text
+- **Prosody** — Pace, pauses, and emphasis that carry meaning beyond words
+- **Tension** — Frustration and escalation signals as they develop across a call
+- **Rhythm** — Cadence, interruptions, and overlap between speakers
+- **Intent** — What the caller is actually trying to accomplish, inferred from acoustic context
+
+These features are indexed per turn and aggregated across your entire call corpus. When you query Mise, you're searching acoustic space — not just a text database.
+
+<Note>
+  Mise indexes audio archived per turn and as full call recordings. Transcripts are one input to the index, not the index itself.
+</Note>
+
+## Searching your call corpus
+
+Instead of filtering dashboards or writing SQL against call metadata, you express what you're looking for in natural language:
+
+```python
+voice.query("calls where the agent interrupted the caller")
+# → 1,284 matches → clustered into 6 defect signatures
+```
+
+Mise returns ranked matches and automatically clusters them into defect signatures — recurring patterns that represent distinct failure modes. This is the difference between finding individual bad calls and understanding a systemic problem.
+
+## Who Mise is built for
+
+Mise is designed for engineering and product teams running voice AI at scale — typically 10,000 or more calls per day. It integrates directly with the stacks these teams already use:
+
+<CardGroup cols={3}>
+  <Card title="LiveKit" icon="tower-broadcast" href="/integrations/livekit">
+    Real-time voice pipelines
+  </Card>
+  <Card title="Twilio" icon="phone" href="/integrations/twilio">
+    Programmable telephony
+  </Card>
+  <Card title="Telnyx" icon="network-wired" href="/integrations/telnyx">
+    Cloud communications
+  </Card>
+  <Card title="Pipecat" icon="pipe-section" href="/integrations/pipecat">
+    Voice AI orchestration
+  </Card>
+  <Card title="Datadog" icon="chart-line" href="/integrations/datadog">
+    Metrics and alerting
+  </Card>
+</CardGroup>
+
+## How it compares
+
+| Approach | What you get | What you miss |
+|----------|-------------|---------------|
+| Keyword search | Calls containing specific words | Everything expressed acoustically |
+| Transcript analytics | Text-level sentiment, topic detection | Tone, prosody, frustration, sarcasm |
+| Time-series dashboards | Aggregated metrics over time | Turn-level signal, defect clustering |
+| Mise | Acoustic features indexed at every turn, searchable across your corpus | — |
+
+## Getting access
+
+Mise is in private alpha. Teams are admitted based on stack and call volume.
+
+<Card title="Request access" icon="arrow-right" href="https://sf-voice.sh/sign-up">
+  Request access at sf-voice.sh/sign-up. Your team will be reviewed and onboarded with support from the Mise team.
+</Card>

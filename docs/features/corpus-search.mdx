@@ -1,0 +1,104 @@
+---
+title: "Corpus Search: query your entire call history"
+description: "Search thousands of voice AI calls in plain language. Get ranked matches clustered into defect signatures so you can find and fix failures fast."
+---
+
+Corpus Search lets you query your entire call history using plain language descriptions instead of keywords or boolean filters. When you know a class of failure exists — callers hanging up in frustration, agents talking over customers, conversations that never reached a resolution — you describe it, and Mise finds every matching call across your corpus.
+
+Results come back as ranked matches with turn-level highlights. Mise automatically clusters similar matches into defect signatures, so instead of reviewing 1,284 individual calls, you're working with 6 named patterns.
+
+## Writing a query
+
+Queries are written as natural language descriptions passed to `voice.query()`. Describe the situation you're looking for as if you were explaining it to a colleague.
+
+<CodeGroup>
+
+```javascript Interruption pattern
+voice.query("calls where the agent interrupted the caller")
+// → 1,284 matches clustered into 6 defect signatures
+```
+
+```javascript Caller frustration
+voice.query("calls where the caller expressed frustration")
+```
+
+```javascript Unresolved calls
+voice.query("calls that ended without a resolution")
+```
+
+```javascript Cancellation mentions
+voice.query("calls where the caller mentioned cancellation")
+```
+
+</CodeGroup>
+
+You don't need to know the exact words spoken in a call. Corpus Search uses acoustic indexing — tone, prosody, and intent signals indexed at every turn — to surface calls that match your description even when the specific phrasing varies.
+
+## What results look like
+
+Each query returns a result set with three levels of detail:
+
+<Steps>
+  <Step title="Ranked matches">
+    Calls are ranked by how closely they match your query. Each match includes the call ID, timestamp, outcome, and an overall relevance score.
+  </Step>
+  <Step title="Turn-level highlights">
+    Within each matching call, Mise surfaces the specific turns that drove the match. You see the transcript excerpt, the acoustic signals present (frustration, overlap, pace shift), and a link to jump directly to that turn in Call Replay.
+  </Step>
+  <Step title="Defect signatures">
+    Mise clusters matching calls by similarity and names each cluster. A query for "calls where the agent interrupted the caller" might produce signatures like "Agent interruption during complex requests" and "Agent interruption at handoff." Each signature shows affected call count and representative examples.
+  </Step>
+</Steps>
+
+## Example: finding interruption patterns
+
+The following example shows a typical workflow — run a query, inspect the signatures, then drill into individual calls.
+
+```javascript
+const results = await voice.query("calls where the agent interrupted the caller");
+
+console.log(results.totalMatches);      // 1284
+console.log(results.signatures.length); // 6
+
+const topSignature = results.signatures[0];
+console.log(topSignature.name);         // "Agent interruption during complex requests"
+console.log(topSignature.callCount);    // 487
+console.log(topSignature.examples[0].callId); // "call_abc123"
+```
+
+## Tips for effective queries
+
+<Tip>
+  Describe behavior, not keywords. "Calls where the caller sounded rushed" finds more than searching for the word "hurry."
+</Tip>
+
+<AccordionGroup>
+  <Accordion title="Be specific about who did what">
+    Specify whether you mean the agent or the caller. "Calls where the **agent** repeated itself" and "calls where the **caller** repeated themselves" return different results.
+  </Accordion>
+  <Accordion title="Describe the outcome, not the cause">
+    Queries like "calls that ended without booking" are often more useful than trying to describe every path that leads to that outcome.
+  </Accordion>
+  <Accordion title="Use emotional and behavioral language">
+    Mise indexes acoustic signals, so phrases like "frustrated," "confused," "rushed," or "hesitant" are meaningful search terms — not just metadata filters.
+  </Accordion>
+  <Accordion title="Narrow by phase if you know it">
+    If a failure happens at a specific point — during escalation, after a tool call, near the end of a call — include that context in your query. For example: "calls where the caller disengaged during the escalation handoff."
+  </Accordion>
+</AccordionGroup>
+
+## Corpus Search and defect signatures
+
+Corpus Search results are the primary input to defect signatures. When Mise clusters your matches, each resulting signature becomes a named, trackable pattern you can share with teammates or pass directly to an AI assistant for root cause analysis.
+
+<Card title="Defect Signatures" icon="triangle-exclamation" href="/features/defect-signatures">
+  Learn how Mise clusters corpus search results into named defect patterns.
+</Card>
+
+## Scale
+
+Corpus Search is built for teams running 10,000+ calls per day. Queries run against your full historical corpus — not a recent sample — and return results in seconds regardless of corpus size.
+
+<Note>
+  Acoustic indexing must be complete before a call appears in corpus search results. Indexing typically completes within seconds of call end. Live detection surfaces signals during the call itself — see [Acoustic Indexing](/features/acoustic-indexing).
+</Note>

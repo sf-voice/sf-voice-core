@@ -1,0 +1,105 @@
+---
+title: "Call Replay: jump to the exact turn that failed"
+description: "Replay any call with a merged timeline of turns, tool calls, and system events. Play per-turn audio and inspect agent decisions without scrubbing recordings."
+---
+
+When a call goes wrong, you shouldn't have to listen to the entire recording to find out why. Call Replay gives you a merged timeline of everything that happened — every transcript turn, every tool call the AI agent made, every system event — so you can jump directly to the turn where a failure occurred.
+
+Each turn displays its transcript text, acoustic signals, and the audio clip for that segment. When you find the relevant moment, you can play it, inspect what the agent did, and share it with a teammate or pass it directly to an AI assistant.
+
+## The timeline view
+
+The timeline is the central surface of Call Replay. It merges three event streams into a single chronological view:
+
+<CardGroup cols={3}>
+  <Card title="Transcript turns" icon="message">
+    Every caller and agent turn with text, role, phase, and per-turn sentiment score.
+  </Card>
+  <Card title="Tool calls" icon="wrench">
+    Each action the AI agent took — what it called, what parameters it passed, and what it received back.
+  </Card>
+  <Card title="System events" icon="bolt">
+    Phase transitions, escalation triggers, and other platform-level events.
+  </Card>
+</CardGroup>
+
+Turns are tagged with their conversation phase — AI handling, escalation in progress, human handling, or post-resolution. This makes it easy to identify when in the call lifecycle a failure occurred.
+
+## Sentiment indicators
+
+Every turn in the timeline displays a sentiment glyph — a visual indicator of the acoustic sentiment score for that turn. Glyphs update continuously as you scroll through a call, giving you a fast visual read on where sentiment shifted.
+
+A sharp drop in caller sentiment mid-call, followed by an escalation event, is a common failure pattern. The sentiment glyphs make this visible without reading every line of transcript.
+
+## Audio playback
+
+<Steps>
+  <Step title="Full call audio">
+    When archival is complete, the audio player appears in the replay header. You can play the full call recording, scrub to any point, and see the current position reflected in the timeline.
+  </Step>
+  <Step title="Per-turn audio">
+    Each transcript turn has its own audio clip. Click the play button on any turn to hear exactly that segment — useful when you want to verify an acoustic signal or share a specific moment without context.
+  </Step>
+</Steps>
+
+<Note>
+  Per-turn audio is available immediately after indexing. Full call audio appears in the header once archival is complete, which typically follows within seconds of call end.
+</Note>
+
+## Customer context panel
+
+The customer context panel shows caller identity and history alongside the timeline. While reviewing a call, you can see:
+
+- **Caller identity** — phone number, name, and any linked account data
+- **Past calls** — previous interactions and their outcomes
+- **Account context** — relevant history from the caller's account
+
+This context is available without leaving the replay view. When investigating a failure, knowing whether the caller had a prior unresolved issue often explains the current call's arc.
+
+## Tool call inspection
+
+Every action the AI agent took is visible in the timeline. Select any tool call event to expand it and see:
+
+- The tool name and method
+- The parameters passed by the agent
+- The response returned
+- The turn that preceded and followed the call
+
+<Tip>
+  Tool call inspection is one of the fastest ways to diagnose agent reasoning failures. If the agent called the right tool with the wrong parameters — or made no tool call when one was expected — you can see it directly in the timeline without writing any queries.
+</Tip>
+
+## AI-native output
+
+Call Replay is designed for LLM-assisted debugging. Replay bundles are structured, machine-readable exports that include the full timeline, acoustic scores, tool call history, and turn references.
+
+```javascript
+const bundle = await voice.replay("call_abc123").export();
+// Returns structured JSON: turns, tool calls, acoustic scores, customer context
+```
+
+You can pass a replay bundle directly to Claude, Cursor, or Cline for root cause analysis without reformatting or prompt gymnastics. The MCP server also exposes individual calls so your debugger can reason over them inline.
+
+<Card title="MCP Server" icon="robot" href="/mcp/overview">
+  Connect your AI assistant to the call corpus directly using the Mise MCP server.
+</Card>
+
+## Sharing a specific turn
+
+To share a turn with a teammate or AI assistant:
+
+<Steps>
+  <Step title="Find the turn">
+    Scroll through the timeline or use the sentiment glyphs to locate the turn you want to share.
+  </Step>
+  <Step title="Copy the turn link">
+    Click the link icon on any turn to copy a URL that points directly to that position in the call. The recipient opens the replay at exactly that turn.
+  </Step>
+  <Step title="Export the turn for AI debugging">
+    Use the export option on any turn to get a structured JSON snippet — turn text, role, acoustic scores, adjacent tool calls — that you can paste into an AI assistant or attach to a bug report.
+  </Step>
+</Steps>
+
+<Warning>
+  Turn links include the call ID and turn index. Ensure the recipient has access to the relevant call before sharing. Access is governed by your team's role configuration.
+</Warning>

@@ -1,0 +1,133 @@
+---
+title: "Quickstart: connect your stack and run a query"
+description: "Request access, connect your voice AI stack to Mise, and run your first natural language query against your call corpus in four steps."
+---
+
+This guide walks you through getting Mise running against your voice AI stack for the first time. You'll connect your pipeline, ingest your first calls, and run a query that returns real matches clustered into defect signatures.
+
+<Note>
+  Mise is optimized for teams running **10,000+ calls per day**. At that volume, acoustic indexing starts surfacing defect patterns that would be invisible in transcripts or call-level metrics.
+</Note>
+
+<Steps>
+
+  <Step title="Request access">
+    Mise is in private alpha. Go to [sf-voice.sh/sign-up](https://sf-voice.sh/sign-up) and submit your team's details — your stack, call volume, and the type of voice AI you're running.
+
+    The Mise team reviews requests by stack and volume. Once admitted, you'll receive credentials and onboarding instructions by email.
+
+    <Tip>
+      Mention your primary stack (LiveKit, Twilio, Telnyx, Pipecat) and your daily call volume in the request form. This speeds up review.
+    </Tip>
+  </Step>
+
+  <Step title="Connect your voice stack">
+    Mise integrates with the telephony and voice AI stacks your team already uses. Choose your stack and follow the integration guide:
+
+    <CardGroup cols={2}>
+      <Card title="LiveKit" icon="tower-broadcast" href="/integrations/livekit">
+        Real-time voice and video pipelines
+      </Card>
+      <Card title="Twilio" icon="phone" href="/integrations/twilio">
+        Programmable telephony and voice
+      </Card>
+      <Card title="Telnyx" icon="network-wired" href="/integrations/telnyx">
+        Cloud communications platform
+      </Card>
+      <Card title="Pipecat" icon="pipe-section" href="/integrations/pipecat">
+        Open-source voice AI orchestration
+      </Card>
+    </CardGroup>
+
+    Each integration connects Mise to your call pipeline. Once connected, Mise begins ingesting calls: per-turn audio is archived alongside full call recordings, and acoustic indexing starts automatically.
+
+    <Info>
+      Mise indexes audio at the turn level — each speaker turn is archived and processed independently. This is what makes turn-level replay and per-turn acoustic search possible.
+    </Info>
+  </Step>
+
+  <Step title="Run your first query">
+    Once calls are flowing, you can query your corpus using `voice.query()`. Queries are expressed in natural language and match on acoustic features, not just transcript keywords.
+
+    <CodeGroup>
+
+    ```python Python
+    import mise
+
+    client = mise.Client(api_key="your-api-key")
+
+    # Search for calls where the agent interrupted the caller
+    results = client.voice.query("calls where the agent interrupted the caller")
+
+    print(f"{results.total_matches} matches")
+    print(f"{len(results.defect_signatures)} defect signatures")
+    ```
+
+    ```typescript TypeScript
+    import { MiseClient } from "@mise/sdk";
+
+    const client = new MiseClient({ apiKey: "your-api-key" });
+
+    // Search for calls where the agent interrupted the caller
+    const results = await client.voice.query(
+      "calls where the agent interrupted the caller"
+    );
+
+    console.log(`${results.totalMatches} matches`);
+    console.log(`${results.defectSignatures.length} defect signatures`);
+    ```
+
+    </CodeGroup>
+
+    You can also use the MCP server to query from Claude, Cursor, or Cline directly. See [MCP Server](/mcp/overview).
+
+    <Tip>
+      Start with broad queries to understand what's in your corpus, then narrow. Try:
+      - `"calls where the caller expressed frustration"`
+      - `"calls where there was a long silence before the agent responded"`
+      - `"calls where the caller repeated themselves more than twice"`
+    </Tip>
+  </Step>
+
+  <Step title="Interpret your results">
+    A `voice.query()` response contains two things: individual call matches and defect signatures.
+
+    **Matches** are the specific calls that scored highest against your query. Each match includes:
+    - The call record with metadata (from number, to number, timestamps, duration)
+    - A sentiment score and summary
+    - The specific turns that drove the match, with audio playback available
+
+    **Defect signatures** are automatically clustered groups of similar matches. Rather than reviewing 1,284 individual calls, Mise might cluster them into 6 distinct patterns — each with a name, a representative example, and a count.
+
+    ```python
+    for signature in results.defect_signatures:
+        print(signature.name)          # e.g. "Agent interrupts during disambiguation"
+        print(signature.count)         # e.g. 412
+        print(signature.example_call)  # call ID for the most representative example
+    ```
+
+    Use [Call Replay](/features/call-replay) to jump to the exact turn in a representative call and hear the audio alongside the transcript and tool call trace.
+
+    <Info>
+      Defect signatures are clustered results from corpus search — Mise groups matches by acoustic similarity, not by keyword overlap. Two calls can match the same signature without sharing a single word.
+    </Info>
+  </Step>
+
+</Steps>
+
+## What's next
+
+<CardGroup cols={2}>
+  <Card title="How it works" icon="lightbulb" href="/how-it-works">
+    Understand the acoustic indexing model and the five dimensions Mise captures.
+  </Card>
+  <Card title="Corpus search" icon="magnifying-glass" href="/features/corpus-search">
+    Learn the full query syntax and how to filter, rank, and export results.
+  </Card>
+  <Card title="Defect signatures" icon="triangle-exclamation" href="/features/defect-signatures">
+    Understand how clustering works and how to act on signature output.
+  </Card>
+  <Card title="MCP server" icon="robot" href="/mcp/overview">
+    Connect Claude, Cursor, or Cline to debug voice failures in natural language.
+  </Card>
+</CardGroup>

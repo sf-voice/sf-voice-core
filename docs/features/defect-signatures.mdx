@@ -1,0 +1,121 @@
+---
+title: "Defect signatures: named patterns of recurring failures"
+description: "Defect signatures cluster similar call failures into named, trackable patterns. Prioritize fixes by impact and track resolution over time."
+---
+
+A defect signature is a named, clustered pattern of similar failures across your call corpus. When you run a corpus search and get back 1,284 matches, Mise doesn't leave you with a list of calls to review. It clusters those matches by acoustic and behavioral similarity into a small set of named signatures — typically 6 to 20 — each representing a distinct failure mode.
+
+Instead of asking "what went wrong in this call," you ask "how many callers hit this pattern, and what's the highest-impact one to fix first."
+
+## How defect signatures are generated
+
+Defect signatures are produced automatically from corpus search results.
+
+<Steps>
+  <Step title="Run a corpus search">
+    Start with a natural language query that describes a class of failure. For example: `voice.query("calls where the agent interrupted the caller")`.
+  </Step>
+  <Step title="Mise clusters the matches">
+    Matching calls are grouped by acoustic similarity — tension arcs, rhythm patterns, turn-level sentiment progressions — not just textual similarity. Calls that sound alike cluster together even when the transcript content differs.
+  </Step>
+  <Step title="Signatures are named and ranked">
+    Each cluster is named based on its dominant pattern and ranked by affected call count. You see the most impactful failures first.
+  </Step>
+</Steps>
+
+## What a defect signature contains
+
+Each signature gives you enough context to understand, prioritize, and act on the pattern without reviewing individual calls.
+
+<AccordionGroup>
+  <Accordion title="Pattern description">
+    A plain-language name and description of the failure pattern — what happens, when in the call it occurs, and which party is involved.
+
+    Example: "Agent interruption during complex requests" — the agent cuts off the caller while the caller is mid-sentence on multi-step requests.
+  </Accordion>
+  <Accordion title="Affected call count">
+    The number of calls in your corpus matching this signature. Used to prioritize which patterns to address first.
+  </Accordion>
+  <Accordion title="Representative examples">
+    A curated set of calls that best illustrate the pattern. Each example links directly to the relevant turn in Call Replay.
+  </Accordion>
+  <Accordion title="Turn references">
+    The specific turns across affected calls where the pattern is most pronounced. Turn references include acoustic scores, transcript excerpts, and adjacent tool calls.
+  </Accordion>
+</AccordionGroup>
+
+## Example: interruption signatures
+
+A query for `"calls where the agent interrupted the caller"` returns 1,284 matches clustered into 6 signatures:
+
+| Signature | Calls |
+|-----------|-------|
+| Agent interruption during complex requests | 487 |
+| Agent interruption at handoff to human | 312 |
+| Agent interruption after long caller pause | 198 |
+| Double-speak overlap on greeting | 144 |
+| Agent interruption on repeat caller statement | 98 |
+| Agent interruption during cancellation request | 45 |
+
+The call count tells you where to focus. The signature name tells you what's happening. The representative examples let you verify before investing in a fix.
+
+## Using defect signatures
+
+### Prioritizing fixes by call count
+
+Sort signatures by affected call count to identify the highest-impact patterns. A signature affecting 487 calls is a stronger candidate for immediate investigation than one affecting 45 — unless the 45-call pattern involves a critical outcome like unresolved escalations.
+
+```javascript
+const results = await voice.query("calls where the agent interrupted the caller");
+const ranked = results.signatures.sort((a, b) => b.callCount - a.callCount);
+
+ranked.forEach(sig => {
+  console.log(`${sig.name}: ${sig.callCount} calls`);
+});
+```
+
+### Sharing with your AI assistant for root cause analysis
+
+Defect signatures are structured, machine-readable output. You can pass a signature directly to Claude, Cursor, or Cline for root cause analysis.
+
+<CodeGroup>
+
+```javascript Export a signature
+const sig = results.signatures[0];
+const bundle = await sig.export();
+// Returns: name, callCount, turnReferences, acousticSummary, representativeExamples
+```
+
+```javascript Pass to AI assistant via MCP
+// The MCP server exposes signatures as resources
+// Your AI assistant can reason over them inline:
+// "Analyze the turn references in this signature and suggest
+//  what's causing the agent to interrupt."
+```
+
+</CodeGroup>
+
+<Tip>
+  Paste a signature export into your AI assistant with a prompt like: "Here is a defect signature from our voice AI corpus. Analyze the turn references and acoustic scores, and suggest what's causing this behavior." The structured format means you don't need to describe the data — the assistant reads it directly.
+</Tip>
+
+### Tracking resolution over time
+
+After you identify and address a defect, re-run the same corpus search query against new calls to measure whether the signature's call count is declining. A shrinking count confirms the fix is working; a stable or growing count indicates the underlying behavior persists.
+
+<Note>
+  Corpus search always queries your full historical corpus. To measure improvement over time, filter by date range to compare call counts before and after a deployment.
+</Note>
+
+## Defect signatures and the MCP server
+
+The Mise MCP server exposes defect signatures as resources your AI debugger can query and reason over directly. You don't need to export data or format prompts — your AI assistant can inspect signatures, pull turn references, and request audio context inline.
+
+<CardGroup cols={2}>
+  <Card title="MCP Server overview" icon="robot" href="/mcp/overview">
+    Connect Claude, Cursor, or Cline to your call corpus using the Mise MCP server.
+  </Card>
+  <Card title="AI debugging guide" icon="bug" href="/mcp/ai-debugging">
+    Use defect signatures and the MCP server to run structured root cause analysis.
+  </Card>
+</CardGroup>

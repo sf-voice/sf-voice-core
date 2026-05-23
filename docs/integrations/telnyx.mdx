@@ -1,0 +1,116 @@
+---
+title: "Connect Telnyx to Mise for acoustic indexing"
+description: "Forward Telnyx Media Streaming and Call Control events to Mise for per-turn acoustic indexing of every call leg and event in your voice pipeline."
+---
+
+Telnyx is a communications platform that provides programmable voice, SIP trunking, and call control through its REST API and WebSocket-based Media Streaming. If your voice AI infrastructure runs on Telnyx, Mise connects via media streaming and call control webhooks to index acoustic features across your full call corpus.
+
+<Note>
+  Mise is in private alpha. Your Mise media streaming endpoint, webhook URL, and API key are provided after your team is granted access. [Request access](https://sf-voice.sh/sign-up).
+</Note>
+
+## What Mise captures from Telnyx
+
+For each Telnyx call, Mise captures:
+
+- **Per-turn audio**: Both inbound and outbound audio, segmented by speaker and indexed for acoustic features
+- **Call control events**: Call initiated, answered, bridged, transferred, and hung-up events from Call Control webhooks
+- **Call metadata**: Call UUID, connection ID, caller ID, direction, and timestamps
+- **Acoustic features per turn**: Tone, prosody, frustration signal, interruptions, and silence patterns
+
+If your pipeline generates transcripts via Telnyx AI features or a third-party STT provider, Mise can ingest those alongside the audio to enrich search results.
+
+## How to connect Telnyx to Mise
+
+<Steps>
+  <Step title="Request alpha access">
+    [Request access](https://sf-voice.sh/sign-up) to Mise. After onboarding, you will receive your Mise WebSocket endpoint for media streaming and your webhook URL for call control events.
+  </Step>
+  <Step title="Enable media streaming on your call">
+    Use the Telnyx Call Control API to start media streaming on an active call. Point the streaming WebSocket to your Mise ingest endpoint.
+
+    <CodeGroup>
+
+    ```python start_stream.py
+    import requests
+
+    TELNYX_API_KEY = "your-telnyx-api-key"
+    CALL_CONTROL_ID = "your-call-control-id"
+
+    # Mise endpoint — provided after alpha access
+    MISE_WS_ENDPOINT = "wss://ingest.mise.sh/v1/stream/telnyx"
+    MISE_API_KEY = "your-mise-api-key"
+
+    response = requests.post(
+        f"https://api.telnyx.com/v2/calls/{CALL_CONTROL_ID}/actions/streaming_start",
+        headers={
+            "Authorization": f"Bearer {TELNYX_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "stream_url": f"{MISE_WS_ENDPOINT}?api_key={MISE_API_KEY}",
+            "stream_track": "both_tracks",
+            "enable_dialogflow": False,
+        },
+    )
+    ```
+
+    ```javascript start_stream.js
+    const fetch = require("node-fetch");
+
+    const TELNYX_API_KEY = "your-telnyx-api-key";
+    const CALL_CONTROL_ID = "your-call-control-id";
+
+    // Mise endpoint — provided after alpha access
+    const MISE_WS_ENDPOINT = "wss://ingest.mise.sh/v1/stream/telnyx";
+    const MISE_API_KEY = "your-mise-api-key";
+
+    await fetch(
+      `https://api.telnyx.com/v2/calls/${CALL_CONTROL_ID}/actions/streaming_start`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${TELNYX_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          stream_url: `${MISE_WS_ENDPOINT}?api_key=${MISE_API_KEY}`,
+          stream_track: "both_tracks",
+        }),
+      }
+    );
+    ```
+
+    </CodeGroup>
+  </Step>
+  <Step title="Configure call control webhooks">
+    In your Telnyx Mission Control Portal, set the webhook URL for your connection or phone number to your Mise call events endpoint. This allows Mise to receive call lifecycle events and correlate them with your audio stream.
+
+    Set your Telnyx **Webhook URL** to:
+    ```
+    https://ingest.mise.sh/v1/webhook/telnyx?api_key=YOUR_MISE_API_KEY
+    ```
+
+    Mise listens for the following Telnyx event types:
+    - `call.initiated`
+    - `call.answered`
+    - `call.hangup`
+    - `streaming.started`
+    - `streaming.stopped`
+  </Step>
+  <Step title="Verify ingest">
+    Place a test call. After the call ends, open the Mise dashboard and confirm the call appears in your corpus. Run a test query to verify per-turn acoustic features are indexed.
+  </Step>
+</Steps>
+
+## Streaming both tracks
+
+Setting `stream_track` to `both_tracks` is required for Mise to separate and index each speaker's turns independently. If you set `stream_track` to `inbound_track` or `outbound_track` only, Mise will index that single track but cannot detect interruptions or overlap events across both speakers.
+
+<Tip>
+  If you start media streaming in response to a `call.answered` webhook event, make sure to start the stream before significant audio has been exchanged. Mise indexes from the point streaming begins — it cannot retroactively index audio that was not forwarded.
+</Tip>
+
+<Warning>
+  Telnyx media streams use mulaw encoding at 8000 Hz by default. Your Mise endpoint is configured to accept this format. Do not re-encode the audio before forwarding it.
+</Warning>

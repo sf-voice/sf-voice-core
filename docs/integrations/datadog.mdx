@@ -1,0 +1,97 @@
+---
+title: "Mise and Datadog: combined voice AI observability"
+description: "Datadog monitors your infrastructure. Mise monitors your conversations. Use both together — Mise's MCP server adds voice-native corpus search to your stack."
+---
+
+Datadog is the standard observability platform for infrastructure and application monitoring. If your team already uses Datadog, you do not need to abandon it to get voice AI observability. Mise is designed to complement Datadog — not replace it.
+
+The division of responsibility is clear: Datadog monitors your infrastructure (latency, error rates, resource utilization, service health). Mise monitors your conversations (tone, prosody, frustration, turn structure, defect signatures). These are different data shapes, and they require different tools.
+
+## Where Datadog falls short for voice AI
+
+Datadog ingests metrics, traces, and logs. Its data model is built around time series, service maps, and flat key-value attributes. This works well for infrastructure and request-level observability.
+
+Voice AI failures are different. A caller who hung up frustrated, a turn where the agent interrupted at the wrong moment, a pattern of calls where the bot mishandled a specific topic — these are not visible in a time series. They require:
+
+- **Turn-level structure**: What happened in which turn, in which order, by which speaker
+- **Acoustic signal**: Not just "what was said" but how it was said — tone, confidence, hesitation
+- **Corpus-scale search**: The ability to find the 47 calls out of 50,000 where a specific failure pattern occurred
+- **Audio replay**: Jumping to the exact turn in context, not just reading a log line
+
+Datadog's MCP server exposes the same flat metrics and log data that Datadog already has. It does not understand turns, audio, or replay — because Datadog does not store that data.
+
+<Info>
+  Mise's schema is built around turns, audio, and replays from the ground up. It is not a layer on top of flat metrics.
+</Info>
+
+## How Mise complements Datadog
+
+<CardGroup cols={2}>
+  <Card title="Datadog handles infrastructure" icon="server">
+    Latency, error rates, uptime, resource usage, service dependencies — Datadog's existing dashboards and alerts continue to handle these.
+  </Card>
+  <Card title="Mise handles voice corpus" icon="waveform-lines">
+    Tone, prosody, frustration, interruptions, defect signatures — Mise indexes and surfaces these at the turn and corpus level.
+  </Card>
+</CardGroup>
+
+A typical debugging workflow looks like this: Datadog alerts you that call completion rate dropped. You open Mise, query your corpus for "calls where the user asked to speak to a human," and find 200 clustered instances with a shared acoustic signature — the agent was interrupting users during a specific intent. Datadog told you something was wrong. Mise showed you what.
+
+## The Mise MCP server
+
+Mise exposes an MCP (Model Context Protocol) server that allows AI assistants — Claude, Cursor, Cline, and others — to query your voice corpus directly. For teams already using Datadog's MCP server to give AI assistants access to infrastructure metrics, the Mise MCP server is the complementary layer for voice-specific queries.
+
+Where Datadog's MCP server answers questions like "what was the p99 latency for the voice service over the last hour," the Mise MCP server answers questions like:
+
+- "Show me calls where the user expressed frustration in the last 24 hours"
+- "Find calls where the agent interrupted the user more than twice"
+- "Cluster the top failure patterns this week by acoustic signature"
+- "Replay the turn where the agent failed to handle the cancellation request in call `abc-123`"
+
+You can run both MCP servers simultaneously. They operate on different data and answer different questions.
+
+<Steps>
+  <Step title="Request alpha access">
+    [Request access](https://sf-voice.sh/sign-up) to Mise. After onboarding, you will receive your Mise MCP server endpoint and API key.
+  </Step>
+  <Step title="Connect your voice stack to Mise">
+    Follow one of the platform integration guides to begin ingesting call data into Mise. See [LiveKit](/integrations/livekit), [Twilio](/integrations/twilio), [Telnyx](/integrations/telnyx), or [Pipecat](/integrations/pipecat).
+  </Step>
+  <Step title="Add the Mise MCP server to your AI assistant">
+    Configure your AI assistant to connect to the Mise MCP server alongside your existing Datadog MCP server. Both can run in parallel.
+
+    <CodeGroup>
+
+    ```json claude_desktop_config.json
+    {
+      "mcpServers": {
+        "datadog": {
+          "command": "datadog-mcp",
+          "args": ["--api-key", "YOUR_DATADOG_API_KEY"]
+        },
+        "mise": {
+          "command": "npx",
+          "args": ["-y", "mise-mcp"],
+          "env": {
+            "MISE_API_KEY": "YOUR_MISE_API_KEY",
+            "MISE_MCP_ENDPOINT": "https://mcp.mise.sh/v1"
+          }
+        }
+      }
+    }
+    ```
+
+    </CodeGroup>
+  </Step>
+  <Step title="Query your voice corpus">
+    With both servers connected, your AI assistant can access infrastructure metrics from Datadog and voice corpus data from Mise in a single conversation. You can ask it to correlate Datadog alert timestamps with Mise corpus queries to identify what was happening in your calls at the moment a metric degraded.
+  </Step>
+</Steps>
+
+<Note>
+  The Mise MCP server endpoint and configuration details are finalized and provided after alpha access is granted. The configuration above shows the expected shape — exact values will be in your onboarding materials.
+</Note>
+
+<Tip>
+  If your team uses Datadog dashboards, you can embed links to Mise corpus searches and call replays as external URLs in your dashboard panels. This keeps Datadog as your operational hub while making Mise's voice data one click away.
+</Tip>

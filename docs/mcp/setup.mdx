@@ -1,0 +1,171 @@
+---
+title: "Set up the Mise MCP server in your AI assistant"
+description: "Install the Mise MCP server for Claude Desktop, Cursor, or Cline. Configure your API key and verify the connection in under five minutes."
+---
+
+The Mise MCP server is an npm package that runs locally and connects your AI assistant to your Mise call corpus. Once configured, your assistant can query calls, fetch replay bundles, and inspect defect signatures without leaving the chat.
+
+## Prerequisites
+
+Before you start, you need:
+
+- A Mise account in private alpha. [Request access](https://sf-voice.sh/sign-up) if you do not have one yet.
+- An AI assistant that supports MCP: Claude Desktop, Cursor, or Cline.
+- Node.js 18 or later installed on your machine (`node --version` to check).
+- Your Mise API key (see [Finding your API key](#finding-your-api-key) below).
+
+<Note>
+  MCP server credentials are issued after alpha access is granted. If your account is active but you do not see an API key in **Settings**, contact your Mise onboarding contact.
+</Note>
+
+## Finding your API key
+
+Your API key is in the Mise dashboard under **Settings → API Keys**. Click **New key**, name it (e.g. `mcp-local`), and copy the value. You will not be able to view it again after leaving the page.
+
+## Setup instructions
+
+<Tabs>
+  <Tab title="Claude Desktop">
+
+Claude Desktop is the primary supported client for the Mise MCP server.
+
+<Steps>
+  <Step title="Open your Claude Desktop config file">
+    The config file is at:
+    - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+    - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+    If the file does not exist, create it.
+  </Step>
+  <Step title="Add the Mise server">
+    Add a `mcpServers` entry for Mise. If you already have other servers configured, add `"mise"` alongside them.
+
+    ```json claude_desktop_config.json
+    {
+      "mcpServers": {
+        "mise": {
+          "command": "npx",
+          "args": ["-y", "@mise/mcp-server"],
+          "env": {
+            "MISE_API_KEY": "your-api-key-here"
+          }
+        }
+      }
+    }
+    ```
+
+    Replace `your-api-key-here` with your actual API key.
+  </Step>
+  <Step title="Restart Claude Desktop">
+    Quit and relaunch Claude Desktop. The Mise tools will appear in the tool list when you start a new conversation.
+  </Step>
+  <Step title="Verify the connection">
+    Start a new conversation and send this prompt:
+
+    ```text
+    List the available Mise tools.
+    ```
+
+    You should see tools for corpus search, turn lookup, replay bundle retrieval, and defect signature inspection.
+  </Step>
+</Steps>
+
+  </Tab>
+  <Tab title="Cursor">
+
+<Steps>
+  <Step title="Open Cursor MCP settings">
+    In Cursor, open the command palette (`Cmd+Shift+P` / `Ctrl+Shift+P`) and search for **MCP: Open Settings**, or go to **Settings → MCP Servers**.
+  </Step>
+  <Step title="Add the Mise server config">
+    Add the following entry to your Cursor MCP configuration file (`~/.cursor/mcp.json`):
+
+    ```json mcp.json
+    {
+      "mcpServers": {
+        "mise": {
+          "command": "npx",
+          "args": ["-y", "@mise/mcp-server"],
+          "env": {
+            "MISE_API_KEY": "your-api-key-here"
+          }
+        }
+      }
+    }
+    ```
+
+    Replace `your-api-key-here` with your actual API key.
+  </Step>
+  <Step title="Reload the MCP server">
+    Save the file and use **MCP: Reload Servers** from the command palette to pick up the new configuration.
+  </Step>
+  <Step title="Verify the connection">
+    Open Cursor Chat and send:
+
+    ```text
+    List the available Mise tools.
+    ```
+
+    Cursor will show the Mise tool calls in the chat thread when it invokes them.
+  </Step>
+</Steps>
+
+  </Tab>
+  <Tab title="Cline">
+
+<Steps>
+  <Step title="Open Cline MCP settings">
+    In VS Code with Cline installed, click the Cline icon in the sidebar and go to **MCP Servers → Configure MCP Servers**.
+
+    This opens the Cline MCP settings file (`cline_mcp_settings.json`).
+  </Step>
+  <Step title="Add the Mise server config">
+    Add a `mise` entry to the `mcpServers` object:
+
+    ```json cline_mcp_settings.json
+    {
+      "mcpServers": {
+        "mise": {
+          "command": "npx",
+          "args": ["-y", "@mise/mcp-server"],
+          "env": {
+            "MISE_API_KEY": "your-api-key-here"
+          }
+        }
+      }
+    }
+    ```
+
+    Replace `your-api-key-here` with your actual API key.
+  </Step>
+  <Step title="Reload the server">
+    Save the file. Cline will detect the new server and connect automatically. You can verify the status in the **MCP Servers** panel — the Mise server should show as **Connected**.
+  </Step>
+  <Step title="Verify the connection">
+    Open a new Cline chat and send:
+
+    ```text
+    List the available Mise tools.
+    ```
+
+    Cline will show the tool list returned by the Mise MCP server.
+  </Step>
+</Steps>
+
+  </Tab>
+</Tabs>
+
+## Environment variable reference
+
+<Warning>
+  Store your API key in the `env` block of your MCP config file, not in shell profiles or `.env` files. The MCP server reads environment variables from the config only.
+</Warning>
+
+| Variable | Required | Description |
+|---|---|---|
+| `MISE_API_KEY` | Yes | Your Mise API key from **Settings → API Keys**. |
+| `MISE_PROJECT_ID` | No | Scopes all queries to a single project. Useful if your account has multiple voice stacks. |
+
+## Next steps
+
+Once the server is connected, see [AI-assisted debugging](/mcp/ai-debugging) for a complete walkthrough of the replay → root cause workflow.

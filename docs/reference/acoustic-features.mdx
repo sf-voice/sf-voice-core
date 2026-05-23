@@ -1,0 +1,203 @@
+---
+title: "Acoustic features reference for Mise indexing"
+description: "Complete reference for the five acoustic dimensions Mise indexes: tone, prosody, tension, rhythm, and intent — with example queries for each."
+---
+
+Mise indexes every call at the turn level across five acoustic dimensions. A turn is a single continuous speech segment by one party — the caller, the AI assistant, or a human agent. Because features are indexed per turn, you can query for signals at specific points in a conversation, not just across the call as a whole.
+
+```javascript
+voice.query("calls with high tension in the last 2 minutes")
+// Mise resolves "last 2 minutes" to the final turns of each call
+// and searches for tension signals within that window
+```
+
+Each dimension below covers what Mise captures, example queries that target it, and what to look for in results.
+
+<Note>
+  Acoustic features are extracted live during the call and stored against each turn. Queries can reference both the signal and its position — "early in the call," "after the agent mentioned pricing," "in the last two minutes."
+</Note>
+
+---
+
+## Tone
+
+Tone captures the emotional coloring of speech: how positive, negative, or neutral a speaker sounds, and whether their delivery matches their words.
+
+**Signals Mise captures:**
+
+- **Sentiment**: Positive, neutral, or negative valence, measured per turn and as an exponential moving average (EMA) across the call
+- **Irony**: Divergence between the literal content of what was said and how it was delivered
+- **Sarcasm**: A specific irony pattern where delivery signals the opposite of stated meaning
+- **Anger**: Acoustically detectable aggression — elevated pitch, clipped delivery, increased energy
+- **Frustration**: A building emotional signal distinct from momentary anger; detected in patterns across multiple turns
+
+Sentiment is computed as an EMA across turns, so a call's sentiment score reflects the arc of the conversation rather than a single snapshot.
+
+**Example queries:**
+
+```javascript
+voice.query("calls where the caller sounded angry")
+voice.query("calls where the agent's tone was flat or dismissive")
+voice.query("calls where the caller seemed satisfied by the end")
+voice.query("calls where the caller used polite words but sounded frustrated")
+voice.query("calls where tone shifted from positive to negative mid-call")
+```
+
+**What to look for in results:**
+
+Look at the per-turn sentiment scores to identify the exact point where tone shifted. A call with a low final sentiment score but a high mid-call score often signals a failure that occurred after an initially positive interaction. Irony and sarcasm matches are worth reviewing in context — play the audio for the matched turns rather than relying on the transcript alone.
+
+---
+
+## Prosody
+
+Prosody captures how speech is delivered: its pace, rhythm, pauses, emphasis, and volume dynamics. Two utterances can have identical transcripts but completely different prosodic profiles.
+
+**Signals Mise captures:**
+
+- **Pace**: Speaking rate (syllables or words per second), including acceleration and deceleration within a turn
+- **Pauses**: Inter-turn gaps (silence between speaker turns) and intra-turn hesitations (mid-speech pauses within a single turn)
+- **Emphasis**: Words or phrases that receive acoustic stress — increased duration, volume, or pitch
+- **Volume dynamics**: Changes in loudness across or within turns
+
+**Example queries:**
+
+```javascript
+voice.query("calls where the agent spoke too quickly")
+voice.query("calls where there was a long pause before the agent responded")
+voice.query("calls where the agent paused too long after the caller asked a question")
+voice.query("calls where the caller slowed down and repeated themselves")
+voice.query("calls where the caller raised their voice")
+```
+
+**What to look for in results:**
+
+Long inter-turn pauses often indicate the agent (AI or human) is processing or searching for a response — a signal of system latency or knowledge gaps. Intra-turn hesitations on the caller side frequently accompany uncertainty or dissatisfaction. Pace acceleration in the caller's speech often precedes escalation.
+
+<Tip>
+  Prosody queries are most useful when paired with an outcome or tension condition. For example: "calls where the agent paused too long and the caller escalated" isolates cases where latency contributed to a failure.
+</Tip>
+
+---
+
+## Tension
+
+Tension captures the emotional pressure in a conversation: whether it is building toward conflict, actively escalating, or moving toward resolution.
+
+**Signals Mise captures:**
+
+- **Frustration**: A rising tension signal that builds across multiple turns; distinct from a single moment of anger
+- **Escalation**: A pattern of increasing tension that progresses toward human escalation or call abandonment
+- **De-escalation**: Calming signals — reduced pace, softer volume, cooperative language — that indicate tension is being resolved
+
+Tension is evaluated across the arc of the call, not at a single turn. A frustration signal detected at turn 3 that resolves by turn 8 looks different from one that intensifies through the end of the call.
+
+**Example queries:**
+
+```javascript
+voice.query("calls where tension escalated in the second half")
+voice.query("calls with high tension in the first 2 minutes")
+voice.query("calls where the agent successfully de-escalated the caller")
+voice.query("calls where frustration was present throughout the entire call")
+voice.query("calls where tension peaked and then the caller went quiet")
+```
+
+**What to look for in results:**
+
+Defect signature clusters are especially useful for tension queries. When 500 calls match "tension escalated in the second half," the clusters will surface distinct patterns — for example, "frustration after hold music" versus "escalation triggered by pricing discussion." Use the clusters to identify the root cause rather than treating all high-tension calls as the same problem.
+
+<Warning>
+  Tension signals reflect acoustic patterns, not transcript content. A caller who says "fine, whatever" in a clipped, high-energy delivery registers as a tension signal even though the words appear neutral in a transcript.
+</Warning>
+
+---
+
+## Rhythm
+
+Rhythm captures the conversational flow between parties: who speaks when, how often turns overlap, and whether the exchange feels natural or disrupted.
+
+**Signals Mise captures:**
+
+- **Cadence**: The natural conversational flow — turn length, spacing, and reciprocity between parties
+- **Interruptions**: Events where one party begins speaking before the other has finished; indexed by who interrupts whom, frequency, and duration
+- **Overlap**: Periods of simultaneous speech where both parties are talking at the same time
+- **Turn-taking patterns**: Whether exchanges are rapid-fire or slow; whether one party dominates the conversation
+
+**Example queries:**
+
+```javascript
+voice.query("calls where the agent interrupted the caller")
+voice.query("calls where the caller interrupted the agent repeatedly")
+voice.query("calls where both parties talked at the same time")
+voice.query("calls with unusually fast back-and-forth exchanges")
+voice.query("calls where the agent dominated the conversation")
+voice.query("calls where the caller barely spoke")
+```
+
+**What to look for in results:**
+
+Agent interruptions are a common defect in voice AI systems — the agent starts responding before the caller has finished, which signals poor turn detection. Overlap events are worth classifying: some overlap is natural in conversation (backchannels, affirmations), while sustained overlap indicates a system failure. Calls where the caller barely spoke may indicate the agent was overwhelming them or the caller had given up.
+
+---
+
+## Intent
+
+Intent captures what the caller actually wanted from the call — which may differ significantly from what they literally said. Mise models goal-level understanding, not just keyword detection.
+
+**Signals Mise captures:**
+
+- **Goal detection**: The caller's primary objective — booking, cancelling, modifying, complaining, confirming, or seeking information
+- **Unmet need detection**: Cases where the caller's goal was never identified or addressed by the agent
+- **Intent shift**: Changes in what the caller wanted mid-conversation, often triggered by something the agent said or failed to say
+
+**Example queries:**
+
+```javascript
+voice.query("calls where the caller wanted to cancel but didn't say it directly")
+voice.query("calls where the caller's goal was never identified")
+voice.query("calls where the caller's intent shifted mid-conversation")
+voice.query("calls where the caller asked to cancel")
+voice.query("calls where the caller was trying to book an appointment")
+voice.query("calls where the caller complained without getting a resolution")
+```
+
+**What to look for in results:**
+
+Unmet need detection is one of the highest-signal intent patterns. When a caller's goal is never identified, it almost always precedes an unresolved outcome. Intent shift matches often reveal a specific agent failure — a response that caused the caller to abandon their original goal (for example, switching from "I want to modify my booking" to "I want to cancel" after the agent described the modification process).
+
+<Tip>
+  Compare intent queries against outcome data. "Calls where the caller wanted to cancel" paired with outcome `booked` or `modified` may reveal successful save interactions worth studying. The same query paired with `cancelled` or `no_action` reveals failures.
+</Tip>
+
+---
+
+## Per-turn indexing
+
+All five dimensions are indexed at the turn level, which means you can scope any query to a specific part of a conversation.
+
+```javascript
+// Signal at a specific point in the call
+voice.query("calls with high tension in the first 2 minutes")
+voice.query("calls where the agent interrupted the caller in the opening")
+voice.query("calls where the caller's sentiment dropped after the pricing discussion")
+
+// Signal relative to an event
+voice.query("calls where frustration increased after the hold")
+voice.query("calls where the caller's tone changed after the agent mentioned cancellation fees")
+```
+
+Phases are also indexed. A call moves through distinct phases: AI handling, escalation, human handling, and post-resolution. You can scope queries to a specific phase:
+
+```javascript
+voice.query("calls where the caller expressed frustration during AI handling")
+voice.query("calls where tension was high during the escalation phase")
+```
+
+<CardGroup cols={2}>
+  <Card title="Corpus Search" icon="magnifying-glass" href="/features/corpus-search">
+    Learn how Mise runs queries across your full call corpus and returns ranked results.
+  </Card>
+  <Card title="Query syntax" icon="code" href="/reference/query-syntax">
+    Full reference for writing voice.query() expressions.
+  </Card>
+</CardGroup>

@@ -1,0 +1,107 @@
+---
+title: "Connect LiveKit to Mise for call observability"
+description: "Add Mise to your LiveKit voice AI pipeline to index per-turn acoustic features from WebRTC-based agents and make every call searchable."
+---
+
+LiveKit is an open-source WebRTC infrastructure platform commonly used to build real-time voice AI agents. If your team runs agents on LiveKit Agents or LiveKit Cloud, Mise can connect to your pipeline and index every participant turn — capturing tone, prosody, frustration, and interruption signals as calls happen.
+
+<Note>
+  Mise is in private alpha. The specific webhook endpoint, API key, and room hook configuration are provided after your team is granted access. [Request access](https://sf-voice.sh/sign-up).
+</Note>
+
+## What Mise captures from LiveKit
+
+For each LiveKit room, Mise captures:
+
+- **Per-participant audio**: Audio is segmented by turn and indexed per speaker
+- **Turn boundaries**: VAD (voice activity detection) events determine turn start and end
+- **Room metadata**: Room name, room SID, participant identities, and connection timestamps
+- **Acoustic features per turn**: Tone, prosody, frustration signal, silence, and interruption overlap
+
+Mise does not require access to your LiveKit API key or server SDK credentials — it receives audio and events through a hook you configure in your agent pipeline.
+
+## How to connect LiveKit to Mise
+
+<Steps>
+  <Step title="Request alpha access">
+    [Request access](https://sf-voice.sh/sign-up) to Mise. After onboarding, you will receive your Mise ingest endpoint and API key.
+  </Step>
+  <Step title="Add a Mise observer to your agent">
+    In your LiveKit agent, add a turn observer that forwards audio frames and participant events to your Mise ingest endpoint. The observer runs alongside your existing pipeline and does not affect latency for your callers.
+
+    <CodeGroup>
+
+    ```python agent.py
+    import httpx
+    from livekit.agents import JobContext, WorkerOptions, cli
+    from livekit.agents.voice_assistant import VoiceAssistant
+
+    MISE_INGEST_ENDPOINT = "https://ingest.mise.sh/v1/turns"  # provided after access
+    MISE_API_KEY = "your-mise-api-key"  # provided after access
+
+    async def forward_turn_to_mise(turn_data: dict):
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                MISE_INGEST_ENDPOINT,
+                json=turn_data,
+                headers={"Authorization": f"Bearer {MISE_API_KEY}"},
+            )
+
+    async def entrypoint(ctx: JobContext):
+        await ctx.connect()
+
+        assistant = VoiceAssistant(
+            # your existing assistant config
+        )
+
+        @assistant.on("user_speech_committed")
+        async def on_user_turn(msg):
+            await forward_turn_to_mise({
+                "call_id": ctx.room.name,
+                "participant": ctx.room.local_participant.identity,
+                "role": "user",
+                "text": msg.text,
+                "started_at": msg.start_time,
+                "ended_at": msg.end_time,
+                # audio_b64: include base64 audio if sending audio frames
+            })
+
+        @assistant.on("agent_speech_committed")
+        async def on_agent_turn(msg):
+            await forward_turn_to_mise({
+                "call_id": ctx.room.name,
+                "participant": "agent",
+                "role": "agent",
+                "text": msg.text,
+                "started_at": msg.start_time,
+                "ended_at": msg.end_time,
+            })
+
+        assistant.start(ctx.room)
+
+    if __name__ == "__main__":
+        cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))
+    ```
+
+    </CodeGroup>
+  </Step>
+  <Step title="Verify ingest">
+    After your first call, log into the Mise dashboard. You should see the call appear in your corpus within a few minutes of call completion. Run a test corpus query to confirm turn-level indexing is working.
+  </Step>
+</Steps>
+
+## What to expect after connecting
+
+Once calls are flowing into Mise, you can:
+
+- Search your LiveKit call corpus in natural language (for example, "calls where the user expressed frustration before the agent transferred")
+- Replay individual calls and jump to specific turns with acoustic annotations
+- View defect signatures that cluster similar failure patterns across your call corpus
+
+<Tip>
+  If you run multiple LiveKit rooms or workers, you do not need separate configurations. Mise uses the `call_id` field to group turns into calls regardless of which worker handled them.
+</Tip>
+
+<Warning>
+  Do not send personally identifiable information as part of the `participant` field. Use anonymous identifiers (room SID, participant SID) rather than phone numbers or email addresses.
+</Warning>
