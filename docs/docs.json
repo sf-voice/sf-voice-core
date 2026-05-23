@@ -1,65 +1,73 @@
 {
-   "$schema": "https://mintlify.com/docs.json",
-   "name": "Mise",
-   "theme": "luma",
-   "colors": {
-      "primary": "#040404",
-      "light": "#ffffff"
-   },
-   "logo": {
-      "light": "https://media.brand.dev/9457ad5f-5721-4f8f-9a21-5c2e046625f6.svg",
-      "dark": "https://media.brand.dev/9457ad5f-5721-4f8f-9a21-5c2e046625f6.svg"
-   },
-   "favicon": "https://media.brand.dev/70dde274-e5b7-4cf0-9624-03f883390baf.png",
-   "navbar": {
-      "primary": {
-         "type": "github",
-         "href": "https://github.com/sf-voice/sf-voice-core"
-      }
-   },
-   "navigation": {
-      "tabs": [
-         {
-            "tab": "Documentation",
-            "groups": [
-               {
-                  "group": "Get Started",
-                  "pages": ["introduction", "quickstart", "how-it-works"]
-               },
-               {
-                  "group": "Integrations",
-                  "pages": [
-                     "integrations/overview",
-                     "integrations/livekit",
-                     "integrations/twilio",
-                     "integrations/telnyx",
-                     "integrations/pipecat",
-                     "integrations/datadog"
-                  ]
-               },
-               {
-                  "group": "Core Features",
-                  "pages": [
-                     "features/corpus-search",
-                     "features/acoustic-indexing",
-                     "features/call-replay",
-                     "features/defect-signatures"
-                  ]
-               },
-               {
-                  "group": "MCP Server",
-                  "pages": ["mcp/overview", "mcp/setup", "mcp/ai-debugging"]
-               },
-               {
-                  "group": "Reference",
-                  "pages": [
-                     "reference/query-syntax",
-                     "reference/acoustic-features",
-                     "reference/faq"
-                  ]
-               }
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "Mise",
+  "theme": "luma",
+  "colors": {
+    "primary": "#040404",
+    "light": "#ffffff"
+  },
+  "logo": {
+    "light": "https://media.brand.dev/9457ad5f-5721-4f8f-9a21-5c2e046625f6.svg",
+    "dark": "https://media.brand.dev/9457ad5f-5721-4f8f-9a21-5c2e046625f6.svg"
+  },
+  "favicon": "https://media.brand.dev/70dde274-e5b7-4cf0-9624-03f883390baf.png",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/sf-voice/sf-voice-core"
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "how-it-works"
             ]
-         }
-      ]
-   }
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/overview",
+              "integrations/livekit",
+              "integrations/twilio",
+              "integrations/telnyx",
+              "integrations/pipecat",
+              "integrations/datadog"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/corpus-search",
+              "features/acoustic-indexing",
+              "features/call-replay",
+              "features/defect-signatures"
+            ]
+          },
+          {
+            "group": "MCP Server",
+            "pages": [
+              "mcp/overview",
+              "mcp/setup",
+              "mcp/ai-debugging"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "reference/query-syntax",
+              "reference/acoustic-features",
+              "reference/faq"
+            ]
+          }
+        ]
+      }
+    ]
+  }
 }
