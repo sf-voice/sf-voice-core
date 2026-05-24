@@ -30,8 +30,7 @@ defmodule EllieAi.Calls.FraudDetector.Heuristics do
     # authority/agency impersonation.
     {~r/\b(irs|tax\s+(office|authority|department))\b/i, 0.6, :irs},
     {~r/\bsocial\s+security|ssn\b/i, 0.55, :ssn},
-    {~r/\b(arrest\s+warrant|warrant\s+for\s+your\s+arrest|criminal\s+(charges|complaint))\b/i,
-     0.7, :warrant_threat},
+    {~r/\b(warrant|criminal\s+(charges|complaint))\b/i, 0.7, :warrant_threat},
     {~r/\b(officer|agent|inspector|detective)\s+[a-z]{3,}\b/i, 0.25, :authority_title},
     {~r/\b(microsoft|apple|google|amazon)\s+(security|support|technician)/i, 0.55,
      :fake_tech_support},
@@ -40,8 +39,8 @@ defmodule EllieAi.Calls.FraudDetector.Heuristics do
 
     # urgency / secrecy / social-engineering markers.
     {~r/\bdo(n'?t|\s+not)\s+(tell|hang\s+up|talk\s+to)/i, 0.5, :urge_secrecy},
-    {~r/\b(act|pay|do\s+this)\s+(immediately|right\s+now|within\s+the\s+next)/i, 0.35,
-     :urgency},
+    {~r/\b(immediately|right\s+now|within\s+the\s+next\s+(hour|few\s+minutes|minutes))\b/i,
+     0.35, :urgency},
     {~r/\bstay\s+on\s+the\s+(line|phone)\b/i, 0.45, :keep_on_line},
     {~r/\bremote\s+(desktop|access|control)|anydesk|teamviewer|ammyy/i, 0.7, :remote_access},
 
