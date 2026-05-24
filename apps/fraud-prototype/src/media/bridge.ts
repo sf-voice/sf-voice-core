@@ -84,12 +84,12 @@ function open(ccid: string, telnyxWs: WebSocket): BridgeState {
     onUserTranscript: (text) => {
       Store.appendTurn(ccid, "user", text);
       log.info("bridge: user turn", { ccid, text });
-      void analyze(ccid, text);
+      runDetector(ccid, text);
     },
     onAssistantTranscript: (text) => {
       Store.appendTurn(ccid, "assistant", text);
       log.info("bridge: assistant turn", { ccid, text });
-      void analyze(ccid, text);
+      runDetector(ccid, text);
     },
     onAudioOut: (mulawB64) => {
       // ship the AI's TTS bytes back to Telnyx as a media frame so the
@@ -123,6 +123,18 @@ function close(state: BridgeState): void {
 function scriptForCcid(ccid: string): Scripts.Script | undefined {
   const id = Store.scammerScriptFor(ccid);
   return id ? Scripts.fetchScript(id) : undefined;
+}
+
+// fire-and-forget — but with a catch handler so a transient detector
+// failure (e.g. OpenAI 5xx in the classifier) doesn't produce an
+// unhandled promise rejection that crashes the process.
+function runDetector(ccid: string, text: string): void {
+  analyze(ccid, text).catch((err: unknown) => {
+    log.error("bridge: detector analyze threw", {
+      ccid,
+      err: err instanceof Error ? err.message : String(err),
+    });
+  });
 }
 
 function placeholderState(ccid: string): BridgeState {

@@ -1,11 +1,12 @@
 // Telnyx webhook handler. routes `call.answered` based on whether the
 // leg is a scammer leg (start media-streaming) or an alert leg (speak
-// summary).
+// summary). drops per-call state on hangup so the in-memory store
+// doesn't grow without bound.
 
-import { mediaStreamingUrl } from "../config.ts";
 import { log } from "../log.ts";
 import * as Store from "../store/calls.ts";
 import * as Telnyx from "./client.ts";
+import { mediaStreamingUrl } from "./paths.ts";
 import { onAlertAnswered } from "../fraud/responder.ts";
 
 interface WebhookPayload {
@@ -19,7 +20,7 @@ export async function handle(body: WebhookPayload): Promise<void> {
   const event = body.data?.event_type;
   const ccid = body.data?.payload?.call_control_id;
   if (!event || !ccid) {
-    log.warn("webhook: unexpected shape", { body });
+    log.warn("webhook: unexpected shape");
     return;
   }
 
@@ -45,8 +46,9 @@ export async function handle(body: WebhookPayload): Promise<void> {
 
     case "call.hangup":
       log.info("webhook: call.hangup", { ccid });
-      // keep state around briefly for diagnostics; bridge will close on
-      // its side via the WS `stop` event.
+      // free per-call state so the in-memory store doesn't accumulate
+      // every call we've ever made. transcript + flags are gone after this.
+      Store.drop(ccid);
       break;
 
     default:

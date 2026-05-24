@@ -21,6 +21,13 @@ function optionalNumber(name: string, fallback: number): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function clamp01(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  if (n < 0) return 0;
+  if (n > 1) return 1;
+  return n;
+}
+
 export const config = {
   telnyx: {
     get apiKey() {
@@ -33,6 +40,12 @@ export const config = {
       return required("ELLIE_TELNYX_FROM");
     },
     baseUrl: optional("TELNYX_BASE_URL", "https://api.telnyx.com"),
+    /** base64-encoded 32-byte ED25519 public key from the Telnyx portal.
+     *  optional: when unset, signature verification is skipped with a
+     *  startup warning (dev convenience). REQUIRED for any production use. */
+    publicKey: optional("TELNYX_PUBLIC_KEY", ""),
+    /** outbound HTTP request timeout in ms. */
+    requestTimeoutMs: optionalNumber("TELNYX_REQUEST_TIMEOUT_MS", 10_000),
   },
   openai: {
     get apiKey() {
@@ -46,16 +59,10 @@ export const config = {
     get alertPhone() {
       return required("FRAUD_ALERT_PHONE_E164");
     },
-    threshold: optionalNumber("FRAUD_THRESHOLD", 0.7),
+    /** clamped to [0, 1] — misconfig like `2` or `-1` would silently
+     *  disable or always-trip the detector without this. */
+    threshold: clamp01(optionalNumber("FRAUD_THRESHOLD", 0.7)),
   },
   publicUrl: optional("PUBLIC_URL", "http://localhost:4000"),
   port: optionalNumber("PORT", 4000),
 };
-
-// websocket URL the media-streaming endpoint advertises to Telnyx.
-export function mediaStreamingUrl(): string {
-  const base = config.publicUrl
-    .replace(/^https:\/\//, "wss://")
-    .replace(/^http:\/\//, "ws://");
-  return `${base}/telnyx/media-streaming`;
-}

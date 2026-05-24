@@ -22,8 +22,7 @@ export async function analyze(ccid: string, latestText: string): Promise<void> {
   // STOP TEST is a hard override — bypass the LLM, fire immediately.
   if (Heuristics.isStopTest(latestText)) {
     log.warn("fraud detector: STOP TEST detected", { ccid });
-    Store.markFired(ccid);
-    await trigger(ccid, "Operator stop received — call ended.");
+    await fire(ccid, "Operator stop received — call ended.");
     return;
   }
 
@@ -39,15 +38,36 @@ export async function analyze(ccid: string, latestText: string): Promise<void> {
 
   if (winner.score >= config.fraud.threshold) {
     const summary = buildSummary(winner, heur.labels, llm);
-    log.warn("fraud detector: threshold breached", { ccid, summary, score: winner.score });
-    Store.markFired(ccid);
-    await trigger(ccid, summary);
+    log.warn("fraud detector: threshold breached", {
+      ccid,
+      score: winner.score,
+      signal: winner.name,
+    });
+    await fire(ccid, summary);
   } else {
     log.debug("fraud detector: below threshold", {
       ccid,
       heuristics: heur.score,
       llm: llm?.score,
     });
+  }
+}
+
+// mark fired BEFORE the await so concurrent analyze() calls on the same
+// ccid don't both reach `trigger`. on alert-dial failure, unmark so a
+// later turn can retry the escalation.
+async function fire(ccid: string, summary: string): Promise<void> {
+  Store.markFired(ccid);
+  let result;
+  try {
+    result = await trigger(ccid, summary);
+  } catch (err) {
+    log.error("fraud detector: trigger threw", { ccid, err: (err as Error).message });
+    Store.unmarkFired(ccid);
+    return;
+  }
+  if (!result.alertQueued) {
+    Store.unmarkFired(ccid);
   }
 }
 
