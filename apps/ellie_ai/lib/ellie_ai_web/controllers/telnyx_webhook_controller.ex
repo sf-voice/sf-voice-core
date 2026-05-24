@@ -49,44 +49,20 @@ defmodule EllieAiWeb.TelnyxWebhookController do
   end
 
   defp handle_event("call.answered", %{"call_control_id" => ccid}) do
-    cond do
-      # alert legs are answered by the operator — speak the summary, no streaming.
-      EllieAi.Calls.FraudResponder.alert_leg?(ccid) ->
-        Logger.info("call.answered ccid=#{ccid} → fraud alert leg")
-        EllieAi.Calls.FraudResponder.on_alert_answered(ccid)
-
-      # scammer legs need streaming exactly like an inbound call — Memory was
-      # populated at dial time with the persona prompt + voice.
-      EllieAi.Scammer.scammer_leg?(ccid) ->
-        stream_url = media_streaming_url()
-        Logger.info("call.answered ccid=#{ccid} → scammer leg streaming_start to #{stream_url}")
-
-        Calls.record_system_event(
-          ccid,
-          "telnyx",
-          "telnyx.call.answered",
-          "Scammer leg answered",
-          nil
-        )
-
-        Client.streaming_start(ccid, stream_url)
-
-      true ->
-        # staff legs the escalator dialed get bridged back to the caller — no streaming on them.
-        case EllieAi.Calls.Escalator.on_staff_answered(ccid) do
-          :ok ->
-            if EllieAi.Calls.Escalator.escalation_leg?(ccid) do
-              :ok
-            else
-              stream_url = media_streaming_url()
-              Logger.info("call.answered ccid=#{ccid} → streaming_start to #{stream_url}")
-              Calls.record_system_event(ccid, "telnyx", "telnyx.call.answered", "Call answered", nil)
-              Client.streaming_start(ccid, stream_url)
-            end
-
-          _ ->
-            :ok
+    # staff legs the escalator dialed get bridged back to the caller — no streaming on them.
+    case EllieAi.Calls.Escalator.on_staff_answered(ccid) do
+      :ok ->
+        if EllieAi.Calls.Escalator.escalation_leg?(ccid) do
+          :ok
+        else
+          stream_url = media_streaming_url()
+          Logger.info("call.answered ccid=#{ccid} → streaming_start to #{stream_url}")
+          Calls.record_system_event(ccid, "telnyx", "telnyx.call.answered", "Call answered", nil)
+          Client.streaming_start(ccid, stream_url)
         end
+
+      _ ->
+        :ok
     end
   end
 

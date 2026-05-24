@@ -1,23 +1,38 @@
 // thin HTTP client for the Telnyx call-control API. Uses global `fetch`
-// (Node 22+). retries are not implemented — for a prototype, the bash
-// of a failed request bubbles to the caller.
+// (Node 22+). every request has an explicit timeout and a status check —
+// callers can rely on the action either completing 2xx or throwing.
 
 import { config } from "../config.ts";
 import { log } from "../log.ts";
 
-interface PostActionResult {
-  ok: boolean;
-  status: number;
-  body: unknown;
+export class TelnyxError extends Error {
+  constructor(
+    public readonly action: string,
+    public readonly status: number,
+    public readonly body: unknown,
+  ) {
+    super(`telnyx ${action} failed (${status}): ${JSON.stringify(body)}`);
+    this.name = "TelnyxError";
+  }
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), config.telnyx.requestTimeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function postAction(
   ccid: string,
   action: string,
   body: Record<string, unknown> = {},
-): Promise<PostActionResult> {
+): Promise<void> {
   const url = `${config.telnyx.baseUrl}/v2/calls/${ccid}/actions/${action}`;
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -25,17 +40,17 @@ async function postAction(
     },
     body: JSON.stringify(body),
   });
-  const text = await res.text();
-  let parsed: unknown = text;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    // text response, fine
-  }
   if (!res.ok) {
-    log.warn("telnyx action returned non-2xx", { action, ccid, status: res.status, body: parsed });
+    const text = await res.text();
+    let parsed: unknown = text;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      // keep text
+    }
+    log.warn("telnyx action non-2xx", { action, ccid, status: res.status });
+    throw new TelnyxError(action, res.status, parsed);
   }
-  return { ok: res.ok, status: res.status, body: parsed };
 }
 
 export async function answer(ccid: string): Promise<void> {
@@ -79,7 +94,7 @@ export async function dial(
     from,
     webhook_url: webhookUrl,
   };
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -87,9 +102,11 @@ export async function dial(
     },
     body: JSON.stringify(body),
   });
-  const json = (await res.json()) as { data?: { call_control_id?: string } };
+  const json = (await res.json().catch(() => ({}))) as {
+    data?: { call_control_id?: string };
+  };
   if (!res.ok || !json.data?.call_control_id) {
-    throw new Error(`telnyx dial failed (${res.status}): ${JSON.stringify(json)}`);
+    throw new TelnyxError("dial", res.status, json);
   }
   return { ccid: json.data.call_control_id };
 }

@@ -56,7 +56,7 @@ Say `STOP TEST` on the line at any time to abort.
 
 ## Layout
 
-```
+```text
 src/
   config.ts           env loading + validation
   log.ts              pino-style minimal logger

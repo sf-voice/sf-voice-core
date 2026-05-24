@@ -84,17 +84,6 @@ defmodule EllieAi.Telnyx.Client do
     )
   end
 
-  @spec speak(String.t(), String.t(), keyword()) :: :ok | {:error, term()}
-  def speak(call_control_id, text, opts \\ []) when is_binary(call_control_id) and is_binary(text) do
-    body = %{
-      payload: text,
-      voice: Keyword.get(opts, :voice, "Polly.Joanna"),
-      language: Keyword.get(opts, :language, "en-US")
-    }
-
-    post_action(call_control_id, "speak", body, opts)
-  end
-
   defp post_action(call_control_id, action, body, opts) do
     url = "#{base_url()}/v2/calls/#{call_control_id}/actions/#{action}"
 

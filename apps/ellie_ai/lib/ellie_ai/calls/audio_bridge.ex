@@ -587,7 +587,6 @@ defmodule EllieAi.Calls.AudioBridge do
 
   defp session_update(%_{} = _org, vad_mode, ccid) do
     instructions = Memory.rendered_prompt(ccid) || @fallback_prompt
-    voice = Memory.realtime_voice(ccid) || Medium.Realtime.voice()
 
     %{
       type: "session.update",
@@ -603,7 +602,7 @@ defmodule EllieAi.Calls.AudioBridge do
           },
           output: %{
             format: %{type: "audio/pcmu"},
-            voice: voice
+            voice: Medium.Realtime.voice()
           }
         },
         tools: tool_definitions(),
@@ -654,7 +653,6 @@ defmodule EllieAi.Calls.AudioBridge do
     case Calls.append_turn(state.ccid, role, transcript) do
       {:ok, turn} ->
         if source == :user, do: EllieAi.Calls.Sentiment.score_async(turn)
-        EllieAi.Calls.FraudDetector.analyze_async(turn)
 
       _ ->
         :ok

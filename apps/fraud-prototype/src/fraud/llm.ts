@@ -42,8 +42,13 @@ Be cautious — only score >0.5 when there is real evidence in the conversation.
     const content = r.choices[0]?.message?.content;
     if (!content) return null;
     const parsed = JSON.parse(content) as { score?: unknown; reason?: unknown };
-    const score = typeof parsed.score === "number" ? clamp(parsed.score) : null;
-    if (score === null) return null;
+    // `typeof NaN === "number"` and `typeof Infinity === "number"`, so the
+    // `typeof` check alone would let non-finite values through and
+    // silently poison threshold logic — require finite as well.
+    if (typeof parsed.score !== "number" || !Number.isFinite(parsed.score)) {
+      return null;
+    }
+    const score = clamp(parsed.score);
     const reason = typeof parsed.reason === "string" ? parsed.reason : "";
     return { score, reason };
   } catch (err) {

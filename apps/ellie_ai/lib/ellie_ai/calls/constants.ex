@@ -55,10 +55,4 @@ defmodule EllieAi.Calls.Constants do
 
   def tool_call_types,
     do: [tool_call_type_before(), tool_call_type_midflight(), tool_call_type_after()]
-
-  # operator-spoken phrase that hard-stops a scammer test call. shared by
-  # the scammer system prompt (the LLM is told to break character on it)
-  # and `FraudDetector.Heuristics` (belt-and-braces — if the LLM ignores
-  # the instruction, the heuristic still trips and forces a hangup).
-  def stop_test_phrase, do: "STOP TEST"
 end

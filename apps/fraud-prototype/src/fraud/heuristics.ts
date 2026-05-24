@@ -55,7 +55,9 @@ const RULES: ReadonlyArray<Rule> = [
     weight: 0.55,
     label: "crypto",
   },
-  { re: /\bwestern\s+union|moneygram\b/i, weight: 0.7, label: "money_remit" },
+  // grouped so both alternatives are word-bounded — the prior `\bwestern\s+union|moneygram\b`
+  // applied \b asymmetrically and matched `moneygram` as a suffix in larger words.
+  { re: /\b(western\s+union|moneygram)\b/i, weight: 0.7, label: "money_remit" },
 
   // authority/agency impersonation.
   { re: /\b(irs|tax\s+(office|authority|department))\b/i, weight: 0.6, label: "irs" },

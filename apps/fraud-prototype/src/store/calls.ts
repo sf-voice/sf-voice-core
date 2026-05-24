@@ -1,31 +1,31 @@
 // in-memory per-call state, replacing the Elixir ETS tables.
 // single-process prototype — no need for anything fancier.
+//
+// internal state stays private to this module; readers only get
+// immutable views so external code can't mutate transcripts behind the
+// store's back.
 
 import type { ScriptId } from "../scammer/scripts.ts";
 
 export type Role = "user" | "assistant";
 
 export interface TranscriptTurn {
-  role: Role;
-  text: string;
-  at: Date;
+  readonly role: Role;
+  readonly text: string;
+  readonly at: Date;
 }
 
-export interface CallState {
+interface InternalCallState {
   ccid: string;
-  /** when set, this leg is a scammer leg running the given script. */
   scammerScript?: ScriptId;
-  /** when set, this leg is an alert dial-back, carrying the summary
-   *  to speak when the operator answers. */
   alert?: { summary: string; scammerCcid: string };
-  /** when set, the detector has already triggered for this leg. */
   detectorFired?: Date;
   transcript: TranscriptTurn[];
 }
 
-const STATE = new Map<string, CallState>();
+const STATE = new Map<string, InternalCallState>();
 
-export function ensure(ccid: string): CallState {
+function ensure(ccid: string): InternalCallState {
   let s = STATE.get(ccid);
   if (!s) {
     s = { ccid, transcript: [] };
@@ -34,16 +34,17 @@ export function ensure(ccid: string): CallState {
   return s;
 }
 
-export function get(ccid: string): CallState | undefined {
-  return STATE.get(ccid);
-}
-
 export function drop(ccid: string): void {
   STATE.delete(ccid);
 }
 
 export function markScammer(ccid: string, scriptId: ScriptId): void {
   ensure(ccid).scammerScript = scriptId;
+}
+
+export function unmarkScammer(ccid: string): void {
+  const s = STATE.get(ccid);
+  if (s) delete s.scammerScript;
 }
 
 export function isScammerLeg(ccid: string): boolean {
@@ -66,10 +67,16 @@ export function isAlertLeg(ccid: string): boolean {
   return !!STATE.get(ccid)?.alert;
 }
 
-export function alertInfo(
+/** consume-once read for alert info — clears the entry so webhook retries
+ *  don't replay the speak action and the in-memory entry doesn't leak. */
+export function takeAlertInfo(
   ccid: string,
 ): { summary: string; scammerCcid: string } | undefined {
-  return STATE.get(ccid)?.alert;
+  const s = STATE.get(ccid);
+  if (!s?.alert) return undefined;
+  const info = s.alert;
+  delete s.alert;
+  return info;
 }
 
 export function appendTurn(ccid: string, role: Role, text: string): TranscriptTurn {
@@ -79,8 +86,11 @@ export function appendTurn(ccid: string, role: Role, text: string): TranscriptTu
   return turn;
 }
 
-export function transcript(ccid: string): TranscriptTurn[] {
-  return STATE.get(ccid)?.transcript ?? [];
+/** returns a readonly snapshot of the transcript — external code cannot
+ *  push/splice/edit through this reference. */
+export function transcript(ccid: string): ReadonlyArray<TranscriptTurn> {
+  const t = STATE.get(ccid)?.transcript;
+  return t ? t.slice() : [];
 }
 
 export function alreadyFired(ccid: string): boolean {
@@ -89,4 +99,9 @@ export function alreadyFired(ccid: string): boolean {
 
 export function markFired(ccid: string): void {
   ensure(ccid).detectorFired = new Date();
+}
+
+export function unmarkFired(ccid: string): void {
+  const s = STATE.get(ccid);
+  if (s) delete s.detectorFired;
 }
