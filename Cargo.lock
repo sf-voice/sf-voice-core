@@ -4375,6 +4375,7 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "argon2",
+ "async-trait",
  "aws-config",
  "aws-credential-types",
  "aws-sdk-s3",
@@ -4390,6 +4391,7 @@ dependencies = [
  "duckdb",
  "entities",
  "futures-util",
+ "hex",
  "migration",
  "qdrant-client",
  "rand 0.8.6",
