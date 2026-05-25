@@ -58,14 +58,32 @@ export interface VerifyInput {
 
 export type VerifyResult =
   | { ok: true }
-  | { ok: false; reason: "missing_signature" | "missing_timestamp" | "stale" | "invalid" | "no_key" };
+  | {
+      ok: false;
+      reason:
+        | "missing_signature"
+        | "missing_timestamp"
+        | "stale"
+        | "invalid"
+        | "no_key"
+        | "invalid_key";
+    };
 
 /** verify the headers + raw body against the configured public key.
- *  returns `{ ok: false, reason: "no_key" }` if no key is configured — the
- *  caller decides whether to reject (prod) or warn-and-pass (dev). */
+ *  returns `{ ok: false, reason: "no_key" }` only when no key is configured at
+ *  all — the caller decides whether to reject (prod) or warn-and-pass (dev).
+ *  if a key is configured but cannot be loaded (bad base64, wrong byte length,
+ *  WebCrypto import failure) we return `"invalid_key"` so the server fails
+ *  closed instead of silently accepting unsigned traffic. */
 export async function verify(input: VerifyInput): Promise<VerifyResult> {
   const key = await loadKey();
-  if (!key) return { ok: false, reason: "no_key" };
+  if (!key) {
+    // configured-but-broken key material must NOT be treated as "no key" —
+    // otherwise a typo in TELNYX_PUBLIC_KEY would silently bypass auth.
+    return config.telnyx.publicKey
+      ? { ok: false, reason: "invalid_key" }
+      : { ok: false, reason: "no_key" };
+  }
 
   if (!input.signatureB64) return { ok: false, reason: "missing_signature" };
   if (!input.timestamp) return { ok: false, reason: "missing_timestamp" };
