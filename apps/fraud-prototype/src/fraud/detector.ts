@@ -57,6 +57,9 @@ export async function analyze(ccid: string, latestText: string): Promise<void> {
 // ccid don't both reach `trigger`. on alert-dial failure, unmark so a
 // later turn can retry the escalation.
 async function fire(ccid: string, summary: string): Promise<void> {
+  // second guard: two concurrent analyze() runs that both passed the
+  // early check could otherwise both reach markFired + trigger.
+  if (Store.alreadyFired(ccid)) return;
   Store.markFired(ccid);
   let result;
   try {
