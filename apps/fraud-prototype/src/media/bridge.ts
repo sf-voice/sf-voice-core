@@ -83,12 +83,12 @@ function open(ccid: string, telnyxWs: WebSocket): BridgeState {
     voice: script.voice,
     onUserTranscript: (text) => {
       Store.appendTurn(ccid, "user", text);
-      log.info("bridge: user turn", { ccid, text });
+      log.info("bridge: user turn", { ccid, chars: text.length });
       runDetector(ccid, text);
     },
     onAssistantTranscript: (text) => {
       Store.appendTurn(ccid, "assistant", text);
-      log.info("bridge: assistant turn", { ccid, text });
+      log.info("bridge: assistant turn", { ccid, chars: text.length });
       runDetector(ccid, text);
     },
     onAudioOut: (mulawB64) => {
