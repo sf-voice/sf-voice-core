@@ -3,4 +3,5 @@
 packages:
   - "core/frontend"
   - "core/*"
+  - "ts/sdk"
   - "apps/fraud-prototype"
