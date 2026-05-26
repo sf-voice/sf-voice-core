@@ -7,6 +7,13 @@ import { searchRoutes } from "./routes/search.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+/**
+ * Creates and configures a Fastify application for the project.
+ *
+ * Configures logging (level "warn"), serves static files from the repository's `public` directory at `/`, and registers the ingest and search route groups.
+ *
+ * @returns The configured Fastify instance ready to be started.
+ */
 export async function buildServer() {
   const app = fastify({ logger: { level: "warn" } });
 

@@ -13,6 +13,17 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class IngestBody(val url: String, val media_type: String? = null)
 
+/**
+ * Registers ingestion-related HTTP routes on this Route: POST /ingest and GET /task/{id}.
+ *
+ * POST /ingest accepts a JSON body with `url` and an optional `media_type` (`"video"` or `"audio"`), submits an ingestion request, and responds with HTTP 202 and the client's response.
+ * GET /task/{id} returns the task status for the specified `id`.
+ *
+ * Both routes translate SfVoiceMediaException into an HTTP response using the exception's status and a JSON body of the form:
+ * `{ "error": { "code": <code>, "message": <message> } }`.
+ *
+ * @param client Client used to perform ingestion and task retrieval operations.
+ */
 fun Route.ingestRoutes(client: SfVoiceMediaClient) {
     // POST /ingest — submit a URL for ingestion
     post("/ingest") {

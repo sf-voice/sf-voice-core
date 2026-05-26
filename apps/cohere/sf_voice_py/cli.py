@@ -11,10 +11,24 @@ from .config import config
 
 
 def _client() -> SfVoiceMedia:
+    """
+    Create and return an SfVoiceMedia client configured with the application's settings.
+    
+    Returns:
+        SfVoiceMedia: Client instance initialized with config.api_key and config.base_url.
+    """
     return SfVoiceMedia(api_key=config.api_key, base_url=config.base_url)
 
 
 def _print_results(results: list) -> None:
+    """
+    Prints a formatted list of search results to stdout.
+    
+    When `results` is empty or falsy, prints "  (no results)". Otherwise prints one indexed line per result containing the score (two decimal places), a start–end time range formatted as M:SS, and the result's `match_type`.
+    
+    Parameters:
+        results (list): Iterable of result objects with attributes `start_ms` (int), `end_ms` (int), `score` (float), and `match_type` (str).
+    """
     if not results:
         print("  (no results)")
         return
@@ -25,6 +39,15 @@ def _print_results(results: list) -> None:
 
 
 def _ms_to_time(ms: int) -> str:
+    """
+    Format a duration given in milliseconds as an `M:SS` timestamp.
+    
+    Parameters:
+        ms (int): Duration in milliseconds; fractional seconds are truncated.
+    
+    Returns:
+        str: A timestamp string in `M:SS` where `M` is minutes and `SS` is two-digit seconds.
+    """
     s = ms // 1000
     return f"{s // 60}:{s % 60:02d}"
 
@@ -32,7 +55,15 @@ def _ms_to_time(ms: int) -> str:
 # ── subcommand handlers ───────────────────────────────────────────────────────
 
 def cmd_ingest(args: argparse.Namespace) -> None:
-    """ingest a URL and poll until ready."""
+    """
+    Submit a media URL for ingestion and wait until indexing completes.
+    
+    Parameters:
+        args (argparse.Namespace): Parsed CLI arguments with attributes:
+            url (str): URL of the media to ingest.
+            title (str): Optional title to attach to the asset.
+            type (str): Optional media type (e.g., "audio" or "video").
+    """
     client = _client()
     print(f"ingesting {args.url} …")
 
@@ -56,7 +87,15 @@ def cmd_ingest(args: argparse.Namespace) -> None:
 
 
 def cmd_search(args: argparse.Namespace) -> None:
-    """search indexed media."""
+    """
+    Run a semantic search against indexed media and print formatted results.
+    
+    Parameters:
+        args (argparse.Namespace): CLI arguments with the following fields:
+            - query: search query string.
+            - types: optional comma-separated string of media types to restrict the search.
+            - asset_id: optional asset identifier to restrict the search to a single asset.
+    """
     client = _client()
     types = args.types.split(",") if args.types else None
     asset_ids = [args.asset_id] if args.asset_id else None
@@ -66,12 +105,17 @@ def cmd_search(args: argparse.Namespace) -> None:
         types=types,
         asset_ids=asset_ids,
     )
-    print(f"🔍 results for \"{args.query}\" ({resp.page_info.total} total):")
+    print(f"🔍 results for "{args.query}" ({resp.page_info.total} total):")
     _print_results(resp.results)
 
 
 def cmd_list(args: argparse.Namespace) -> None:
-    """list all assets."""
+    """
+    List indexed assets and print each asset's status, title (or id), and duration.
+    
+    Parameters:
+        args (argparse.Namespace): CLI arguments with `page` (int) for the page number and `limit` (int) for items per page.
+    """
     client = _client()
     resp = client.list_assets(page=args.page, limit=args.limit)
     print(f"assets ({resp.page_info.total} total):")
@@ -82,7 +126,12 @@ def cmd_list(args: argparse.Namespace) -> None:
 
 
 def cmd_demo(args: argparse.Namespace) -> None:
-    """full demo: ingest → poll → search (sync then async)."""
+    """
+    Run the demo sequence: execute the synchronous demo then the asynchronous demo using the provided URL and query.
+    
+    Parameters:
+        args (argparse.Namespace): Parsed CLI arguments. Must provide `url` (str) and `query` (str) attributes used by the demos.
+    """
     from .demo import run_sync_demo, run_async_demo
 
     print("=== sync demo ===")
@@ -95,6 +144,18 @@ def cmd_demo(args: argparse.Namespace) -> None:
 # ── parser ────────────────────────────────────────────────────────────────────
 
 def build_parser() -> argparse.ArgumentParser:
+    """
+    Builds and returns the command-line argument parser for the sf_demo CLI.
+    
+    The returned parser is configured with four required subcommands:
+    - ingest: accepts a media URL and optional --title and --type (video|audio).
+    - search: accepts a query and optional --types (comma-separated) and --asset-id.
+    - list: accepts pagination options --page and --limit.
+    - demo: accepts a URL and a query to run the full sync and async demo.
+    
+    Returns:
+        argparse.ArgumentParser: Configured parser ready to parse CLI arguments for the sf_demo tool.
+    """
     p = argparse.ArgumentParser(
         prog="sf_demo",
         description="sf-voice media SDK demo CLI",
@@ -127,6 +188,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    """
+    Parse command-line arguments and invoke the selected subcommand handler.
+    
+    Builds the CLI parser, parses sys.argv, and dispatches execution to the matching handler for the "ingest", "search", "list", or "demo" subcommand.
+    """
     parser = build_parser()
     args = parser.parse_args()
 

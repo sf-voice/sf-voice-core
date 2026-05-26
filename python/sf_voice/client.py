@@ -35,6 +35,14 @@ class SfVoiceMedia:
         base_url: str = "https://api.sf-voice.com",
         timeout: float = 30.0,
     ) -> None:
+        """
+        Create a configured SfVoiceMedia synchronous client for the sf-voice API.
+        
+        Parameters:
+            api_key (str): API key sent in the `X-API-Key` header for authenticated requests.
+            base_url (str): Base URL for API requests; trailing slashes are removed. Defaults to "https://api.sf-voice.com".
+            timeout (float): Per-request timeout in seconds. Defaults to 30.0.
+        """
         self._base_url = base_url.rstrip("/")
         self._client = httpx.Client(
             base_url=self._base_url,
@@ -57,11 +65,34 @@ class SfVoiceMedia:
         raise SfVoiceMediaError.from_response(response.status_code, body)
 
     def _get(self, path: str, params: Optional[Dict[str, Any]] = None) -> Any:
+        """
+        Fetch JSON from the client's API at the specified relative path.
+        
+        Parameters:
+            path (str): API path relative to the client's base_url (for example, "/v1/assets").
+            params (Optional[Dict[str, Any]]): Optional query parameters to include in the request; keys and values should be JSON-serializable.
+        
+        Returns:
+            Any: Parsed JSON response (typically a dict or list) derived from the HTTP response body.
+        """
         response = self._client.get(path, params=params)
         self._raise_for_status(response)
         return response.json()
 
     def _post(self, path: str, json: Dict[str, Any]) -> Any:
+        """
+        Send a POST request to the given path with the provided JSON body and return the parsed response.
+        
+        Parameters:
+        	path (str): Request path relative to the client's base URL.
+        	json (Dict[str, Any]): JSON-serializable request body.
+        
+        Returns:
+        	Any: Parsed JSON response body, or `None` if the server responded with HTTP 204 No Content.
+        
+        Raises:
+        	SfVoiceMediaError: If the HTTP response status is not successful (non-2xx) — propagated from internal error handling.
+        """
         response = self._client.post(path, json=json)
         self._raise_for_status(response)
         # 204 No Content has no body
@@ -70,6 +101,15 @@ class SfVoiceMedia:
         return response.json()
 
     def _delete(self, path: str) -> None:
+        """
+        Send a DELETE request to the specified API path.
+        
+        Parameters:
+            path (str): Request path relative to the client's base_url (for example, "/v1/assets/{asset_id}").
+        
+        Raises:
+            SfVoiceMediaError: If the HTTP response status is not successful.
+        """
         response = self._client.delete(path)
         self._raise_for_status(response)
 
@@ -85,17 +125,18 @@ class SfVoiceMedia:
         media_type: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> IngestResponse:
-        """submit a new media item for ingestion.
-
-        Args:
-            source: "url" or "s3".
-            url: public URL of the media file (required when source="url").
-            s3_key: S3 object key (required when source="s3").
-            media_type: "video" or "audio" — inferred by the server when omitted.
-            metadata: arbitrary key/value pairs stored alongside the asset.
-
+        """
+        Submit a new media item for ingestion.
+        
+        Parameters:
+            source (str): Source type, either "url" or "s3".
+            url (Optional[str]): Public URL of the media file; required when source is "url".
+            s3_key (Optional[str]): S3 object key; required when source is "s3".
+            media_type (Optional[str]): "video" or "audio". If omitted, the server will infer the type.
+            metadata (Optional[Dict[str, Any]]): Arbitrary key/value pairs stored with the asset.
+        
         Returns:
-            IngestResponse with asset_id, task_id, and status="pending".
+            IngestResponse: Contains `asset_id`, `task_id`, and `status` (typically "pending").
         """
         body: Dict[str, Any] = {"source": source}
         if url is not None:
@@ -110,38 +151,51 @@ class SfVoiceMedia:
         return IngestResponse.from_dict(data)
 
     def get_task(self, task_id: str) -> Task:
-        """fetch the current state of an ingestion task.
-
-        Args:
-            task_id: the task_id returned by ingest().
+        """
+        Retrieve the current state of an ingestion task.
+        
+        Parameters:
+            task_id (str): The ID of the task to retrieve (for example, the ID returned by ingest()).
+        
+        Returns:
+            Task: The task resource with its current status and metadata.
         """
         data = self._get(f"/v1/tasks/{task_id}")
         return Task.from_dict(data)
 
     def list_assets(self, page: int = 1, limit: int = 20) -> AssetListResponse:
-        """list assets with pagination.
-
-        Args:
-            page: 1-indexed page number.
-            limit: items per page, max 50.
+        """
+        Retrieve a paginated list of assets.
+        
+        Parameters:
+            page (int): 1-indexed page number to fetch.
+            limit (int): Number of items per page, maximum 50.
+        
+        Returns:
+            AssetListResponse: Parsed list of assets and pagination metadata.
         """
         data = self._get("/v1/assets", params={"page": page, "limit": limit})
         return AssetListResponse.from_dict(data)
 
     def get_asset(self, asset_id: str) -> Asset:
-        """fetch a single asset by id.
-
-        Args:
-            asset_id: the id of the asset.
+        """
+        Retrieve an asset by its identifier.
+        
+        Returns:
+            Asset: The asset corresponding to the provided `asset_id`.
+        
+        Raises:
+            SfVoiceMediaError: If the API responds with a non-success status.
         """
         data = self._get(f"/v1/assets/{asset_id}")
         return Asset.from_dict(data)
 
     def delete_asset(self, asset_id: str) -> None:
-        """soft-delete an asset. the backend retains the record but excludes it from results.
-
-        Args:
-            asset_id: the id of the asset to delete.
+        """
+        Soft-delete an asset so the backend retains the record but excludes it from results.
+        
+        Parameters:
+            asset_id (str): Identifier of the asset to soft-delete.
         """
         self._delete(f"/v1/assets/{asset_id}")
 
@@ -154,16 +208,19 @@ class SfVoiceMedia:
         page: int = 1,
         limit: int = 20,
     ) -> SearchResponse:
-        """search across ingested media using semantic queries.
-
-        Args:
-            query: natural language search query.
-            types: subset of ["visual", "conversation", "text_in_video"].
-                   defaults to all types when omitted.
-            asset_ids: restrict search to these asset ids. searches all when omitted.
-            threshold: minimum similarity score, 0–1 (default 0.5).
-            page: 1-indexed page number.
-            limit: results per page, max 50.
+        """
+        Search ingested media using a natural-language semantic query.
+        
+        Parameters:
+            query (str): Natural-language query string.
+            types (Optional[List[str]]): Optional subset of ["visual", "conversation", "text_in_video"] to restrict result types; when omitted searches all types.
+            asset_ids (Optional[List[str]]): Optional list of asset IDs to restrict the search; when omitted searches across all assets.
+            threshold (float): Minimum similarity score between 0 and 1 to include a result.
+            page (int): 1-indexed page number for paginated results.
+            limit (int): Number of results per page (maximum 50).
+        
+        Returns:
+            SearchResponse: Matching search results and pagination metadata.
         """
         body: Dict[str, Any] = {
             "query": query,
@@ -184,22 +241,22 @@ class SfVoiceMedia:
         interval_s: float = 2.0,
         timeout_s: float = 300.0,
     ) -> Task:
-        """block until the task reaches a terminal state (ready or failed).
-
-        Polls get_task() every interval_s seconds. Raises TimeoutError if
-        timeout_s elapses before the task finishes.
-
-        Args:
-            task_id: the task_id to poll.
-            interval_s: seconds between each poll (default 2).
-            timeout_s: maximum total wait time in seconds (default 300).
-
+        """
+        Waits until the specified task reaches a terminal state.
+        
+        Polls the task status periodically until it becomes terminal or the timeout elapses.
+        
+        Parameters:
+            task_id (str): ID of the task to poll.
+            interval_s (float): Seconds between polling attempts.
+            timeout_s (float): Maximum total wait time in seconds.
+        
         Returns:
-            The terminal Task object.
-
+            Task: The terminal Task object.
+        
         Raises:
-            TimeoutError: if the task is still non-terminal after timeout_s.
-            SfVoiceMediaError: if any API request fails.
+            TimeoutError: If the task is still non-terminal after timeout_s seconds.
+            SfVoiceMediaError: If an API request fails while polling.
         """
         deadline = time.monotonic() + timeout_s
         while True:
@@ -216,11 +273,26 @@ class SfVoiceMedia:
             time.sleep(min(interval_s, remaining))
 
     def close(self) -> None:
-        """close the underlying httpx session. safe to call multiple times."""
+        """
+        Close the underlying HTTP session.
+        
+        Closes the internal httpx.Client used by the client. Safe to call multiple times.
+        """
         self._client.close()
 
     def __enter__(self) -> "SfVoiceMedia":
+        """
+        Enter a context manager and return the client instance.
+        
+        Returns:
+            self: The SfVoiceMedia client instance.
+        """
         return self
 
     def __exit__(self, *_: Any) -> None:
+        """
+        Close the client's underlying HTTP session when exiting a context.
+        
+        This invokes self.close(), which closes the internal httpx.Client. It is safe to call even if the client is already closed.
+        """
         self.close()

@@ -17,6 +17,18 @@ import (
 	"github.com/sf-voice/sf-voice-media-go/example/internal/example"
 )
 
+// main parses command-line flags, loads configuration, ingests one or more media URLs concurrently,
+// collects successful asset IDs, and runs a search query against those assets.
+// 
+// Flags:
+//   -urls       comma-separated media URLs to ingest (falls back to SAMPLE_MEDIA_URL from config)
+//   -query      required search query to run after ingest
+//   -types      optional comma-separated match types: visual, conversation, text_in_video
+//   -concurrency max concurrent ingests (default 4)
+// 
+// Exit codes:
+//   1 on configuration load failure or when no assets were ingested successfully,
+//   2 when required inputs (urls or query) are missing.
 func main() {
 	urlsFlag := flag.String("urls", "", "comma-separated media URLs to ingest")
 	queryFlag := flag.String("query", "", "search query to run after ingest")

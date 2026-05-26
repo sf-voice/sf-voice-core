@@ -23,18 +23,20 @@ defmodule SfVoiceMedia do
 
   # ── construction ─────────────────────────────────────────────────────────────
 
+  
+  
   @doc """
-  creates a new client struct.
-
-  ## options
-
-  - `:base_url`  — API base URL (default `"https://api.sf-voice.com"`)
-  - `:http_opts` — keyword list forwarded to every `Req` call (e.g. `[receive_timeout: 30_000]`)
-
-  ## examples
-
+  Builds a SfVoiceMedia.Client preconfigured with the given API key and optional settings.
+  
+  ## Options
+  
+    - `:base_url` — API base URL; defaults to "https://api.sf-voice.com". A trailing `/` is removed.
+    - `:http_opts` — keyword list forwarded to Req for every request; defaults to `[]`.
+  
+  ## Examples
+  
       client = SfVoiceMedia.new("sk-my-api-key")
-
+  
       client = SfVoiceMedia.new("sk-my-api-key",
         base_url: "https://staging.api.sf-voice.com",
         http_opts: [receive_timeout: 10_000]
@@ -56,39 +58,37 @@ defmodule SfVoiceMedia do
 
   # ── public API ───────────────────────────────────────────────────────────────
 
+  
+  
   @doc """
-  submits a media file for ingestion from a URL or S3 key.
-
-  returns immediately with a `task_id` you can track with `get_task/2` or `poll_task/3`.
-
-  ## examples
-
-      {:ok, %{asset_id: aid, task_id: tid}} =
-        SfVoiceMedia.ingest(client, %{source: :url, url: "https://cdn.example.com/talk.mp4"})
-
-      {:ok, %{task_id: tid}} =
-        SfVoiceMedia.ingest(client, %{
-          source: :s3,
-          s3_key: "uploads/call-2024-01-15.wav",
-          media_type: :audio,
-          metadata: %{title: "sales call Q1"}
-        })
+  Submit a media file for ingestion from a URL or an S3 key.
+  
+  Returns immediately with a task identifier that can be inspected with `get_task/2` or awaited with `poll_task/3`.
+  
+  ## Returns
+  
+    - `{:ok, response}` — successful response containing at least `task_id` and optionally `asset_id` and other task metadata.
+    - `{:error, %SfVoiceMedia.Error{}}` — request failed; contains error details.
   """
   @spec ingest(Client.t(), Types.ingest_request()) ::
-          {:ok, Types.ingest_response()} | {:error, Error.t()}
+            {:ok, Types.ingest_response()} | {:error, Error.t()}
   def ingest(%Client{} = client, request) when is_map(request) do
     post(client, "/v1/ingest", request)
   end
 
+  
+  
   @doc """
-  fetches the current state of an ingestion task.
-
-  ## examples
-
-      {:ok, %{status: "ready", asset_id: aid}} = SfVoiceMedia.get_task(client, "task_abc123")
+  Fetches the current state of an ingestion task.
+  
+  Returns `{:ok, task}` where `task` is a map describing the task (includes a `"status"` field), or `{:error, %SfVoiceMedia.Error{}}` on failure.
+  
+  ## Examples
+  
+      {:ok, %{"status" => "ready", "asset_id" => aid}} = SfVoiceMedia.get_task(client, "task_abc123")
   """
   @spec get_task(Client.t(), String.t()) ::
-          {:ok, Types.task()} | {:error, Error.t()}
+            {:ok, Types.task()} | {:error, Error.t()}
   def get_task(%Client{} = client, task_id) when is_binary(task_id) do
     get(client, "/v1/tasks/#{URI.encode(task_id)}")
   end
@@ -111,26 +111,28 @@ defmodule SfVoiceMedia do
     get(client, "/v1/assets#{qs}")
   end
 
+  
+  
   @doc """
-  fetches a single asset by id.
-
-  ## examples
-
-      {:ok, asset} = SfVoiceMedia.get_asset(client, "ast_abc123")
+  Retrieve a library asset by its ID.
+  
+  Returns `{:ok, asset}` when the asset is found, or `{:error, %SfVoiceMedia.Error{}}` on failure.
   """
   @spec get_asset(Client.t(), String.t()) ::
-          {:ok, Types.asset()} | {:error, Error.t()}
+            {:ok, Types.asset()} | {:error, Error.t()}
   def get_asset(%Client{} = client, id) when is_binary(id) do
     get(client, "/v1/assets/#{URI.encode(id)}")
   end
 
+  
+  
   @doc """
-  soft-deletes an asset. the backend retains the record but excludes it from list results.
-
-  returns `:ok` on success (HTTP 204).
-
-  ## examples
-
+  Soft-deletes an asset so it is excluded from list results while the backend retains the record.
+  
+  Returns `:ok` if the deletion was successful (HTTP 204), `{:error, %SfVoiceMedia.Error{}}` otherwise.
+  
+  ## Examples
+  
       :ok = SfVoiceMedia.delete_asset(client, "ast_abc123")
   """
   @spec delete_asset(Client.t(), String.t()) :: :ok | {:error, Error.t()}
@@ -141,14 +143,18 @@ defmodule SfVoiceMedia do
     end
   end
 
+  
+  
   @doc """
-  runs a semantic search across indexed media.
-
-  ## examples
-
+  Run a semantic search over indexed media.
+  
+  The `request` map must include a `:query` string and may include optional parameters such as `:types` (list of asset types), `:threshold` (similarity threshold), and `:limit` (maximum results). Returns the API response wrapped in `{:ok, result}` or `{:error, %SfVoiceMedia.Error{}}`.
+  
+  ## Examples
+  
       {:ok, %{results: results}} =
         SfVoiceMedia.search(client, %{query: "product roadmap discussion"})
-
+  
       {:ok, %{results: results}} =
         SfVoiceMedia.search(client, %{
           query: "quarterly targets",
@@ -163,30 +169,18 @@ defmodule SfVoiceMedia do
     post(client, "/v1/search", request)
   end
 
+  
+  
   @doc """
-  polls `get_task/2` at a fixed interval until the task reaches `"ready"` or `"failed"`.
-
-  raises `SfVoiceMedia.Error` if the task fails or the timeout is exceeded.
-  returns the final task map on success.
-
-  ## options
-
-  - `:interval_ms` — wait between polls in ms (default `1_500`)
-  - `:timeout_ms`  — max total wait in ms (default `120_000`)
-
-  ## examples
-
-      {:ok, %{task_id: tid}} = SfVoiceMedia.ingest(client, %{source: :url, url: "..."})
-
-      task = SfVoiceMedia.poll_task(client, tid)
-      # => %{status: "ready", asset_id: "ast_abc123", ...}
-
-      task = SfVoiceMedia.poll_task(client, tid,
-        interval_ms: 2_000,
-        timeout_ms: 300_000
-      )
+  Polls an ingestion task until its status becomes "ready" or "failed".
+  
+  Polls get_task/2 at a fixed interval and returns the final task map when the task reaches "ready".
+  Raises `SfVoiceMedia.Error` if the task's status becomes "failed" or if the timeout is exceeded.
+  
+  Options
+  - `:interval_ms` — milliseconds to wait between polls (default: 1500)
+  - `:timeout_ms` — maximum total wait in milliseconds (default: 120_000)
   """
-  @spec poll_task(Client.t(), String.t(), keyword()) :: Types.task()
   def poll_task(%Client{} = client, task_id, opts \\ []) do
     interval_ms = Keyword.get(opts, :interval_ms, 1_500)
     timeout_ms = Keyword.get(opts, :timeout_ms, 120_000)

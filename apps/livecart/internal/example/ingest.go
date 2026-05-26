@@ -20,7 +20,11 @@ type IngestResult struct {
 }
 
 // IngestAll ingests all URLs concurrently (up to concurrency at a time),
-// polls each task until ready, and returns one result per URL.
+// IngestAll concurrently ingests the provided URLs and returns their per-URL results.
+// If concurrency is less than 1 it is treated as 1.
+// The returned slice has the same length and order as the input urls; each element
+// is the corresponding IngestResult, which contains asset/task identifiers, elapsed
+// time for successful ingestions, or an error observed for that URL.
 func IngestAll(ctx context.Context, client *sfvoice.Client, urls []string, concurrency int) []IngestResult {
 	if concurrency < 1 {
 		concurrency = 1
@@ -45,6 +49,10 @@ func IngestAll(ctx context.Context, client *sfvoice.Client, urls []string, concu
 	return results
 }
 
+// ingestOne ingests a single URL using the provided client and polls the created task until it completes or a 5-minute timeout elapses.
+// It returns an IngestResult containing the URL, AssetID, TaskID, and Elapsed duration on success.
+// If ingestion fails, the returned IngestResult contains Err wrapping the ingest error.
+// If polling fails or the task reports failure, the returned IngestResult contains Err describing the poll error or the task failure.
 func ingestOne(ctx context.Context, client *sfvoice.Client, url string) IngestResult {
 	t0 := time.Now()
 

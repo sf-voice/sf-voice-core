@@ -31,7 +31,23 @@ pub enum TaskStatus {
 }
 
 impl TaskStatus {
-    /// returns true when the task has reached a non-progressing state.
+    /// Indicates whether the task is in a terminal state.
+    ///
+    /// A terminal state is a non-progressing final status for a task.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the status is `Ready` or `Failed`, `false` otherwise.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let ready = TaskStatus::Ready;
+    /// assert!(ready.is_terminal());
+    ///
+    /// let pending = TaskStatus::Pending;
+    /// assert!(!pending.is_terminal());
+    /// ```
     pub fn is_terminal(&self) -> bool {
         matches!(self, TaskStatus::Ready | TaskStatus::Failed)
     }
@@ -107,7 +123,18 @@ pub struct IngestRequest {
 }
 
 impl IngestRequest {
-    /// ingest from a public or pre-signed URL.
+    /// Create an `IngestRequest` targeting a public or pre-signed URL.
+    ///
+    /// The returned request has `source` set to `SourceType::Url`, `url` set to the provided value,
+    /// and `s3_key`, `media_type`, and `metadata` left unset.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let req = IngestRequest::from_url("https://example.com/media.mp4");
+    /// assert_eq!(req.url.as_deref(), Some("https://example.com/media.mp4"));
+    /// assert_eq!(req.source, SourceType::Url);
+    /// ```
     pub fn from_url(url: impl Into<String>) -> Self {
         Self {
             source: SourceType::Url,
@@ -118,7 +145,17 @@ impl IngestRequest {
         }
     }
 
-    /// ingest from an S3 object key (bucket is server-configured).
+    /// Creates an `IngestRequest` configured to ingest from an S3 object key.
+    ///
+    /// The argument is used as the object key within the server-configured S3 bucket; other optional fields (`url`, `media_type`, `metadata`) are left unset.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let req = IngestRequest::from_s3("path/to/object.mp4");
+    /// assert_eq!(req.source, SourceType::S3);
+    /// assert_eq!(req.s3_key.as_deref(), Some("path/to/object.mp4"));
+    /// ```
     pub fn from_s3(s3_key: impl Into<String>) -> Self {
         Self {
             source: SourceType::S3,
@@ -129,13 +166,30 @@ impl IngestRequest {
         }
     }
 
-    /// hint the server about whether the source is video or audio.
+    /// Set the media type hint for the ingest request.
+    ///
+    /// When set, the request will include this media type so the server can treat the provided source as video or audio.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let req = IngestRequest::from_url("https://example.com/video.mp4").media_type(MediaType::Video);
+    /// assert_eq!(req.media_type.unwrap(), MediaType::Video);
+    /// ```
     pub fn media_type(mut self, media_type: MediaType) -> Self {
         self.media_type = Some(media_type);
         self
     }
 
-    /// attach optional title / tag metadata.
+    /// Sets the media metadata on the ingest request.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let req = IngestRequest::from_url("https://example.com/video.mp4")
+    ///     .metadata(MediaMetadata { title: Some("Example".into()), tags: None });
+    /// assert!(req.metadata.is_some());
+    /// ```
     pub fn metadata(mut self, metadata: MediaMetadata) -> Self {
         self.metadata = Some(metadata);
         self
@@ -185,7 +239,19 @@ pub struct SearchRequest {
 }
 
 impl SearchRequest {
-    /// create a minimal search request with just the query string.
+    /// Constructs a SearchRequest with the provided query and all optional fields unset.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let req = SearchRequest::new("find cats");
+    /// assert_eq!(req.query, "find cats");
+    /// assert!(req.types.is_none());
+    /// assert!(req.asset_ids.is_none());
+    /// assert!(req.threshold.is_none());
+    /// assert!(req.page.is_none());
+    /// assert!(req.limit.is_none());
+    /// ```
     pub fn new(query: impl Into<String>) -> Self {
         Self {
             query: query.into(),
@@ -197,31 +263,78 @@ impl SearchRequest {
         }
     }
 
-    /// restrict which match modalities are searched.
+    /// Set which search modalities the request should match.
+    ///
+    /// This limits the search to the provided `SearchType` variants.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let req = SearchRequest::new("query").types(vec![SearchType::Visual, SearchType::TextInVideo]);
+    /// assert!(req.types.is_some());
+    /// ```
     pub fn types(mut self, types: Vec<SearchType>) -> Self {
         self.types = Some(types);
         self
     }
 
-    /// restrict search to a specific set of asset IDs.
+    /// Restricts the search to the provided asset IDs.
+    ///
+    /// Sets the request's `asset_ids` field to the supplied list of identifiers (each element
+    /// is converted to a `String`) and returns the updated request for chaining.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let req = SearchRequest::new("find this")
+    ///     .asset_ids(vec!["asset-1", "asset-2"]);
+    /// assert!(req.asset_ids.is_some());
+    /// ```
     pub fn asset_ids(mut self, ids: Vec<impl Into<String>>) -> Self {
         self.asset_ids = Some(ids.into_iter().map(Into::into).collect());
         self
     }
 
-    /// similarity threshold between 0.0 and 1.0.
+    /// Sets the similarity threshold used to filter search results.
+    ///
+    /// Values should be in the range 0.0 to 1.0; only results with scores greater than or equal to
+    /// the threshold will be considered.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let req = SearchRequest::new("example query").threshold(0.75);
+    /// assert_eq!(req.threshold, Some(0.75));
+    /// ```
     pub fn threshold(mut self, threshold: f32) -> Self {
         self.threshold = Some(threshold);
         self
     }
 
-    /// page number (1-based).
+    /// Set the 1-based page number for the search request.
+    ///
+    /// Pages are 1-based; pass `1` for the first page.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let req = SearchRequest::new("query").page(2);
+    /// ```
     pub fn page(mut self, page: u32) -> Self {
         self.page = Some(page);
         self
     }
 
-    /// number of results per page.
+    /// Sets the maximum number of results returned per page.
+    ///
+    /// Returns the updated `SearchRequest` with its `limit` set to the given value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let req = SearchRequest::new("cats").limit(25);
+    /// assert_eq!(req.limit, Some(25));
+    /// ```
     pub fn limit(mut self, limit: u32) -> Self {
         self.limit = Some(limit);
         self

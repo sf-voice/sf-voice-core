@@ -9,7 +9,10 @@ import (
 	sfvoice "github.com/sf-voice/sf-voice-media-go"
 )
 
-// Search queries the API and pretty-prints results to stdout.
+// Search queries the sfvoice API for the given query with optional asset and type filters and prints a summary and formatted result list to standard output.
+// It prints the total result count (or "(no results)" when there are none).
+// Each result line shows the index, score (two decimal places), time range in M:SS format, and the match type with underscores replaced by spaces.
+// Returns an error if the API call fails.
 func Search(ctx context.Context, client *sfvoice.Client, query string, assetIDs []string, types []string) error {
 	req := sfvoice.SearchRequest{
 		Query: query,
@@ -41,6 +44,7 @@ func Search(ctx context.Context, client *sfvoice.Client, query string, assetIDs 
 	return nil
 }
 
+// msToTime converts a duration given in milliseconds to a string in "M:SS" format.
 func msToTime(ms uint64) string {
 	s := ms / 1000
 	return fmt.Sprintf("%d:%02d", s/60, s%60)

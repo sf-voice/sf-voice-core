@@ -11,6 +11,15 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class Config {
 
+    /**
+     * Creates and configures an SfVoiceMediaClient bean from environment variables.
+     *
+     * <p>Reads the environment variable {@code SF_VOICE_API_KEY} and fails fast if it is missing or blank.
+     * If {@code SF_VOICE_BASE_URL} is missing or blank, the client is configured to use {@code https://api.sf-voice.com}.</p>
+     *
+     * @return an SfVoiceMediaClient configured with the resolved API key and base URL
+     * @throws IllegalStateException if {@code SF_VOICE_API_KEY} is missing or blank
+     */
     @Bean
     public SfVoiceMediaClient sfVoiceClient() {
         String apiKey = System.getenv("SF_VOICE_API_KEY");
