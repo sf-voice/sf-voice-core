@@ -3,7 +3,7 @@ package com.sfvoice.demo.routes
 import com.sfvoice.media.MediaType
 import com.sfvoice.media.SfVoiceMediaClient
 import com.sfvoice.media.SfVoiceMediaException
-import com.sfvoice.media.models.IngestRequest
+import com.sfvoice.media.IngestRequest
 import io.ktor.http.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
