@@ -88,7 +88,7 @@ async def run_async_demo(url: str, query: str) -> None:
 
         print(f"\r  ✓ ready  ({elapsed:.1f}s)")
 
-        print(f"  🔍 searching: "{query}"")
+        print(f"  🔍 searching: \"{query}\"")
         results = await client.search(query=query)
         if not results.results:
             print("  (no results)")
