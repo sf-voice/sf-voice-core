@@ -244,6 +244,59 @@ echo "[ship] done."
 """
 
 
+[tasks."fraud:dev"]
+description = "fraud-prototype: ngrok + webhook server"
+run = """
+set -e
+
+if ! command -v ngrok >/dev/null 2>&1; then
+  echo "ngrok not found — install with 'brew install ngrok'" >&2
+  exit 1
+fi
+
+FRAUD_PORT=${SCAMMER_PORT:-4000}
+
+trap 'kill 0 2>/dev/null; pkill -P $$ 2>/dev/null; exit' EXIT INT TERM
+
+ngrok http "$FRAUD_PORT" --log=stdout > /tmp/ngrok-fraud.log 2>&1 &
+
+echo "[ngrok] waiting for tunnel..."
+url=""
+for _ in $(seq 1 30); do
+  url=$(curl -s http://127.0.0.1:4040/api/tunnels 2>/dev/null \
+        | grep -oE '"public_url":"https://[^"]+"' \
+        | head -1 \
+        | sed 's/.*"public_url":"//;s/"$//' || true)
+  [ -n "$url" ] && break
+  sleep 1
+done
+
+if [ -z "$url" ]; then
+  echo "[ngrok] tunnel didn't open in 30s — see /tmp/ngrok-fraud.log" >&2
+  exit 1
+fi
+
+touch .env
+grep -v '^PUBLIC_URL=' .env > .env.tmp 2>/dev/null || true
+echo "PUBLIC_URL=$url" >> .env.tmp
+mv .env.tmp .env
+export PUBLIC_URL="$url"
+
+echo "[ngrok] $url -> http://127.0.0.1:$FRAUD_PORT"
+echo ""
+echo "[fraud] paste this into Telnyx portal → Voice API App → webhook URL:"
+echo "        $url/telnyx/webhook"
+echo ""
+
+(cd apps/fraud-prototype && pnpm dev 2>&1 | sed -u 's/^/[fraud] /') &
+wait
+"""
+
+[tasks."fraud:scammer"]
+description = "fraud-prototype: dial a scammer call (STAFF_PHONE_E164 from .env)"
+dir = "apps/fraud-prototype"
+run = "pnpm run scammer"
+
 [tasks."web:dev"]
 description = "frontend dev server"
 dir = "core/frontend"
@@ -300,8 +353,8 @@ mise install
 echo "[install] elixir deps"
 mix deps.get
 
-echo "[install] frontend deps (pnpm)"
-(cd core/frontend && pnpm install)
+echo "[install] js deps (pnpm — covers core/frontend + apps/fraud-prototype)"
+pnpm install
 
 echo "[install] rust deps (cargo fetch)"
 cargo fetch
