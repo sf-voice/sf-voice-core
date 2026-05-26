@@ -34,7 +34,7 @@ env:
 jobs:
    test:
       name: test
-      runs-on: ubuntu-latest
+      runs-on: depot-ubuntu-24.04
       steps:
          - uses: actions/checkout@v4
            with:
@@ -74,7 +74,7 @@ jobs:
       name: build + deploy
       needs: test
       if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
-      runs-on: ubuntu-latest
+      runs-on: depot-ubuntu-24.04
       permissions:
          contents: read
          packages: write
