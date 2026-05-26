@@ -18,8 +18,6 @@ concurrency:
    cancel-in-progress: false
 
 env:
-   REGISTRY: ghcr.io
-   IMAGE_NAME: sf-voice/ellie-ai
    ELIXIR_VERSION: "1.18.4"
    OTP_VERSION: "27.3.4"
    APP_DIR: apps/ellie_ai
@@ -27,7 +25,7 @@ env:
 jobs:
    test:
       name: test
-      runs-on: depot-ubuntu-24.04
+      runs-on: ubuntu-latest
       defaults:
          run:
             working-directory: ${{ env.APP_DIR }}
@@ -72,7 +70,7 @@ jobs:
       name: build + deploy
       needs: test
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-      runs-on: depot-ubuntu-24.04
+      runs-on: ubuntu-latest
       permissions:
          contents: read
          packages: write
@@ -85,7 +83,7 @@ jobs:
          - name: log in to ghcr
            uses: docker/login-action@v3
            with:
-              registry: ${{ env.REGISTRY }}
+              registry: ghcr.io
               username: ${{ github.actor }}
               password: ${{ secrets.GITHUB_TOKEN }}
 
@@ -95,8 +93,8 @@ jobs:
               context: ${{ env.APP_DIR }}
               push: true
               tags: |
-                 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-                 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+                 ghcr.io/sf-voice/ellie-ai:latest
+                 ghcr.io/sf-voice/ellie-ai:sha-${{ github.sha }}
               cache-from: type=gha,scope=ellie
               cache-to: type=gha,mode=max,scope=ellie
 
