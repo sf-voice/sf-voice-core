@@ -1,0 +1,29 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+group = 'com.sfvoice'
+version = '0.1.0'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.1'
+}
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            artifactId = 'sf-voice-media'
+            from components.java
+        }
+    }
+}
