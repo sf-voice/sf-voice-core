@@ -3,7 +3,7 @@ package com.sfvoice.demo.routes
 import com.sfvoice.media.SearchMatchType
 import com.sfvoice.media.SfVoiceMediaClient
 import com.sfvoice.media.SfVoiceMediaException
-import com.sfvoice.media.models.SearchRequest
+import com.sfvoice.media.SearchRequest
 import io.ktor.http.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
