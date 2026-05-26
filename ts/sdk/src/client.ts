@@ -18,7 +18,12 @@ import type {
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
-/** build a query-string from a plain object, omitting undefined values */
+/**
+ * Build a URL query string from an object by encoding defined values.
+ *
+ * @param params - Object whose string/number/boolean values will be URL-encoded; properties with `undefined` are omitted
+ * @returns A query string beginning with `?` containing the encoded key/value pairs, or an empty string if no defined parameters exist
+ */
 function toQueryString(
   params: Record<string, string | number | boolean | undefined>
 ): string {

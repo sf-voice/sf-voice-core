@@ -3,6 +3,12 @@ import type { SearchMatchType } from "@sf-voice/media";
 import { SfVoiceMedia } from "@sf-voice/media";
 import { config } from "../config.js";
 
+/**
+ * Registers HTTP routes for media search and asset listing on the given Fastify instance.
+ *
+ * - POST /search: accepts a search payload (requires `query`, optional `types`, `asset_ids`, `threshold`) and forwards it to the SfVoiceMedia search API, returning the API response.
+ * - GET /assets: accepts optional `page` and `limit` query parameters and returns the SfVoiceMedia assets list.
+ */
 export async function searchRoutes(app: FastifyInstance) {
   const client = new SfVoiceMedia({
     baseUrl: config.sfVoice.baseUrl,

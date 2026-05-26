@@ -42,6 +42,14 @@ class AsyncSfVoiceMedia:
         base_url: str = "https://api.sf-voice.com",
         timeout: float = 30.0,
     ) -> None:
+        """
+        Initialize the AsyncSfVoiceMedia client and configure its underlying async HTTP session.
+        
+        Parameters:
+            api_key (str): API key used for the `X-API-Key` request header.
+            base_url (str): Base URL for the sf-voice API; trailing slashes are removed.
+            timeout (float): Per-request timeout, in seconds, for the underlying HTTP client.
+        """
         self._base_url = base_url.rstrip("/")
         self._client = httpx.AsyncClient(
             base_url=self._base_url,
@@ -54,7 +62,14 @@ class AsyncSfVoiceMedia:
     # ------------------------------------------------------------------ #
 
     def _raise_for_status(self, response: httpx.Response) -> None:
-        """parse the error envelope and raise SfVoiceMediaError on non-2xx."""
+        """
+        Raise SfVoiceMediaError for non-success HTTP responses.
+        
+        If the response indicates success, return immediately. Otherwise, attempt to parse the response body as JSON and raise SfVoiceMediaError constructed from the response status code and the parsed body; if JSON parsing fails, use None for the body.
+        
+        Raises:
+            SfVoiceMediaError: when the HTTP response status is not successful, constructed from the response status code and parsed body.
+        """
         if response.is_success:
             return
         try:
@@ -64,11 +79,37 @@ class AsyncSfVoiceMedia:
         raise SfVoiceMediaError.from_response(response.status_code, body)
 
     async def _get(self, path: str, params: Optional[Dict[str, Any]] = None) -> Any:
+        """
+        Perform an HTTP GET to the given API path and return the parsed JSON body.
+        
+        Parameters:
+            path (str): Request path relative to the client's configured base URL.
+            params (Optional[Dict[str, Any]]): Query parameters to include in the request.
+        
+        Returns:
+            Any: The response body decoded from JSON.
+        
+        Raises:
+            SfVoiceMediaError: If the HTTP response status indicates an error.
+        """
         response = await self._client.get(path, params=params)
         self._raise_for_status(response)
         return response.json()
 
     async def _post(self, path: str, json: Dict[str, Any]) -> Any:
+        """
+        Send a JSON POST request to the given API path and return the parsed response.
+        
+        Parameters:
+            path (str): Request path relative to the client's base URL (e.g., "/v1/ingest").
+            json (Dict[str, Any]): JSON-serializable request body to include in the POST.
+        
+        Returns:
+            The parsed JSON response body, or `None` if the server responded with HTTP 204.
+        
+        Raises:
+            SfVoiceMediaError: If the response status is not successful.
+        """
         response = await self._client.post(path, json=json)
         self._raise_for_status(response)
         if response.status_code == 204:
@@ -76,6 +117,15 @@ class AsyncSfVoiceMedia:
         return response.json()
 
     async def _delete(self, path: str) -> None:
+        """
+        Send a DELETE request to the given API path and raise on error.
+        
+        Parameters:
+            path (str): API path relative to the client's base URL (e.g., "/v1/assets/{id}").
+        
+        Raises:
+            SfVoiceMediaError: If the HTTP response has a non-success status code.
+        """
         response = await self._client.delete(path)
         self._raise_for_status(response)
 
@@ -91,17 +141,18 @@ class AsyncSfVoiceMedia:
         media_type: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> IngestResponse:
-        """submit a new media item for ingestion.
-
-        Args:
-            source: "url" or "s3".
-            url: public URL of the media file (required when source="url").
-            s3_key: S3 object key (required when source="s3").
-            media_type: "video" or "audio" — inferred by the server when omitted.
-            metadata: arbitrary key/value pairs stored alongside the asset.
-
+        """
+        Submit a media item for ingestion.
+        
+        Parameters:
+            source (str): Source type, either "url" or "s3".
+            url (Optional[str]): Public URL of the media file; required when source is "url".
+            s3_key (Optional[str]): S3 object key; required when source is "s3".
+            media_type (Optional[str]): Media category, typically "video" or "audio". If omitted, the server will infer it.
+            metadata (Optional[Dict[str, Any]]): Arbitrary key/value pairs to store with the asset.
+        
         Returns:
-            IngestResponse with asset_id, task_id, and status="pending".
+            IngestResponse: Contains `asset_id`, `task_id`, and `status` (typically "pending").
         """
         body: Dict[str, Any] = {"source": source}
         if url is not None:
@@ -116,38 +167,51 @@ class AsyncSfVoiceMedia:
         return IngestResponse.from_dict(data)
 
     async def get_task(self, task_id: str) -> Task:
-        """fetch the current state of an ingestion task.
-
-        Args:
-            task_id: the task_id returned by ingest().
+        """
+        Fetch the current state of an ingestion task.
+        
+        Parameters:
+            task_id (str): Identifier of the task as returned by `ingest()`.
+        
+        Returns:
+            Task: The task object representing the task's current state.
         """
         data = await self._get(f"/v1/tasks/{task_id}")
         return Task.from_dict(data)
 
     async def list_assets(self, page: int = 1, limit: int = 20) -> AssetListResponse:
-        """list assets with pagination.
-
-        Args:
-            page: 1-indexed page number.
-            limit: items per page, max 50.
+        """
+        Retrieve a paginated list of assets.
+        
+        Parameters:
+            page (int): 1-indexed page number.
+            limit (int): Items per page (maximum 50).
+        
+        Returns:
+            AssetListResponse: Paginated assets and pagination metadata for the requested page.
         """
         data = await self._get("/v1/assets", params={"page": page, "limit": limit})
         return AssetListResponse.from_dict(data)
 
     async def get_asset(self, asset_id: str) -> Asset:
-        """fetch a single asset by id.
-
-        Args:
-            asset_id: the id of the asset.
+        """
+        Fetches an asset by its identifier.
+        
+        Parameters:
+            asset_id (str): The unique identifier of the asset to retrieve.
+        
+        Returns:
+            Asset: The requested asset as an `Asset` instance.
         """
         data = await self._get(f"/v1/assets/{asset_id}")
         return Asset.from_dict(data)
 
     async def delete_asset(self, asset_id: str) -> None:
-        """soft-delete an asset. the backend retains the record but excludes it from results.
-
-        Args:
-            asset_id: the id of the asset to delete.
+        """
+        Soft-delete an asset so it is excluded from listings while its record is retained.
+        
+        Parameters:
+            asset_id (str): ID of the asset to delete.
         """
         await self._delete(f"/v1/assets/{asset_id}")
 
@@ -160,16 +224,19 @@ class AsyncSfVoiceMedia:
         page: int = 1,
         limit: int = 20,
     ) -> SearchResponse:
-        """search across ingested media using semantic queries.
-
-        Args:
-            query: natural language search query.
-            types: subset of ["visual", "conversation", "text_in_video"].
-                   defaults to all types when omitted.
-            asset_ids: restrict search to these asset ids. searches all when omitted.
-            threshold: minimum similarity score, 0–1 (default 0.5).
-            page: 1-indexed page number.
-            limit: results per page, max 50.
+        """
+        Perform a semantic search over ingested media using a natural language query.
+        
+        Parameters:
+            query (str): Natural language search query.
+            types (Optional[List[str]]): Optional subset of media types to search. Allowed values include "visual", "conversation", and "text_in_video". When omitted, all types are searched.
+            asset_ids (Optional[List[str]]): Optional list of asset IDs to restrict the search to. When omitted, the search covers all assets.
+            threshold (float): Minimum similarity score between 0 and 1 (default 0.5).
+            page (int): 1-indexed page number for paginated results (default 1).
+            limit (int): Number of results per page, up to 50 (default 20).
+        
+        Returns:
+            SearchResponse: Paginated search results returned by the API.
         """
         body: Dict[str, Any] = {
             "query": query,
@@ -190,22 +257,20 @@ class AsyncSfVoiceMedia:
         interval_s: float = 2.0,
         timeout_s: float = 300.0,
     ) -> Task:
-        """await until the task reaches a terminal state (ready or failed).
-
-        Polls get_task() every interval_s seconds using asyncio.sleep,
-        which yields control back to the event loop between polls.
-
-        Args:
-            task_id: the task_id to poll.
-            interval_s: seconds between each poll (default 2).
-            timeout_s: maximum total wait time in seconds (default 300).
-
+        """
+        Waits for a task to reach a terminal state and returns that task.
+        
+        Parameters:
+        	task_id (str): ID of the task to poll.
+        	interval_s (float): Seconds between polls.
+        	timeout_s (float): Maximum total wait time in seconds.
+        
         Returns:
-            The terminal Task object.
-
+        	Task: The terminal Task object.
+        
         Raises:
-            TimeoutError: if the task is still non-terminal after timeout_s.
-            SfVoiceMediaError: if any API request fails.
+        	TimeoutError: If the task is still non-terminal after timeout_s (message includes the last observed status).
+        	SfVoiceMediaError: If any API request fails.
         """
         deadline = time.monotonic() + timeout_s
         while True:
@@ -221,11 +286,26 @@ class AsyncSfVoiceMedia:
             await asyncio.sleep(min(interval_s, remaining))
 
     async def close(self) -> None:
-        """close the underlying httpx session. safe to call multiple times."""
+        """
+        Close the client's underlying HTTP session and release network resources.
+        
+        This method is idempotent and safe to call multiple times.
+        """
         await self._client.aclose()
 
     async def __aenter__(self) -> "AsyncSfVoiceMedia":
+        """
+        Enter an async context and return the client instance.
+        
+        Returns:
+            AsyncSfVoiceMedia: The same client instance for use within the async context.
+        """
         return self
 
     async def __aexit__(self, *_: Any) -> None:
+        """
+        Exit the asynchronous context by closing the underlying HTTP client.
+        
+        Closes the client's AsyncClient session. Safe to call multiple times.
+        """
         await self.close()

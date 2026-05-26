@@ -16,13 +16,28 @@ public class SearchController {
 
     private final SfVoiceMediaClient client;
 
+    /**
+     * Create a SearchController backed by the provided SfVoiceMediaClient.
+     */
     public SearchController(SfVoiceMediaClient client) {
         this.client = client;
     }
 
     /**
-     * POST /search
-     * body: { "query": "...", "types": ["visual"], "threshold": 0.7 }
+     * Handle POST /search requests: validate the request body, construct a SearchRequest,
+     * invoke the media client, and return the search results.
+     *
+     * Expected request body keys:
+     * - "query" (String) — required; the search query.
+     * - "types" (List<String>) — optional; asset types to filter by.
+     * - "asset_ids" (List<String>) — optional; specific asset IDs to restrict the search.
+     *
+     * @param body the parsed JSON request body containing the keys described above
+     * @return 200 OK with the SearchResponse on success; 400 Bad Request with
+     *         {"error":"query is required"} when "query" is missing or blank; the HTTP
+     *         status from SfVoiceMediaException with body {"error":{"code":..., "message":...}}
+     *         when that exception is thrown; 500 Internal Server Error with
+     *         {"error": "<message>"} for other unexpected errors
      */
     @PostMapping("/search")
     public ResponseEntity<?> search(@RequestBody Map<String, Object> body) {
@@ -53,7 +68,14 @@ public class SearchController {
     }
 
     /**
-     * GET /assets?page=1&limit=20
+     * Retrieve a paginated list of assets.
+     *
+     * @param page  the page number to retrieve, starting at 1
+     * @param limit the maximum number of assets per page
+     * @return an HTTP response containing either:
+     *         - an AssetListResponse on success,
+     *         - an error object with keys `code` and `message` and the HTTP status from SfVoiceMediaException when a SfVoiceMediaException is thrown,
+     *         - or an error object with the exception message and HTTP 500 for other exceptions
      */
     @GetMapping("/assets")
     public ResponseEntity<?> listAssets(

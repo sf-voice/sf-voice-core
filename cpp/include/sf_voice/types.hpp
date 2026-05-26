@@ -19,7 +19,14 @@ struct Result {
     T value{};
     SfVoiceMediaError error{};
 
-    // factory helpers keep call-sites clean
+    /**
+     * @brief Create a successful Result containing the given value.
+     *
+     * Constructs a Result with `ok` set to true and `value` set to the provided argument.
+     *
+     * @param v Value to store in the successful Result (will be moved).
+     * @return Result A Result whose `ok` is true and whose `value` contains `v`.
+     */
     static Result success(T v) {
         Result r;
         r.ok = true;
@@ -27,6 +34,12 @@ struct Result {
         return r;
     }
 
+    /**
+     * @brief Constructs a Result representing a failure using the provided error.
+     *
+     * @param e The error to store in the resulting failure.
+     * @return Result A Result with `ok` set to `false` and `error` containing the provided `SfVoiceMediaError`.
+     */
     static Result failure(SfVoiceMediaError e) {
         Result r;
         r.ok = false;
@@ -46,6 +59,12 @@ enum class TaskStatus {
     Unknown  // fallback for forward-compat with new api values
 };
 
+/**
+ * @brief Converts an API task status string into a TaskStatus enum.
+ *
+ * @param s Task status string from the API (e.g., "pending", "indexing", "ready", "failed").
+ * @return TaskStatus Corresponding enum value; returns `TaskStatus::Unknown` for unrecognized strings.
+ */
 inline TaskStatus task_status_from_string(const std::string& s) {
     if (s == "pending")  return TaskStatus::Pending;
     if (s == "indexing") return TaskStatus::Indexing;
@@ -54,6 +73,12 @@ inline TaskStatus task_status_from_string(const std::string& s) {
     return TaskStatus::Unknown;
 }
 
+/**
+ * @brief Convert a TaskStatus enum value to the corresponding API string.
+ *
+ * @param s TaskStatus value to convert.
+ * @return std::string `"pending"`, `"indexing"`, `"ready"`, or `"failed"` for the matching enum; `"unknown"` for any other value.
+ */
 inline std::string task_status_to_string(TaskStatus s) {
     switch (s) {
         case TaskStatus::Pending:  return "pending";
@@ -71,6 +96,12 @@ enum class SearchType {
     TextInVideo
 };
 
+/**
+ * @brief Convert a SearchType enum value to its API string representation.
+ *
+ * @param t The search type to convert.
+ * @return std::string One of "visual", "conversation", or "text_in_video". Unrecognized values default to "visual".
+ */
 inline std::string search_type_to_string(SearchType t) {
     switch (t) {
         case SearchType::Visual:       return "visual";
@@ -89,6 +120,15 @@ struct PageInfo {
     bool has_more  = false;
 };
 
+/**
+ * @brief Populate a PageInfo from a JSON object.
+ *
+ * Reads required fields "page" and "limit" from the JSON and, if present, reads
+ * "total" and "has_more" into the PageInfo.
+ *
+ * @param j JSON object containing page information.
+ * @param p Reference to the PageInfo to populate.
+ */
 inline void from_json(const nlohmann::json& j, PageInfo& p) {
     j.at("page").get_to(p.page);
     j.at("limit").get_to(p.limit);
@@ -110,6 +150,16 @@ struct Asset {
     nlohmann::json metadata;                // catch-all for extra fields
 };
 
+/**
+ * @brief Populate an Asset from a JSON object.
+ *
+ * Parses required fields `id` and `status` from `j` into `a`. If present and non-null,
+ * it also extracts `title`, `description`, `url`, `created_at`, and `updated_at`.
+ * The entire input JSON is preserved in `a.metadata` to retain unknown or additional fields.
+ *
+ * @param j Source JSON object.
+ * @param a Destination Asset to populate.
+ */
 inline void from_json(const nlohmann::json& j, Asset& a) {
     j.at("id").get_to(a.id);
     j.at("status").get_to(a.status);
@@ -134,6 +184,16 @@ struct Task {
     std::optional<std::string> completed_at;
 };
 
+/**
+ * @brief Populate a Task from a JSON object.
+ *
+ * Parses the required fields `task_id`, `asset_id`, and `status` (the latter is stored
+ * verbatim in `status_raw` and converted to the `status` enum). Conditionally reads
+ * `error`, `created_at`, and `completed_at` if those keys are present and not null.
+ *
+ * @param j Source JSON object representing a task.
+ * @param t Destination Task to populate.
+ */
 inline void from_json(const nlohmann::json& j, Task& t) {
     j.at("task_id").get_to(t.task_id);
     j.at("asset_id").get_to(t.asset_id);
@@ -162,6 +222,16 @@ struct IngestResponse {
     std::string status;
 };
 
+/**
+ * @brief Parse an IngestResponse from JSON by reading required fields.
+ *
+ * Extracts the required `asset_id`, `task_id`, and `status` members from `j`
+ * and assigns them to `r`. The JSON object must contain these keys with
+ * compatible types.
+ *
+ * @param j Source JSON object containing the response.
+ * @param r Destination IngestResponse to populate.
+ */
 inline void from_json(const nlohmann::json& j, IngestResponse& r) {
     j.at("asset_id").get_to(r.asset_id);
     j.at("task_id").get_to(r.task_id);
@@ -180,6 +250,15 @@ struct AssetListResponse {
     PageInfo page_info;
 };
 
+/**
+ * @brief Parse a JSON response into an AssetListResponse, accepting either nested or top-level pagination.
+ *
+ * Extracts the required "items" array into r.items. If a "page_info" member exists, parses it into r.page_info;
+ * otherwise parses PageInfo from the top-level JSON object to support APIs that inline pagination fields.
+ *
+ * @param j JSON value containing the asset list response.
+ * @param r Output AssetListResponse to populate.
+ */
 inline void from_json(const nlohmann::json& j, AssetListResponse& r) {
     j.at("items").get_to(r.items);
     if (j.contains("page_info")) {
@@ -210,6 +289,17 @@ struct SearchResult {
     nlohmann::json metadata;
 };
 
+/**
+ * @brief Populate a SearchResult from a JSON object.
+ *
+ * Parses required and optional search-result fields from `j` into `r`,
+ * and preserves the original JSON in `r.metadata`.
+ *
+ * @param j JSON object containing a search result. Must contain `asset_id`.
+ *            Optional fields it may contain and will be read when present and non-null:
+ *            `score`, `start_ms`, `end_ms`, and `transcript_snippet`.
+ * @param r Destination SearchResult to populate; its `metadata` field is set to `j`.
+ */
 inline void from_json(const nlohmann::json& j, SearchResult& r) {
     j.at("asset_id").get_to(r.asset_id);
     if (j.contains("score")               && !j["score"].is_null())               r.score               = j["score"].get<double>();
@@ -224,6 +314,18 @@ struct SearchResponse {
     PageInfo page_info;
 };
 
+/**
+ * @brief Populate a SearchResponse from a JSON object.
+ *
+ * Parses the required "results" member into r.results. If a "page_info" member is present,
+ * parses it into r.page_info; otherwise parses PageInfo from the top-level JSON object.
+ *
+ * @param j JSON object to read from.
+ * @param r SearchResponse to populate.
+ *
+ * @throws nlohmann::json::out_of_range if a required member (such as "results") is missing.
+ * @throws nlohmann::json::type_error if a member has an unexpected type.
+ */
 inline void from_json(const nlohmann::json& j, SearchResponse& r) {
     j.at("results").get_to(r.results);
     if (j.contains("page_info")) {

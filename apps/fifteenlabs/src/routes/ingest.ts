@@ -2,6 +2,15 @@ import type { FastifyInstance } from "fastify";
 import { SfVoiceMedia } from "@sf-voice/media";
 import { config } from "../config.js";
 
+/**
+ * Register ingest-related HTTP routes on the provided Fastify instance.
+ *
+ * Registers:
+ * - POST /ingest — accepts `{ url, media_type? }`, forwards the URL for ingestion, and responds with status 202 and the ingestion response (e.g., `asset_id`, `task_id`).
+ * - GET /task/:id — returns the status/details of the ingestion task identified by `id`.
+ *
+ * @param app - Fastify instance to register the routes on
+ */
 export async function ingestRoutes(app: FastifyInstance) {
   const client = new SfVoiceMedia({
     baseUrl: config.sfVoice.baseUrl,

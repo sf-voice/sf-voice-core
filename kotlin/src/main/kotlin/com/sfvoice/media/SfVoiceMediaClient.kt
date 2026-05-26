@@ -41,7 +41,15 @@ class SfVoiceMediaClient(
         }
     }
 
-    // ── internal helpers ───────────────────────────────────────────────────
+    /**
+     * Throws an SfVoiceMediaException when the HTTP response status indicates an error.
+     *
+     * If the response body can be decoded as an `ApiErrorEnvelope`, the exception's `code`
+     * and `message` are taken from that envelope; otherwise the exception uses
+     * HTTP-derived defaults (`"http_error"` and a status-based message).
+     *
+     * @throws SfVoiceMediaException when `status.isSuccess()` is false.
+     */
 
     private suspend fun HttpResponse.throwIfError() {
         if (status.isSuccess()) return
@@ -59,8 +67,12 @@ class SfVoiceMediaClient(
     // ── public API ─────────────────────────────────────────────────────────
 
     /**
-     * submit a media file for ingestion. returns immediately with a [task_id]
-     * you can poll with [getTask] or [pollTask].
+     * Submit a media file for ingestion.
+     *
+     * Initiates ingestion and returns the created task information immediately.
+     *
+     * @param request Details of the media to ingest and any ingestion options.
+     * @return An IngestResponse containing the created task's ID and associated metadata. 
      */
     suspend fun ingest(request: IngestRequest): IngestResponse {
         val response = http.post("$baseUrl/v1/ingest") {
@@ -72,7 +84,12 @@ class SfVoiceMediaClient(
         return response.body()
     }
 
-    /** fetch the current state of an ingestion task. */
+    /**
+     * Fetches the current state of an ingestion task.
+     *
+     * @param taskId The ID of the task to retrieve.
+     * @return The requested Task containing its current status and metadata.
+     */
     suspend fun getTask(taskId: String): Task {
         val response = http.get("$baseUrl/v1/tasks/$taskId") {
             header("X-API-Key", apiKey)
@@ -81,7 +98,13 @@ class SfVoiceMediaClient(
         return response.body()
     }
 
-    /** list assets in the library with pagination. */
+    /**
+     * Lists assets in the library with pagination.
+     *
+     * @param page Page number starting at 1.
+     * @param limit Number of items to return per page.
+     * @return An AssetListResponse containing the requested page of assets.
+     */
     suspend fun listAssets(page: Int = 1, limit: Int = 20): AssetListResponse {
         val response = http.get("$baseUrl/v1/assets") {
             header("X-API-Key", apiKey)
@@ -92,7 +115,12 @@ class SfVoiceMediaClient(
         return response.body()
     }
 
-    /** fetch a single asset by ID. */
+    /**
+     * Retrieve an asset by its identifier.
+     *
+     * @param assetId The ID of the asset to fetch.
+     * @return The asset with the specified ID.
+     */
     suspend fun getAsset(assetId: String): Asset {
         val response = http.get("$baseUrl/v1/assets/$assetId") {
             header("X-API-Key", apiKey)
@@ -102,8 +130,12 @@ class SfVoiceMediaClient(
     }
 
     /**
-     * soft-delete an asset. the backend retains the record but excludes it
-     * from list results. resolves Unit on HTTP 204.
+     * Soft-delete the asset identified by [assetId], retaining the record but excluding it from list results.
+     *
+     * Completes successfully when the server responds with HTTP 204.
+     *
+     * @param assetId The identifier of the asset to soft-delete.
+     * @throws SfVoiceMediaException if the HTTP response indicates an error.
      */
     suspend fun deleteAsset(assetId: String) {
         val response = http.delete("$baseUrl/v1/assets/$assetId") {
@@ -112,7 +144,12 @@ class SfVoiceMediaClient(
         response.throwIfError()
     }
 
-    /** run a semantic search across indexed media. */
+    /**
+     * Performs a semantic search over indexed media.
+     *
+     * @param request The search query and any filters or pagination parameters to apply.
+     * @return A SearchResponse containing matching results and associated metadata. 
+     */
     suspend fun search(request: SearchRequest): SearchResponse {
         val response = http.post("$baseUrl/v1/search") {
             header("X-API-Key", apiKey)
@@ -124,12 +161,13 @@ class SfVoiceMediaClient(
     }
 
     /**
-     * poll [getTask] until the task reaches a terminal state, then return the final [Task].
+     * Waits until the specified task reaches a terminal status and returns its final state.
      *
-     * @param taskId      the task to poll.
-     * @param intervalMs  milliseconds between polls (default 1500).
-     * @param timeoutMs   max total wait time in ms (default 120_000).
-     * @throws SfVoiceMediaPollTimeoutException if the timeout elapses.
+     * @param taskId The ID of the task to poll.
+     * @param intervalMs Milliseconds between polls.
+     * @param timeoutMs Maximum total wait time in milliseconds before giving up.
+     * @return The final `Task` whose `status` is terminal.
+     * @throws SfVoiceMediaPollTimeoutException if the timeout elapses before the task becomes terminal.
      */
     suspend fun pollTask(
         taskId: String,
@@ -149,6 +187,11 @@ class SfVoiceMediaClient(
         }
     }
 
+    /**
+     * Releases resources held by this client.
+     *
+     * Closes the underlying HTTP client, rendering this instance unusable for further requests.
+     */
     override fun close() {
         http.close()
     }

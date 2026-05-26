@@ -15,6 +15,11 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  */
 @SpringBootApplication
 public class App {
+    /**
+     * Bootstrap and run the Spring Boot application.
+     *
+     * @param args command-line arguments forwarded to the application
+     */
     public static void main(String[] args) {
         SpringApplication.run(App.class, args);
     }

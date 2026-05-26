@@ -19,6 +19,13 @@ import io.ktor.server.routing.*
  * Run:
  *   SF_VOICE_API_KEY=... ./gradlew :kotlin-demo:run
  */
+/**
+ * Starts the Ktor Netty server for the sf-voice media SDK demo and registers HTTP routes.
+ *
+ * Reads SF_VOICE_API_KEY from the environment (throws if missing), SF_VOICE_BASE_URL (defaults to `https://api.sf-voice.com` if empty), and SERVER_PORT (defaults to `8081` if unset or not an integer), constructs an `SfVoiceMediaClient`, installs JSON content negotiation, and registers ingest and search routes before starting the server.
+ *
+ * @throws IllegalStateException if `SF_VOICE_API_KEY` is not set.
+ */
 fun main() {
     val apiKey = System.getenv("SF_VOICE_API_KEY")
         ?: error("required env var missing: SF_VOICE_API_KEY")

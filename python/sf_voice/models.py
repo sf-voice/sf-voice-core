@@ -19,6 +19,15 @@ class PageInfo:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "PageInfo":
+        """
+        Construct a PageInfo instance from a dictionary containing paging fields.
+        
+        Parameters:
+            d (Dict[str, Any]): Mapping with required keys "page", "limit", "total", and "has_more".
+        
+        Returns:
+            PageInfo: Instance populated from the corresponding values in `d`.
+        """
         return cls(
             page=d["page"],
             limit=d["limit"],
@@ -41,6 +50,15 @@ class Asset:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "Asset":
+        """
+        Create an Asset instance from a dictionary (typically an API response payload).
+        
+        Parameters:
+            d (Dict[str, Any]): Mapping containing asset fields. Required keys: `id`, `status`, `source`. Optional keys: `media_type`, `url`, `s3_key`, `metadata`, `created_at`, `completed_at`. Missing optional fields are set to `None`; `metadata` defaults to an empty dict.
+        
+        Returns:
+            Asset: An Asset populated from the provided mapping.
+        """
         return cls(
             id=d["id"],
             status=d["status"],
@@ -65,6 +83,17 @@ class Task:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "Task":
+        """
+        Create a Task instance from an API response dictionary.
+        
+        Parses required keys `task_id`, `asset_id`, and `status` from the input mapping. Optional keys `error`, `created_at`, and `completed_at` are taken if present; unknown keys are ignored and missing optional fields default to None.
+        
+        Parameters:
+            d (Dict[str, Any]): Mapping containing task fields from an API response.
+        
+        Returns:
+            Task: A Task populated from the provided dictionary.
+        """
         return cls(
             task_id=d["task_id"],
             asset_id=d["asset_id"],
@@ -76,7 +105,12 @@ class Task:
 
     @property
     def is_terminal(self) -> bool:
-        """true when the task has reached a non-progressing state."""
+        """
+        Indicates whether the task has reached a terminal state.
+        
+        Returns:
+            True if the task's status is "ready" or "failed", False otherwise.
+        """
         return self.status in ("ready", "failed")
 
 
@@ -88,6 +122,15 @@ class IngestResponse:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "IngestResponse":
+        """
+        Create an IngestResponse from a dictionary of API response fields.
+        
+        Parameters:
+            d (Dict[str, Any]): Mapping expected to contain the required keys "asset_id", "task_id", and "status".
+        
+        Returns:
+            IngestResponse: An instance populated from the provided dictionary.
+        """
         return cls(
             asset_id=d["asset_id"],
             task_id=d["task_id"],
@@ -106,6 +149,16 @@ class SearchResult:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "SearchResult":
+        """
+        Create a SearchResult from a mapping (typically a parsed JSON object).
+        
+        Parameters:
+            d (Dict[str, Any]): Mapping containing keys "asset_id", "score", "start_ms", "end_ms", and "match_type".
+                The optional key "thumbnail_url" may be present. Unknown keys are ignored.
+        
+        Returns:
+            SearchResult: Instance populated from the provided mapping; optional fields are set to None if missing.
+        """
         return cls(
             asset_id=d["asset_id"],
             score=d["score"],
@@ -123,6 +176,15 @@ class SearchResponse:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "SearchResponse":
+        """
+        Constructs a SearchResponse from a dictionary representation (typically an API response).
+        
+        Parameters:
+            d (Dict[str, Any]): Dictionary containing "results" (list of result dicts) and "page_info" (page info dict).
+        
+        Returns:
+            SearchResponse: Instance populated from the provided dictionary.
+        """
         return cls(
             results=[SearchResult.from_dict(r) for r in d.get("results", [])],
             page_info=PageInfo.from_dict(d["page_info"]),
@@ -136,6 +198,15 @@ class AssetListResponse:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "AssetListResponse":
+        """
+        Create an AssetListResponse from a dictionary representation of the API response.
+        
+        Parameters:
+            d (Dict[str, Any]): Dictionary containing the asset list payload. Must include a "page_info" mapping; "items" may be omitted or be a list of asset mappings.
+        
+        Returns:
+            AssetListResponse: Instance with `items` parsed into Asset objects and `page_info` parsed into a PageInfo.
+        """
         return cls(
             items=[Asset.from_dict(i) for i in d.get("items", [])],
             page_info=PageInfo.from_dict(d["page_info"]),

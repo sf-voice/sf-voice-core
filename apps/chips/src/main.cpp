@@ -19,7 +19,15 @@
 
 using namespace sf_voice;
 
-// load and validate required env vars
+/**
+ * @brief Retrieve the value of a required environment variable, aborting if absent.
+ *
+ * If the environment variable named by `name` is missing or empty, this function
+ * writes an error message to stderr and terminates the process with exit code 1.
+ *
+ * @param name Name of the environment variable to read.
+ * @return std::string The environment variable's value.
+ */
 static std::string env_required(const char* name) {
     const char* v = std::getenv(name);
     if (!v || v[0] == '\0') {
@@ -29,12 +37,24 @@ static std::string env_required(const char* name) {
     return v;
 }
 
+/**
+ * @brief Return the value of an environment variable or a fallback if it is unset or empty.
+ *
+ * @param name Name of the environment variable to read.
+ * @param fallback C-string to return when the environment variable is missing or empty.
+ * @return std::string The environment variable's value if present and not empty, otherwise `fallback`.
+ */
 static std::string env_optional(const char* name, const char* fallback) {
     const char* v = std::getenv(name);
     return (v && v[0] != '\0') ? v : fallback;
 }
 
-// pretty-print milliseconds as m:ss
+/**
+ * @brief Formats a millisecond duration as minutes and seconds.
+ *
+ * @param ms Duration in milliseconds.
+ * @return std::string Formatted time as "m:ss" (minutes without padding, seconds zero-padded to two digits).
+ */
 static std::string ms_to_time(uint64_t ms) {
     uint64_t s = ms / 1000;
     char buf[16];
@@ -42,6 +62,16 @@ static std::string ms_to_time(uint64_t ms) {
     return buf;
 }
 
+/**
+ * @brief Command-line demo that ingests a media URL, waits for indexing to complete, and runs a search query against the ingested asset.
+ *
+ * Expects two positional arguments: a media URL and a quoted search query. Reads configuration from the
+ * environment: `SF_VOICE_API_KEY` (required) and `SF_VOICE_BASE_URL` (optional, defaults to `https://api.sf-voice.com`).
+ *
+ * @param argc Number of command-line arguments.
+ * @param argv Command-line arguments; argv[1] is the media URL and argv[2] is the search query.
+ * @return int Exit code: `0` on successful search (with or without results), `1` on ingest/poll/search or indexing failure, `2` for incorrect usage (insufficient arguments).
+ */
 int main(int argc, char* argv[]) {
     if (argc < 3) {
         std::cerr << "usage: krisp_demo <media-url> \"<search-query>\"\n";

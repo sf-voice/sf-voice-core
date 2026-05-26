@@ -15,6 +15,10 @@ type Config struct {
 	SampleMediaURL string
 }
 
+// Load reads configuration from environment variables and validates required values.
+// It attempts to load a `.env` file (ignored if missing), requires `SF_VOICE_API_KEY`
+// (returns an error if empty), uses `SF_VOICE_BASE_URL` with a default of
+// `https://api.sf-voice.com` when unset, and captures `SAMPLE_MEDIA_URL` if present.
 func Load() (*Config, error) {
 	// load .env if present — optional, never required
 	_ = godotenv.Load()
