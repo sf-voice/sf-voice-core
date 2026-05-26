@@ -80,12 +80,45 @@ description = "run tests across every app"
 run = "mix workspace.run -t test"
 
 [tasks.ci]
-description = "local CI: format, compile, test"
-run = [
-  "mix workspace.run -t format",
-  "mix workspace.run -t compile -- --warnings-as-errors",
-  "mix workspace.run -t test",
-]
+description = "local CI: mirrors backend, frontend, and elixir CI pipelines exactly"
+run = """
+set -e
+
+echo "[ci:install] elixir deps"
+mix deps.get
+
+echo "[ci:install] rust deps"
+cargo fetch
+
+echo "[ci:elixir] format check"
+mix workspace.run -t format -- --check-formatted
+
+echo "[ci:elixir] compile"
+mix workspace.run -t compile -- --warnings-as-errors
+
+echo "[ci:elixir] test"
+mix workspace.run -t test
+
+echo "[ci:rust] fmt check"
+cargo fmt --all -- --check
+
+echo "[ci:rust] clippy"
+cargo clippy --bin sf-voice-api -- -D warnings
+
+echo "[ci:rust] test"
+cargo test --bin sf-voice-api
+
+echo "[ci:frontend] install (frozen lockfile)"
+pnpm install --frozen-lockfile --filter @sf-voice/frontend...
+
+echo "[ci:frontend] typecheck"
+pnpm --filter @sf-voice/frontend typecheck
+
+echo "[ci:frontend] build"
+pnpm --filter @sf-voice/frontend build
+
+echo "[ci] all checks passed."
+"""
 
 [tasks."test.watch"]
 description = "watch mode: resto tests"
@@ -93,8 +126,11 @@ dir = "apps/resto_booking_app"
 run = "mix test.watch"
 
 [tasks.format]
-description = "mix format across every app"
-run = "mix workspace.run -t format"
+description = "format: elixir (mix) + rust (cargo fmt)"
+run = [
+  "mix workspace.run -t format",
+  "cargo fmt --all",
+]
 
 [tasks.compile]
 description = "compile every app with --warnings-as-errors"
