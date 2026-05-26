@@ -66,7 +66,7 @@ def cmd_search(args: argparse.Namespace) -> None:
         types=types,
         asset_ids=asset_ids,
     )
-    print(f"🔍 results for "{args.query}" ({resp.page_info.total} total):")
+    print(f"🔍 results for \"{args.query}\" ({resp.page_info.total} total):")
     _print_results(resp.results)
 
 
