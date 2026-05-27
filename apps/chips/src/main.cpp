@@ -2,7 +2,7 @@
  * sf-voice media SDK demo — C++ CLI.
  *
  * Usage:
- *   ./krisp_demo <media-url> "<search-query>"
+ *   ./chips_example <media-url> "<search-query>"
  *
  * Demonstrates the Result<T> error-handling pattern and async SDK calls
  * in the style of a C++ systems application (e.g. Krisp's noise-cancellation
@@ -74,7 +74,7 @@ static std::string ms_to_time(uint64_t ms) {
  */
 int main(int argc, char* argv[]) {
     if (argc < 3) {
-        std::cerr << "usage: krisp_demo <media-url> \"<search-query>\"\n";
+        std::cerr << "usage: chips_example <media-url> \"<search-query>\"\n";
         return 2;
     }
 

@@ -8,32 +8,44 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # ── options ────────────────────────────────────────────────────────────────
 option(SF_VOICE_INSTALL "Install cmake targets and headers" ON)
 option(SF_VOICE_EXAMPLES "Build the bundled examples" OFF)
+option(SF_VOICE_FETCH_DEPS "Fetch missing C++ dependencies with FetchContent" ON)
 
-# ── dependencies via FetchContent ──────────────────────────────────────────
-include(FetchContent)
+find_package(nlohmann_json CONFIG QUIET)
+find_package(cpr CONFIG QUIET)
 
-# nlohmann/json — header-only json library
-FetchContent_Declare(
-    nlohmann_json
-    GIT_REPOSITORY https://github.com/nlohmann/json.git
-    GIT_TAG        v3.11.3
-    GIT_SHALLOW    TRUE
-)
+if(NOT nlohmann_json_FOUND OR NOT cpr_FOUND)
+    if(NOT SF_VOICE_FETCH_DEPS)
+        message(FATAL_ERROR "Missing nlohmann_json or cpr. Install them or enable SF_VOICE_FETCH_DEPS.")
+    endif()
 
-# cpr — curl wrapper with a clean c++ api
-FetchContent_Declare(
-    cpr
-    GIT_REPOSITORY https://github.com/libcpr/cpr.git
-    GIT_TAG        1.10.5
-    GIT_SHALLOW    TRUE
-)
+    # fetch only dependencies that are not already available from the system.
+    include(FetchContent)
 
-# only build what we need from cpr
-set(CPR_BUILD_TESTS     OFF CACHE BOOL "" FORCE)
-set(CPR_BUILD_EXAMPLES  OFF CACHE BOOL "" FORCE)
-set(CPR_USE_SYSTEM_CURL ON  CACHE BOOL "" FORCE)
+    if(NOT nlohmann_json_FOUND)
+        FetchContent_Declare(
+            nlohmann_json
+            GIT_REPOSITORY https://github.com/nlohmann/json.git
+            GIT_TAG        v3.11.3
+            GIT_SHALLOW    TRUE
+        )
+        FetchContent_MakeAvailable(nlohmann_json)
+    endif()
 
-FetchContent_MakeAvailable(nlohmann_json cpr)
+    if(NOT cpr_FOUND)
+        FetchContent_Declare(
+            cpr
+            GIT_REPOSITORY https://github.com/libcpr/cpr.git
+            GIT_TAG        1.10.5
+            GIT_SHALLOW    TRUE
+        )
+
+        # only build what we need from cpr
+        set(CPR_BUILD_TESTS     OFF CACHE BOOL "" FORCE)
+        set(CPR_BUILD_EXAMPLES  OFF CACHE BOOL "" FORCE)
+        set(CPR_USE_SYSTEM_CURL ON  CACHE BOOL "" FORCE)
+        FetchContent_MakeAvailable(cpr)
+    endif()
+endif()
 
 # ── interface library ──────────────────────────────────────────────────────
 # header-only: INTERFACE target, no compiled translation units

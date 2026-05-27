@@ -19,7 +19,7 @@ use crate::{
 /// async client for the sf-voice media API.
 ///
 /// ```no_run
-/// # use sf_voice::SfVoiceMedia;
+/// # use sf_voice_media::SfVoiceMedia;
 /// let client = SfVoiceMedia::new("https://api.sf-voice.com", "your-api-key");
 /// ```
 #[derive(Clone, Debug)]
@@ -40,8 +40,8 @@ impl SfVoiceMedia {
     /// let client = SfVoiceMedia::new("https://api.example.com", "my-secret-key");
     /// ```
     pub fn new(base_url: impl Into<String>, api_key: impl Into<String>) -> Self {
-        let mut auth_value =
-            header::HeaderValue::from_str(&api_key.into()).expect("api key must be a valid header value");
+        let mut auth_value = header::HeaderValue::from_str(&api_key.into())
+            .expect("api key must be a valid header value");
         auth_value.set_sensitive(true);
 
         let mut default_headers = header::HeaderMap::new();
@@ -109,7 +109,10 @@ impl SfVoiceMedia {
     ///     // response contains a task id to poll for progress
     /// }
     /// ```
-    pub async fn ingest(&self, request: &IngestRequest) -> Result<IngestResponse, SfVoiceMediaError> {
+    pub async fn ingest(
+        &self,
+        request: &IngestRequest,
+    ) -> Result<IngestResponse, SfVoiceMediaError> {
         let response = self
             .http
             .post(self.url("/v1/ingest"))
@@ -199,7 +202,7 @@ impl SfVoiceMedia {
     /// # Examples
     ///
     /// ```no_run
-    /// use sf_voice::client::SfVoiceMedia;
+    /// use sf_voice_media::client::SfVoiceMedia;
     ///
     /// // Create the client (example credentials)
     /// let client = SfVoiceMedia::new("https://api.example.com", "api-key");

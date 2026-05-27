@@ -1,0 +1,55 @@
+name: publish ts sdk
+
+on:
+   push:
+      tags:
+         - "ts/v*"
+
+concurrency:
+   group: publish-ts-sdk-${{ github.ref }}
+   cancel-in-progress: false
+
+jobs:
+   publish:
+      name: publish to npm
+      runs-on: ubuntu-latest
+      environment: sdk-npm
+      permissions:
+         contents: read
+         id-token: write
+      steps:
+         - uses: actions/checkout@v4
+
+         - name: setup node
+           uses: actions/setup-node@v4
+           with:
+              node-version: "24"
+              registry-url: "https://registry.npmjs.org"
+
+         - name: setup pnpm
+           run: |
+              corepack enable
+              corepack prepare pnpm@9 --activate
+
+         - name: install deps
+           run: pnpm install --frozen-lockfile --filter @sf-voice/media...
+
+         - name: verify tag version
+           run: |
+              set -euo pipefail
+              TAG_VERSION="${GITHUB_REF_NAME#ts/v}"
+              PACKAGE_VERSION="$(node -p "require('./ts/sdk/package.json').version")"
+              if [ "$TAG_VERSION" != "$PACKAGE_VERSION" ]; then
+                echo "tag version $TAG_VERSION does not match package.json version $PACKAGE_VERSION"
+                exit 1
+              fi
+
+         - name: typecheck
+           run: pnpm --filter @sf-voice/media typecheck
+
+         - name: build
+           run: pnpm --filter @sf-voice/media build
+
+         - name: publish
+           working-directory: ts/sdk
+           run: npm publish --access public

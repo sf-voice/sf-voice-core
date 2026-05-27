@@ -16,6 +16,8 @@ data class SearchBody(
     val types: List<String>? = null,
     val asset_ids: List<String>? = null,
     val threshold: Float? = null,
+    val page: Int? = null,
+    val limit: Int? = null,
 )
 
 /**
@@ -50,8 +52,14 @@ fun Route.searchRoutes(client: SfVoiceMediaClient) {
     // POST /search — semantic search
     post("/search") {
         val body = call.receive<SearchBody>()
+        if (body.query.isBlank()) {
+            return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "query is required"))
+        }
 
         val matchTypes = body.types?.mapNotNull { it.toMatchType() }
+        if (body.types != null && matchTypes?.size != body.types.size) {
+            return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "types must be visual, conversation, or text_in_video"))
+        }
 
         try {
             val req = SearchRequest(
@@ -59,6 +67,8 @@ fun Route.searchRoutes(client: SfVoiceMediaClient) {
                 types = matchTypes,
                 assetIds = body.asset_ids,
                 threshold = body.threshold,
+                page = body.page,
+                limit = body.limit,
             )
             val resp = client.search(req)
             call.respond(resp)

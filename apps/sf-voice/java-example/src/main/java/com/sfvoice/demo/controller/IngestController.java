@@ -42,10 +42,15 @@ public class IngestController {
         if (url == null || url.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "url is required"));
         }
+        String mediaType = body.get("media_type");
+        if (mediaType != null && !mediaType.isBlank()
+                && !mediaType.equals("video") && !mediaType.equals("audio")) {
+            return ResponseEntity.badRequest().body(Map.of("error", "media_type must be video or audio"));
+        }
 
         try {
             IngestRequest req = IngestRequest.fromUrl(url)
-                    .mediaType(body.getOrDefault("media_type", null))
+                    .mediaType(mediaType)
                     .build();
             IngestResponse resp = client.ingest(req);
             return ResponseEntity.accepted().body(resp);

@@ -22,14 +22,49 @@ dependencies {
 }
 
 kotlin {
-    jvmToolchain(11)
+    jvmToolchain(17)
+}
+
+java {
+    withSourcesJar()
+    withJavadocJar()
 }
 
 publishing {
     publications {
         create<MavenPublication>("maven") {
-            artifactId = "sf-voice-media"
+            artifactId = "sf-voice-media-kotlin"
             from(components["java"])
+
+            pom {
+                name.set("sf-voice-media-kotlin")
+                description.set("Kotlin SDK for the sf-voice media API")
+                url.set("https://github.com/sf-voice/sf-voice-core")
+                licenses {
+                    license {
+                        name.set("MIT License")
+                        url.set("https://opensource.org/licenses/MIT")
+                    }
+                }
+                developers {
+                    developer {
+                        id.set("sf-voice")
+                        name.set("sf-voice")
+                    }
+                }
+                scm {
+                    connection.set("scm:git:https://github.com/sf-voice/sf-voice-core.git")
+                    developerConnection.set("scm:git:ssh://git@github.com:sf-voice/sf-voice-core.git")
+                    url.set("https://github.com/sf-voice/sf-voice-core")
+                }
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            name = "localRelease"
+            url = layout.buildDirectory.dir("release-repository").get().asFile.toURI()
         }
     }
 }

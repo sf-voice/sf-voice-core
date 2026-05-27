@@ -30,9 +30,10 @@ fun Route.ingestRoutes(client: SfVoiceMediaClient) {
         val body = call.receive<IngestBody>()
 
         val mediaType = when (body.media_type) {
+            null, ""  -> null
             "video" -> MediaType.Video
             "audio" -> MediaType.Audio
-            else    -> null
+            else    -> return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "media_type must be video or audio"))
         }
 
         try {

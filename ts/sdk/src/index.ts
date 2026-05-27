@@ -2,7 +2,11 @@
 
 export { SfVoiceMedia } from "./client.js";
 export type { SfVoiceMediaOptions } from "./client.js";
-export { SfVoiceMediaError, SfVoiceMediaPollTimeoutError } from "./errors.js";
+export {
+  SfVoiceMediaError,
+  SfVoiceMediaPollTimeoutError,
+  SfVoiceMediaRequestTimeoutError,
+} from "./errors.js";
 export type {
   ApiErrorCode,
   ApiErrorBody,

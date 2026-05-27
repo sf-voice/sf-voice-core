@@ -9,13 +9,24 @@ defmodule SfVoiceMedia do
 
       client = SfVoiceMedia.new("sk-...")
 
+      # 1. ingest a media file — returns immediately with a task id
       {:ok, %{task_id: tid}} =
         SfVoiceMedia.ingest(client, %{source: :url, url: "https://example.com/clip.mp4"})
 
-      task = SfVoiceMedia.poll_task(client, tid)
+      # 2. wait for indexing to complete — raises on failure or timeout
+      task = SfVoiceMedia.poll_task!(client, tid)
+
+      # 3. search across your indexed media with natural language
+      {:ok, %{results: results}} =
+        SfVoiceMedia.search(client, %{query: "product roadmap discussion"})
+
+      # results carry timestamps so you can jump to the exact moment
+      Enum.each(results, fn r ->
+        IO.puts("\#{r.asset_id} at \#{r.start_ms}ms — \#{r.match_type}")
+      end)
 
   all functions return `{:ok, result}` or `{:error, %SfVoiceMedia.Error{}}`.
-  `poll_task/3` raises `SfVoiceMedia.Error` on timeout.
+  `poll_task!/3` raises `SfVoiceMedia.Error` on timeout or task failure.
   """
 
   alias SfVoiceMedia.{Client, Error}
@@ -85,7 +96,7 @@ defmodule SfVoiceMedia do
   
   ## Examples
   
-      {:ok, %{"status" => "ready", "asset_id" => aid}} = SfVoiceMedia.get_task(client, "task_abc123")
+      {:ok, %{status: "ready", asset_id: aid}} = SfVoiceMedia.get_task(client, "task_abc123")
   """
   @spec get_task(Client.t(), String.t()) ::
             {:ok, Types.task()} | {:error, Error.t()}
@@ -173,31 +184,38 @@ defmodule SfVoiceMedia do
   
   @doc """
   Polls an ingestion task until its status becomes "ready" or "failed".
-  
-  Polls get_task/2 at a fixed interval and returns the final task map when the task reaches "ready".
-  Raises `SfVoiceMedia.Error` if the task's status becomes "failed" or if the timeout is exceeded.
-  
-  Options
-  - `:interval_ms` — milliseconds to wait between polls (default: 1500)
-  - `:timeout_ms` — maximum total wait in milliseconds (default: 120_000)
+
+  polls `get_task/2` at a fixed interval. returns the final task map when
+  the task reaches "ready". raises `SfVoiceMedia.Error` if the task fails
+  or the timeout is exceeded.
+
+  ## options
+
+    - `:interval_ms` — milliseconds to wait between polls (default: 1_500)
+    - `:timeout_ms`  — maximum total wait in milliseconds (default: 120_000)
+
+  ## examples
+
+      task = SfVoiceMedia.poll_task!(client, tid)
+      task = SfVoiceMedia.poll_task!(client, tid, interval_ms: 2_000, timeout_ms: 60_000)
   """
-  def poll_task(%Client{} = client, task_id, opts \\ []) do
+  def poll_task!(%Client{} = client, task_id, opts \\ []) do
     interval_ms = Keyword.get(opts, :interval_ms, 1_500)
     timeout_ms = Keyword.get(opts, :timeout_ms, 120_000)
     deadline = System.monotonic_time(:millisecond) + timeout_ms
 
-    do_poll(client, task_id, interval_ms, deadline, timeout_ms)
+    do_poll!(client, task_id, interval_ms, deadline, timeout_ms)
   end
 
   # ── polling loop (private) ────────────────────────────────────────────────────
 
-  defp do_poll(client, task_id, interval_ms, deadline, timeout_ms) do
+  defp do_poll!(client, task_id, interval_ms, deadline, timeout_ms) do
     case get_task(client, task_id) do
-      {:ok, %{"status" => status} = task} when status in ["ready", "failed"] ->
+      {:ok, %{status: status} = task} when status in ["ready", "failed"] ->
         if status == "failed" do
           raise Error,
             code: "task_failed",
-            message: "task #{task_id} failed: #{task["error"] || "unknown reason"}",
+            message: "task #{task_id} failed: #{task[:error] || "unknown reason"}",
             status: nil
         else
           task
@@ -212,7 +230,7 @@ defmodule SfVoiceMedia do
         end
 
         Process.sleep(interval_ms)
-        do_poll(client, task_id, interval_ms, deadline, timeout_ms)
+        do_poll!(client, task_id, interval_ms, deadline, timeout_ms)
 
       {:error, %Error{} = err} ->
         raise err
@@ -242,7 +260,7 @@ defmodule SfVoiceMedia do
     base_opts = [
       url: url,
       headers: [{"x-api-key", client.api_key}],
-      decode_json: [keys: :strings]
+      decode_json: [keys: :atoms]
     ]
 
     body_opt = if body, do: [json: stringify_keys(body)], else: []

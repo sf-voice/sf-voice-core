@@ -35,6 +35,8 @@ apps/**/priv/static/assets/js
 # node
 npm-debug.log
 node_modules/
+apps/**/dist/
+apps/**/build/
 
 # Database files
 *.db

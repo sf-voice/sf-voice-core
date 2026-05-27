@@ -16,7 +16,7 @@ application {
 }
 
 dependencies {
-    // local sdk jar — run `./gradlew :kotlin-sdk:jar` first (from repo root kotlin/)
+    // local sdk jar — run `gradle jar` from ../../../kotlin first
     implementation(files("../../../kotlin/build/libs/sf-voice-media-0.1.0.jar"))
 
     // ktor server (embedded netty) + json

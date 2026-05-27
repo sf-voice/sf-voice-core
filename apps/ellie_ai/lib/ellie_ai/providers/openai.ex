@@ -3,6 +3,8 @@ defmodule EllieAi.Providers.OpenAI do
 
   require Logger
 
+  alias EllieAi.HttpClient
+
   @default_realtime_model "gpt-realtime-2025-08-28"
   @default_voice "alloy"
   @default_transcription_model "whisper-1"
@@ -49,14 +51,18 @@ defmodule EllieAi.Providers.OpenAI do
         body = build_chat_body(messages, opts)
         url = "#{base_url()}/v1/chat/completions"
 
-        case Req.post(url,
-               json: body,
-               auth: {:bearer, key},
-               receive_timeout: Keyword.get(opts, :receive_timeout, 5_000),
-               retry: :transient,
-               max_retries: Keyword.get(opts, :max_retries, 2)
+        case Req.post(
+               url,
+               HttpClient.request_options(__MODULE__,
+                 json: body,
+                 auth: {:bearer, key},
+                 receive_timeout: Keyword.get(opts, :receive_timeout, 5_000),
+                 retry: :transient,
+                 max_retries: Keyword.get(opts, :max_retries, 2)
+               )
              ) do
-          {:ok, %{status: 200, body: %{"choices" => [%{"message" => %{"content" => content}} | _]}}} ->
+          {:ok,
+           %{status: 200, body: %{"choices" => [%{"message" => %{"content" => content}} | _]}}} ->
             {:ok, content}
 
           {:ok, %{status: status, body: body}} ->

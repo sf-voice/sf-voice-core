@@ -150,7 +150,10 @@ public:
      *         HTTP, parsing, or API-level errors on failure.
      */
     inline std::future<Result<IngestResponse>> ingest(IngestRequest request) {
-        return std::async(std::launch::async, [this, request = std::move(request)]() {
+        auto base_url = base_url_;
+        auto api_key  = api_key_;
+        return std::async(std::launch::async,
+            [base_url = std::move(base_url), api_key = std::move(api_key), request = std::move(request)]() {
             nlohmann::json body = request.extra.is_object() ? request.extra : nlohmann::json::object();
             if (request.url)         body["url"]         = *request.url;
             if (request.s3_key)      body["s3_key"]      = *request.s3_key;
@@ -158,9 +161,9 @@ public:
             if (request.description) body["description"] = *request.description;
 
             auto r = cpr::Post(
-                cpr::Url{base_url_ + "/v1/ingest"},
+                cpr::Url{base_url + "/v1/ingest"},
                 cpr::Header{
-                    {"X-API-Key", api_key_},
+                    {"X-API-Key", api_key},
                     {"Content-Type", "application/json"},
                 },
                 cpr::Body{body.dump()},
@@ -181,10 +184,13 @@ public:
      * @return Result<Task> Containing the task on success, or a failure describing a network, HTTP, or parse error.
      */
     inline std::future<Result<Task>> get_task(std::string task_id) {
-        return std::async(std::launch::async, [this, task_id = std::move(task_id)]() {
+        auto base_url = base_url_;
+        auto auth     = auth_header();
+        return std::async(std::launch::async,
+            [base_url = std::move(base_url), auth = std::move(auth), task_id = std::move(task_id)]() {
             auto r = cpr::Get(
-                cpr::Url{base_url_ + "/v1/tasks/" + task_id},
-                auth_header(),
+                cpr::Url{base_url + "/v1/tasks/" + task_id},
+                auth,
                 cpr::Timeout{30000}
             );
             return detail::handle_response<Task>(r);
@@ -212,8 +218,11 @@ public:
         std::chrono::milliseconds interval = std::chrono::milliseconds{1000},
         std::chrono::milliseconds timeout  = std::chrono::milliseconds{300000}
     ) {
+        auto base_url = base_url_;
+        auto auth     = auth_header();
         return std::async(std::launch::async,
-            [this,
+            [base_url = std::move(base_url),
+             auth     = std::move(auth),
              task_id  = std::move(task_id),
              interval,
              timeout]() -> Result<Task>
@@ -223,8 +232,8 @@ public:
 
             while (clock::now() < deadline) {
                 auto r = cpr::Get(
-                    cpr::Url{base_url_ + "/v1/tasks/" + task_id},
-                    auth_header(),
+                    cpr::Url{base_url + "/v1/tasks/" + task_id},
+                    auth,
                     cpr::Timeout{30000}
                 );
                 auto result = detail::handle_response<Task>(r);
@@ -261,10 +270,13 @@ public:
      * @return Result<AssetListResponse> The retrieved page of assets on success, or a failure describing a network, HTTP status, or parse error.
      */
     inline std::future<Result<AssetListResponse>> list_assets(ListAssetsRequest request = {}) {
-        return std::async(std::launch::async, [this, request]() {
+        auto base_url = base_url_;
+        auto auth     = auth_header();
+        return std::async(std::launch::async,
+            [base_url = std::move(base_url), auth = std::move(auth), request]() {
             auto r = cpr::Get(
-                cpr::Url{base_url_ + "/v1/assets"},
-                auth_header(),
+                cpr::Url{base_url + "/v1/assets"},
+                auth,
                 cpr::Parameters{
                     {"page",  std::to_string(request.page)},
                     {"limit", std::to_string(request.limit)}
@@ -282,10 +294,13 @@ public:
      * @return Result<Asset> The retrieved asset metadata on success; a failure result containing an SfVoiceMediaError for network, HTTP status, or parse errors otherwise.
      */
     inline std::future<Result<Asset>> get_asset(std::string asset_id) {
-        return std::async(std::launch::async, [this, asset_id = std::move(asset_id)]() {
+        auto base_url = base_url_;
+        auto auth     = auth_header();
+        return std::async(std::launch::async,
+            [base_url = std::move(base_url), auth = std::move(auth), asset_id = std::move(asset_id)]() {
             auto r = cpr::Get(
-                cpr::Url{base_url_ + "/v1/assets/" + asset_id},
-                auth_header(),
+                cpr::Url{base_url + "/v1/assets/" + asset_id},
+                auth,
                 cpr::Timeout{30000}
             );
             return detail::handle_response<Asset>(r);
@@ -302,10 +317,13 @@ public:
      * @return Result<Empty> `Empty` on success, or a `SfVoiceMediaError` describing the failure.
      */
     inline std::future<Result<Empty>> delete_asset(std::string asset_id) {
-        return std::async(std::launch::async, [this, asset_id = std::move(asset_id)]() {
+        auto base_url = base_url_;
+        auto auth     = auth_header();
+        return std::async(std::launch::async,
+            [base_url = std::move(base_url), auth = std::move(auth), asset_id = std::move(asset_id)]() {
             auto r = cpr::Delete(
-                cpr::Url{base_url_ + "/v1/assets/" + asset_id},
-                auth_header(),
+                cpr::Url{base_url + "/v1/assets/" + asset_id},
+                auth,
                 cpr::Timeout{30000}
             );
             return detail::handle_response<Empty>(r);
@@ -321,7 +339,10 @@ public:
      * @return Result<SearchResponse> `SearchResponse` on success; on failure contains an `SfVoiceMediaError` describing network, HTTP status, or parse errors.
      */
     inline std::future<Result<SearchResponse>> search(SearchRequest request) {
-        return std::async(std::launch::async, [this, request = std::move(request)]() {
+        auto base_url = base_url_;
+        auto api_key  = api_key_;
+        return std::async(std::launch::async,
+            [base_url = std::move(base_url), api_key = std::move(api_key), request = std::move(request)]() {
             nlohmann::json body = {
                 {"query", request.query},
                 {"type",  search_type_to_string(request.type)},
@@ -331,9 +352,9 @@ public:
             if (request.asset_id) body["asset_id"] = *request.asset_id;
 
             auto r = cpr::Post(
-                cpr::Url{base_url_ + "/v1/search"},
+                cpr::Url{base_url + "/v1/search"},
                 cpr::Header{
-                    {"X-API-Key", api_key_},
+                    {"X-API-Key", api_key},
                     {"Content-Type", "application/json"},
                 },
                 cpr::Body{body.dump()},

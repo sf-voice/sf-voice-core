@@ -1,4 +1,8 @@
-import { SfVoiceMediaError, SfVoiceMediaPollTimeoutError } from "./errors.js";
+import {
+  SfVoiceMediaError,
+  SfVoiceMediaPollTimeoutError,
+  SfVoiceMediaRequestTimeoutError,
+} from "./errors.js";
 import type {
   ApiErrorBody,
   Asset,
@@ -31,7 +35,7 @@ function toQueryString(
     ([, v]) => v !== undefined
   ) as [string, string | number | boolean][];
   if (entries.length === 0) return "";
-  return "?" + new URLSearchParams(entries.map(([k, v]) => [k, String(v)]));
+  return "?" + new URLSearchParams(entries.map(([k, v]) => [k, String(v)] as [string, string]));
 }
 
 // ─── client ──────────────────────────────────────────────────────────────────
@@ -41,6 +45,8 @@ export type SfVoiceMediaOptions = {
   baseUrl: string;
   /** API key sent as X-API-Key header */
   apiKey: string;
+  /** per-request fetch timeout in ms; defaults to 30 000 */
+  timeoutMs?: number;
 };
 
 /**
@@ -57,14 +63,16 @@ export type SfVoiceMediaOptions = {
 export class SfVoiceMedia {
   private readonly baseUrl: string;
   private readonly headers: Record<string, string>;
+  private readonly timeoutMs: number;
 
-  constructor({ baseUrl, apiKey }: SfVoiceMediaOptions) {
+  constructor({ baseUrl, apiKey, timeoutMs = 30_000 }: SfVoiceMediaOptions) {
     // strip trailing slash so every path concat is predictable
     this.baseUrl = baseUrl.replace(/\/$/, "");
     this.headers = {
       "Content-Type": "application/json",
       "X-API-Key": apiKey,
     };
+    this.timeoutMs = timeoutMs;
   }
 
   // ─── internal request helper ───────────────────────────────────────────────
@@ -81,15 +89,28 @@ export class SfVoiceMedia {
     body?: unknown
   ): Promise<T> {
     const url = `${this.baseUrl}${path}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     const init: RequestInit = {
       method,
       headers: this.headers,
+      signal: controller.signal,
     };
     if (body !== undefined) {
       init.body = JSON.stringify(body);
     }
 
-    const res = await fetch(url, init);
+    let res: Response;
+    try {
+      res = await fetch(url, init);
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        throw new SfVoiceMediaRequestTimeoutError(this.timeoutMs);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
 
     // 204 — no body to parse
     if (res.status === 204) {

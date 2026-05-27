@@ -11,8 +11,8 @@
       "scammer": "./dist/cli/scammer.js"
    },
    "scripts": {
-      "build": "tsgo --build",
-      "typecheck": "tsgo --noEmit",
+      "build": "bun build src/server.ts --outdir dist --target node --packages external && bun build src/cli/scammer.ts --outdir dist/cli --target node --packages external",
+      "typecheck": "tsgo --project tsconfig.json --noEmit",
       "dev": "bun --env-file=../../.env --watch --experimental-strip-types --no-warnings src/server.ts",
       "start": "node dist/server.js",
       "scammer": "node --env-file=../../.env --experimental-strip-types --no-warnings src/cli/scammer.ts",

@@ -9,13 +9,15 @@ import (
 	sfvoice "github.com/sf-voice/sf-voice-media-go"
 )
 
-// Search queries the sfvoice API for the given query with optional asset and type filters and prints a summary and formatted result list to standard output.
-// It prints the total result count (or "(no results)" when there are none).
-// Each result line shows the index, score (two decimal places), time range in M:SS format, and the match type with underscores replaced by spaces.
-// Returns an error if the API call fails.
-func Search(ctx context.Context, client *sfvoice.Client, query string, assetIDs []string, types []string) error {
+// Search queries the sfvoice API and prints a formatted result list to stdout.
+// assetIDs and types are optional filters.
+// threshold (0–1) filters by minimum score; pass 0 to use the server default.
+// page selects the result page (1-based).
+func Search(ctx context.Context, client *sfvoice.Client, query string, assetIDs []string, types []string, threshold float64, page int) error {
 	req := sfvoice.SearchRequest{
-		Query: query,
+		Query:     query,
+		Threshold: threshold,
+		Page:      page,
 	}
 	if len(assetIDs) > 0 {
 		req.AssetIDs = assetIDs
@@ -29,7 +31,8 @@ func Search(ctx context.Context, client *sfvoice.Client, query string, assetIDs 
 		return fmt.Errorf("search: %w", err)
 	}
 
-	fmt.Printf("\U0001f50d results for %q (%d total):\n", query, resp.PageInfo.Total)
+	fmt.Printf("\U0001f50d results for %q  threshold=%.2f  page=%d  (%d total):\n",
+		query, threshold, resp.PageInfo.Page, resp.PageInfo.Total)
 	if len(resp.Results) == 0 {
 		fmt.Println("  (no results)")
 		return nil
@@ -39,8 +42,18 @@ func Search(ctx context.Context, client *sfvoice.Client, query string, assetIDs 
 		start := msToTime(uint64(r.StartMs))
 		end := msToTime(uint64(r.EndMs))
 		matchType := strings.ReplaceAll(r.MatchType, "_", " ")
-		fmt.Printf("  %d. score=%.2f  %s–%s  %s\n", i+1, r.Score, start, end, matchType)
+		line := fmt.Sprintf("  %d. score=%.2f  %s–%s  %-20s  asset=%s",
+			i+1, r.Score, start, end, matchType, r.AssetID)
+		if r.ThumbnailURL != "" {
+			line += "  thumbnail=" + r.ThumbnailURL
+		}
+		fmt.Println(line)
 	}
+
+	if resp.PageInfo.NextPageToken != "" {
+		fmt.Printf("  … more results (next_page_token=%s)\n", resp.PageInfo.NextPageToken)
+	}
+
 	return nil
 }
 
