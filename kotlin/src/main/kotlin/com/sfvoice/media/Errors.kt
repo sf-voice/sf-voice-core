@@ -1,4 +1,4 @@
-package sh.sf-voice.media
+package com.sfvoice.media
 
 /** thrown by every client method on a non-2xx API response. */
 class SfVoiceMediaException(

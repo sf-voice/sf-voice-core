@@ -74,3 +74,18 @@ the read side gives the same type safety with none of the rigidity.
 **What was rejected:** `CHECK` constraints on the column (also require
 ALTER to update), and an enforcement-free "everything is String"
 posture (loses type safety in Rust).
+
+---
+
+## [2026-05-27] — Maven group id is not the JVM package name
+**What was decided:** Java and Kotlin SDK Maven coordinates use the
+Maven Central group id `sh.sf-voice`, e.g. `sh.sf-voice:sf-voice-media-kotlin`.
+JVM source packages and import examples use the valid package namespace
+`com.sfvoice.*`.
+
+**Why:** `sh.sf-voice` is valid as a Maven group id but invalid as a Java or
+Kotlin package because `-` is parsed as a minus operator. Using it in source
+causes compiler syntax errors before the SDK can publish.
+
+**What was rejected:** using `sh.sf-voice.*` in Java/Kotlin package declarations
+or documentation imports.

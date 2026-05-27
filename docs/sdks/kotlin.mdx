@@ -19,7 +19,7 @@ dependencies {
 ## Create a client
 
 ```kotlin
-import sh.sf-voice.media.SfVoiceMediaClient
+import com.sfvoice.media.SfVoiceMediaClient
 
 val client = SfVoiceMediaClient(
     apiKey = System.getenv("SF_VOICE_API_KEY"),
@@ -30,16 +30,14 @@ val client = SfVoiceMediaClient(
 ## Ingest
 
 ```kotlin
-import sh.sf-voice.media.IngestRequest
+import com.sfvoice.media.IngestRequest
+import com.sfvoice.media.MediaType
 
 val resp = client.ingest(
     IngestRequest(
         source = "url",
-        assetId = "call_001",
-        assetClass = "customer_acme",
         url = "https://storage.example.com/calls/001.mp3",
-        mediaType = "audio",
-        types = listOf("audio", "transcript")
+        mediaType = MediaType.Audio
     )
 )
 val taskId = resp.taskId
@@ -48,11 +46,12 @@ val taskId = resp.taskId
 ## Poll until ready
 
 ```kotlin
-import sh.sf-voice.media.SfVoiceMediaException
+import com.sfvoice.media.SfVoiceMediaException
+import com.sfvoice.media.TaskStatus
 
 val task = client.pollTask(taskId, intervalMs = 2_000, timeoutMs = 120_000)
 
-if (task.status == "failed") {
+if (task.status == TaskStatus.Failed) {
     error("indexing failed: ${task.error}")
 }
 ```
@@ -62,13 +61,13 @@ if (task.status == "failed") {
 ## Search
 
 ```kotlin
-import sh.sf-voice.media.SearchBody
+import com.sfvoice.media.SearchMatchType
+import com.sfvoice.media.SearchRequest
 
 val resp = client.search(
-    SearchBody(
+    SearchRequest(
         query = "customer asks about pricing",
-        assetClass = "customer_acme",
-        types = listOf("transcript"),
+        types = listOf(SearchMatchType.Conversation),
         threshold = 0.7f,
         limit = 10
     )
@@ -95,10 +94,11 @@ client.deleteAsset("call_001")
 ## Errors
 
 ```kotlin
-import sh.sf-voice.media.SfVoiceMediaException
+import com.sfvoice.media.SfVoiceMediaException
+import com.sfvoice.media.SearchRequest
 
 try {
-    client.search(SearchBody(query = "...", assetClass = "customer_acme"))
+    client.search(SearchRequest(query = "..."))
 } catch (e: SfVoiceMediaException) {
     println("${e.code} ${e.status}: ${e.message}")
 }

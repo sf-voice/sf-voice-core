@@ -1,4 +1,4 @@
-package sh.sf-voice.media
+package com.sfvoice.media
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
