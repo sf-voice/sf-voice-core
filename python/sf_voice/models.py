@@ -1,74 +1,126 @@
 """
-dataclasses for all API response types.
-all from_dict methods do lenient parsing: unknown keys are ignored,
-missing optional fields fall back to None so forward-compat is preserved.
+public request and response types for the sf-voice media api.
+the shapes mirror the typescript sdk contract.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
+from typing import Any, BinaryIO, Dict, List, Literal, Optional, TypedDict, Union, cast
+
+
+MediaType = Literal["video", "audio"]
+SourceType = Literal["url", "s3", "file"]
+TaskStatus = Literal["pending", "indexing", "ready", "failed"]
+MediaSearchType = Literal["video", "audio", "transcript"]
+MediaMetadataValue = Union[str, int, float, bool]
+MediaMetadata = Dict[str, MediaMetadataValue]
+IngestFile = Union[bytes, bytearray, memoryview, BinaryIO]
+ApiErrorCode = str
+
+
+class _IngestOptional(TypedDict, total=False):
+    asset_class: str
+    media_type: MediaType
+    metadata: MediaMetadata
+    types: List[MediaSearchType]
+
+
+class UrlIngestRequest(_IngestOptional):
+    source: Literal["url"]
+    asset_id: str
+    url: str
+
+
+class S3IngestRequest(_IngestOptional):
+    source: Literal["s3"]
+    asset_id: str
+    s3_key: str
+
+
+class _FileIngestOptional(_IngestOptional, total=False):
+    content_type: str
+
+
+class FileIngestRequest(_FileIngestOptional):
+    source: Literal["file"]
+    asset_id: str
+    file: IngestFile
+    filename: str
+
+
+IngestRequest = Union[UrlIngestRequest, S3IngestRequest, FileIngestRequest]
+
+
+class ListAssetsParams(TypedDict, total=False):
+    page: int
+    limit: int
+
+
+class _SearchOptional(TypedDict, total=False):
+    types: List[MediaSearchType]
+    asset_ids: List[str]
+    asset_class: str
+    scope: Literal["all"]
+    threshold: float
+    page: int
+    limit: int
+
+
+class SearchRequest(_SearchOptional):
+    query: str
+
+
+class PollTaskOptions(TypedDict, total=False):
+    interval_ms: int
+    timeout_ms: int
 
 
 @dataclass
 class PageInfo:
+    total: int
     page: int
     limit: int
-    total: int
-    has_more: bool
+    next_page_token: Optional[str] = None
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "PageInfo":
-        """
-        Construct a PageInfo instance from a dictionary containing paging fields.
-        
-        Parameters:
-            d (Dict[str, Any]): Mapping with required keys "page", "limit", "total", and "has_more".
-        
-        Returns:
-            PageInfo: Instance populated from the corresponding values in `d`.
-        """
+        """build page metadata from the api response."""
         return cls(
+            total=d["total"],
             page=d["page"],
             limit=d["limit"],
-            total=d["total"],
-            has_more=d["has_more"],
+            next_page_token=d.get("next_page_token"),
         )
 
 
 @dataclass
 class Asset:
-    id: str
-    status: str  # "pending" | "indexing" | "ready" | "failed"
-    source: str  # "url" | "s3"
-    media_type: Optional[str] = None  # "video" | "audio"
-    url: Optional[str] = None
-    s3_key: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    created_at: Optional[str] = None
-    completed_at: Optional[str] = None
+    asset_id: str
+    media_type: MediaType
+    source_type: SourceType
+    types: List[MediaSearchType]
+    status: TaskStatus
+    created_at: str
+    updated_at: str
+    asset_class: Optional[str] = None
+    metadata: Optional[MediaMetadata] = None
+    duration_ms: Optional[int] = None
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "Asset":
-        """
-        Create an Asset instance from a dictionary (typically an API response payload).
-        
-        Parameters:
-            d (Dict[str, Any]): Mapping containing asset fields. Required keys: `id`, `status`, `source`. Optional keys: `media_type`, `url`, `s3_key`, `metadata`, `created_at`, `completed_at`. Missing optional fields are set to `None`; `metadata` defaults to an empty dict.
-        
-        Returns:
-            Asset: An Asset populated from the provided mapping.
-        """
+        """build an asset from the canonical asset response."""
         return cls(
-            id=d["id"],
-            status=d["status"],
-            source=d["source"],
-            media_type=d.get("media_type"),
-            url=d.get("url"),
-            s3_key=d.get("s3_key"),
-            metadata=d.get("metadata") or {},
-            created_at=d.get("created_at"),
-            completed_at=d.get("completed_at"),
+            asset_id=d["asset_id"],
+            asset_class=d.get("asset_class"),
+            media_type=cast(MediaType, d["media_type"]),
+            source_type=cast(SourceType, d["source_type"]),
+            types=[cast(MediaSearchType, value) for value in d["types"]],
+            status=cast(TaskStatus, d["status"]),
+            metadata=d.get("metadata"),
+            duration_ms=d.get("duration_ms"),
+            created_at=d["created_at"],
+            updated_at=d["updated_at"],
         )
 
 
@@ -76,41 +128,30 @@ class Asset:
 class Task:
     task_id: str
     asset_id: str
-    status: str  # "pending" | "indexing" | "ready" | "failed"
+    types: List[MediaSearchType]
+    status: TaskStatus
+    created_at: str
+    asset_class: Optional[str] = None
     error: Optional[str] = None
-    created_at: Optional[str] = None
     completed_at: Optional[str] = None
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "Task":
-        """
-        Create a Task instance from an API response dictionary.
-        
-        Parses required keys `task_id`, `asset_id`, and `status` from the input mapping. Optional keys `error`, `created_at`, and `completed_at` are taken if present; unknown keys are ignored and missing optional fields default to None.
-        
-        Parameters:
-            d (Dict[str, Any]): Mapping containing task fields from an API response.
-        
-        Returns:
-            Task: A Task populated from the provided dictionary.
-        """
+        """build a task from the canonical task response."""
         return cls(
             task_id=d["task_id"],
             asset_id=d["asset_id"],
-            status=d["status"],
+            asset_class=d.get("asset_class"),
+            types=[cast(MediaSearchType, value) for value in d["types"]],
+            status=cast(TaskStatus, d["status"]),
             error=d.get("error"),
-            created_at=d.get("created_at"),
+            created_at=d["created_at"],
             completed_at=d.get("completed_at"),
         )
 
     @property
     def is_terminal(self) -> bool:
-        """
-        Indicates whether the task has reached a terminal state.
-        
-        Returns:
-            True if the task's status is "ready" or "failed", False otherwise.
-        """
+        """return true once the task has reached a final state."""
         return self.status in ("ready", "failed")
 
 
@@ -118,23 +159,15 @@ class Task:
 class IngestResponse:
     asset_id: str
     task_id: str
-    status: str  # always "pending" on 202
+    status: Literal["pending"]
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "IngestResponse":
-        """
-        Create an IngestResponse from a dictionary of API response fields.
-        
-        Parameters:
-            d (Dict[str, Any]): Mapping expected to contain the required keys "asset_id", "task_id", and "status".
-        
-        Returns:
-            IngestResponse: An instance populated from the provided dictionary.
-        """
+        """build an ingest response from the api response."""
         return cls(
             asset_id=d["asset_id"],
             task_id=d["task_id"],
-            status=d["status"],
+            status=cast(Literal["pending"], d["status"]),
         )
 
 
@@ -144,27 +177,18 @@ class SearchResult:
     score: float
     start_ms: int
     end_ms: int
-    match_type: str  # "visual" | "conversation" | "text_in_video"
+    match_type: MediaSearchType
     thumbnail_url: Optional[str] = None
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "SearchResult":
-        """
-        Create a SearchResult from a mapping (typically a parsed JSON object).
-        
-        Parameters:
-            d (Dict[str, Any]): Mapping containing keys "asset_id", "score", "start_ms", "end_ms", and "match_type".
-                The optional key "thumbnail_url" may be present. Unknown keys are ignored.
-        
-        Returns:
-            SearchResult: Instance populated from the provided mapping; optional fields are set to None if missing.
-        """
+        """build one search result from the api response."""
         return cls(
             asset_id=d["asset_id"],
             score=d["score"],
             start_ms=d["start_ms"],
             end_ms=d["end_ms"],
-            match_type=d["match_type"],
+            match_type=cast(MediaSearchType, d["match_type"]),
             thumbnail_url=d.get("thumbnail_url"),
         )
 
@@ -176,17 +200,9 @@ class SearchResponse:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "SearchResponse":
-        """
-        Constructs a SearchResponse from a dictionary representation (typically an API response).
-        
-        Parameters:
-            d (Dict[str, Any]): Dictionary containing "results" (list of result dicts) and "page_info" (page info dict).
-        
-        Returns:
-            SearchResponse: Instance populated from the provided dictionary.
-        """
+        """build a search response from the api response."""
         return cls(
-            results=[SearchResult.from_dict(r) for r in d.get("results", [])],
+            results=[SearchResult.from_dict(item) for item in d.get("results", [])],
             page_info=PageInfo.from_dict(d["page_info"]),
         )
 
@@ -198,16 +214,8 @@ class AssetListResponse:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "AssetListResponse":
-        """
-        Create an AssetListResponse from a dictionary representation of the API response.
-        
-        Parameters:
-            d (Dict[str, Any]): Dictionary containing the asset list payload. Must include a "page_info" mapping; "items" may be omitted or be a list of asset mappings.
-        
-        Returns:
-            AssetListResponse: Instance with `items` parsed into Asset objects and `page_info` parsed into a PageInfo.
-        """
+        """build a paginated asset list from the api response."""
         return cls(
-            items=[Asset.from_dict(i) for i in d.get("items", [])],
+            items=[Asset.from_dict(item) for item in d.get("items", [])],
             page_info=PageInfo.from_dict(d["page_info"]),
         )

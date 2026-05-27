@@ -2,12 +2,12 @@
 
 Python SDK for the sf-voice media API.
 
-Version: `0.1.1`
+Version: `0.2.0`
 
 ## Installation
 
 ```sh
-pip install sf-voice-media==0.1.1
+pip install sf-voice-media==0.2.0
 ```
 
 For local development in this repo:
@@ -19,65 +19,219 @@ pip install -e .
 python3 -m compileall -q sf_voice
 ```
 
-## Usage
+## Requirements
 
-### Sync client
+- An sf-voice API key.
+- The media API base URL.
+
+## Client Setup
+
+```python
+import os
+
+from sf_voice import SfVoiceMedia
+
+client = SfVoiceMedia(
+    base_url="https://api.sf-voice.com",
+    api_key=os.environ["SF_VOICE_API_KEY"],
+    timeout_ms=30_000,
+)
+```
+
+## Core Concepts
+
+| Field | Description |
+|---|---|
+| `asset_id` | Customer-provided unique id for the media asset. Required on ingest. |
+| `asset_class` | Optional logical group for assets, for example one customer, workspace, repository, or project. |
+| `types` | Optional media surfaces to index or search. Allowed values: `"video"`, `"audio"`, `"transcript"`. |
+| `metadata` | Optional flat key/value metadata. Values must be strings, numbers, or booleans. |
+| `threshold` | Optional minimum match score from `0.0` to `1.0`. |
+
+## Quickstart
 
 ```python
 import os
 
 from sf_voice import SfVoiceMedia, SfVoiceMediaError
 
+client = SfVoiceMedia(
+    base_url="https://api.sf-voice.com",
+    api_key=os.environ["SF_VOICE_API_KEY"],
+)
+
 try:
-    with SfVoiceMedia(api_key=os.environ["SF_VOICE_API_KEY"]) as client:
-        ingest = client.ingest(
-            source="url",
-            url="https://example.com/recording.mp4",
-            media_type="video",
-            metadata={"title": "product demo"},
-        )
+    ingest = client.ingest(
+        {
+            "source": "url",
+            "asset_id": "video_123",
+            "asset_class": "customer_acme",
+            "url": "https://example.com/recording.mp4",
+            "media_type": "video",
+            "types": ["video", "audio", "transcript"],
+            "metadata": {
+                "title": "product demo",
+                "customer_id": "acme",
+            },
+        }
+    )
 
-        task = client.poll_task(ingest.task_id, interval_s=2.0, timeout_s=120.0)
-        if task.status == "failed":
-            raise RuntimeError(task.error or "ingest task failed")
+    task = client.poll_task(
+        ingest.task_id,
+        {"interval_ms": 2_000, "timeout_ms": 120_000},
+    )
 
-        search = client.search(
-            query="product launch",
-            asset_ids=[task.asset_id],
-            types=["conversation"],
-            threshold=0.7,
-        )
+    if task.status == "failed":
+        raise RuntimeError(task.error or "ingest task failed")
 
-        print(search.results)
+    search = client.search(
+        {
+            "query": "where does the customer mention pricing?",
+            "asset_class": "customer_acme",
+            "types": ["transcript"],
+            "threshold": 0.7,
+            "limit": 10,
+        }
+    )
+
+    print(search.results)
 except SfVoiceMediaError as error:
     print(error.code, error.status, error.message)
     raise
+finally:
+    client.close()
 ```
 
-### Async client
+## Ingest
+
+`ingest(request)` submits media for indexing and returns immediately with a task id.
+
+### URL Ingest
+
+```python
+ingest = client.ingest(
+    {
+        "source": "url",
+        "asset_id": "video_123",
+        "asset_class": "customer_acme",
+        "url": "https://example.com/recording.mp4",
+        "media_type": "video",
+        "types": ["video", "audio", "transcript"],
+    }
+)
+```
+
+### S3 Ingest
+
+```python
+ingest = client.ingest(
+    {
+        "source": "s3",
+        "asset_id": "support_call_456",
+        "asset_class": "customer_acme",
+        "s3_key": "uploads/customer_acme/support_call_456.mp3",
+        "media_type": "audio",
+        "types": ["audio", "transcript"],
+    }
+)
+```
+
+### File Ingest
+
+```python
+with open("demo.mp4", "rb") as file:
+    ingest = client.ingest(
+        {
+            "source": "file",
+            "asset_id": "browser_upload_789",
+            "asset_class": "customer_acme",
+            "file": file,
+            "filename": "demo.mp4",
+            "content_type": "video/mp4",
+            "media_type": "video",
+            "types": ["video", "audio", "transcript"],
+        }
+    )
+```
+
+## Search
+
+`search(request)` searches indexed media with natural language.
+
+Search should usually be scoped with either `asset_ids` or `asset_class`.
+
+```python
+search = client.search(
+    {
+        "query": "refund policy",
+        "asset_class": "customer_acme",
+        "types": ["transcript"],
+        "threshold": 0.7,
+        "page": 1,
+        "limit": 10,
+    }
+)
+```
+
+To intentionally search every asset, pass `{"scope": "all"}`.
+
+## Assets
+
+```python
+assets = client.list_assets({"page": 1, "limit": 20})
+asset = client.get_asset("video_123")
+client.delete_asset("video_123")
+```
+
+## Async Client
 
 ```python
 import os
 
 from sf_voice import AsyncSfVoiceMedia
 
-async with AsyncSfVoiceMedia(api_key=os.environ["SF_VOICE_API_KEY"]) as client:
-    ingest = await client.ingest(source="url", url="https://example.com/recording.mp4")
+async with AsyncSfVoiceMedia(
+    base_url="https://api.sf-voice.com",
+    api_key=os.environ["SF_VOICE_API_KEY"],
+) as client:
+    ingest = await client.ingest(
+        {
+            "source": "url",
+            "asset_id": "video_123",
+            "url": "https://example.com/recording.mp4",
+        }
+    )
     task = await client.poll_task(ingest.task_id)
 ```
 
-## API
+## Errors
 
-The sync and async clients expose the same API:
+Every non-2xx API response raises `SfVoiceMediaError`.
 
-- `ingest(...)` - submit URL or S3 media for indexing.
-- `get_task(task_id)` - fetch task state.
-- `poll_task(task_id, interval_s, timeout_s)` - wait until a task is terminal.
-- `list_assets(page, limit)` - list indexed assets.
-- `get_asset(asset_id)` - fetch one asset.
-- `delete_asset(asset_id)` - soft-delete an asset.
-- `search(...)` - search indexed media with natural language.
+```python
+from sf_voice import SfVoiceMediaError
 
-## Examples
+try:
+    client.search({"query": "pricing", "asset_class": "customer_acme"})
+except SfVoiceMediaError as error:
+    print(error.code)
+    print(error.status)
+    print(error.message)
+    raise
+```
 
-- [`../apps/cohere`](../apps/cohere) - sync and async CLI demo.
+`SfVoiceMediaRequestTimeoutError` is raised when a single HTTP request exceeds the client timeout.
+
+`SfVoiceMediaPollTimeoutError` is raised when `poll_task` exceeds its polling timeout before the task reaches `"ready"` or `"failed"`.
+
+## API Surface
+
+```python
+client.ingest(request) -> IngestResponse
+client.get_task(task_id) -> Task
+client.poll_task(task_id, options=None) -> Task
+client.list_assets(params=None) -> AssetListResponse
+client.get_asset(asset_id) -> Asset
+client.delete_asset(asset_id) -> None
+client.search(request) -> SearchResponse
+```
