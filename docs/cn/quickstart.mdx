@@ -1,0 +1,144 @@
+---
+title: "快速开始"
+description: "索引一个媒体资产,并运行你的第一次范围内搜索。"
+icon: "rocket"
+---
+
+本指南将带你使用 TypeScript SDK,从 API 密钥到获得第一个搜索结果。
+
+## 安装
+
+<CodeGroup>
+```sh pnpm
+pnpm add @sf-voice/media@latest
+```
+
+```sh npm
+npm install @sf-voice/media@latest
+```
+
+```sh bun
+bun install @sf-voice/media@latest
+```
+</CodeGroup>
+
+## 1. 创建客户端
+
+```ts
+import { SfVoiceMedia } from "@sf-voice/media";
+
+const client = new SfVoiceMedia({
+  baseUrl: "https://api.sf-voice.com",
+  apiKey: process.env.SF_VOICE_API_KEY!,
+});
+```
+
+## 2. 摄取一个资产
+
+使用来自你自己系统的 `asset_id`。使用 `asset_class` 将应一起搜索的资产分组,
+例如某个客户的全部媒体。
+
+```ts
+const ingest = await client.ingest({
+  source: "url",
+  asset_id: "video_123",
+  asset_class: "customer_acme",
+  url: "https://example.com/recording.mp4",
+  media_type: "video",
+  types: ["video", "audio", "transcript"],
+  metadata: {
+    title: "product demo",
+    customer_id: "acme",
+  },
+});
+```
+
+响应中包含用于索引的 `task_id`。
+
+```json
+{
+  "asset_id": "video_123",
+  "task_id": "task_abc123",
+  "status": "pending"
+}
+```
+
+## 3. 等待索引
+
+```ts
+const task = await client.pollTask(ingest.task_id, {
+  intervalMs: 2_000,
+  timeoutMs: 120_000,
+});
+
+if (task.status === "failed") {
+  throw new Error(task.error ?? "ingest task failed");
+}
+```
+
+## 4. 搜索
+
+在相同的 `asset_class` 内进行搜索,以确保结果仅限于目标客户或分组。
+
+```ts
+const search = await client.search({
+  query: "where does the customer mention pricing?",
+  asset_class: "customer_acme",
+  types: ["transcript"],
+  threshold: 0.7,
+  limit: 10,
+});
+
+console.log(search.results);
+```
+
+## 完整示例
+
+```ts
+import { SfVoiceMedia, SfVoiceMediaError } from "@sf-voice/media";
+
+const client = new SfVoiceMedia({
+  baseUrl: "https://api.sf-voice.com",
+  apiKey: process.env.SF_VOICE_API_KEY!,
+});
+
+try {
+  const ingest = await client.ingest({
+    source: "url",
+    asset_id: "video_123",
+    asset_class: "customer_acme",
+    url: "https://example.com/recording.mp4",
+    media_type: "video",
+    types: ["video", "audio", "transcript"],
+  });
+
+  const task = await client.pollTask(ingest.task_id);
+
+  if (task.status === "failed") {
+    throw new Error(task.error ?? "ingest task failed");
+  }
+
+  const search = await client.search({
+    query: "pricing",
+    asset_class: "customer_acme",
+    types: ["transcript"],
+  });
+
+  console.log(search.results);
+} catch (error) {
+  if (error instanceof SfVoiceMediaError) {
+    console.error(error.code, error.status, error.message);
+  }
+  throw error;
+}
+```
+
+## 下一步
+
+<Card title="工作原理" icon="workflow" href="/cn/how-it-works">
+  了解摄取、索引、任务轮询和范围搜索是如何协同工作的。
+</Card>
+
+<Card title="TypeScript SDK" icon="code" href="/cn/sdks/typescript">
+  查看 SDK 暴露的所有输入与输出结构。
+</Card>
