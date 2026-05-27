@@ -61,7 +61,6 @@
             "pages": [
                "sdks/overview",
                "sdks/typescript",
-               "sdks/python",
                "sdks/elixir",
                "sdks/java",
                "sdks/kotlin",
