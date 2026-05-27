@@ -1,8 +1,7 @@
 name: sf-voice-api
 
-# fires when the rust workspace or this app's source changes. ellie /
-# resto pipelines have their own filters so the three services build
-# independently.
+# prs and merge queue run checks. pushes to main deploy only so the merge
+# commit does not repeat work that the queue already validated.
 
 on:
    workflow_dispatch: {}
@@ -14,6 +13,8 @@ on:
          - "Cargo.lock"
          - "infra/deploy/docker-compose.api.yml"
          - ".github/workflows/sf-voice-api.yml"
+   merge_group:
+      types: [checks_requested]
    push:
       branches: [main]
       paths:
@@ -31,6 +32,7 @@ concurrency:
 jobs:
    test:
       name: test
+      if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
       runs-on: ubuntu-latest
       steps:
          - uses: actions/checkout@v4
@@ -73,7 +75,6 @@ jobs:
 
    deploy:
       name: build + deploy
-      needs: test
       if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
       runs-on: ubuntu-latest
       permissions:

@@ -1,113 +1,85 @@
 ---
-title: "How it works"
-description: "Walk through the sf-voice media lifecycle: ingest assets, index video and transcripts, poll for readiness, and run scoped natural language search."
-icon: "workflow"
+title: "Core concepts"
+description: "How we indexes media and returns timestamped search results."
 ---
 
-sf-voice media has one core loop: submit an asset, wait for indexing, then
-search the indexed media with the same ids and scope your application already
-uses.
+## Assets start in your system
 
-```mermaid
-flowchart LR
-  A[Your app] --> B[Ingest media]
-  B --> C[Index video, audio, transcript]
-  C --> D[Task becomes ready]
-  D --> E[Search by asset_class or asset_ids]
-  E --> F[Timestamped results]
-```
-
-## 1. Assets start in your system
-
-Every ingest request includes your `asset_id`. This keeps the media API easy to
-join back to your database, CRM, support ticket, customer workspace, or internal
-object model.
+Ingest requests carry your `asset_id`, so search results can join back to your database, CRM, support ticket, observability platform, or call log without ID translation.
 
 ```ts
 await client.ingest({
   source: "url",
-  asset_id: "video_123",
+  asset_id: "call_8294",
   asset_class: "customer_acme",
-  url: "https://example.com/recording.mp4",
+  url: "https://storage.example.com/calls/8294.mp3",
 });
 ```
 
-## 2. Asset classes define search scope
+## Asset classes define search scope
 
-`asset_class` is the public grouping primitive. Use it for the boundary your
-product cares about most.
-
-Good examples:
+`asset_class` is how you draw the boundary around what gets searched together. For most products, it maps to the entity your customers think in terms of:
 
 - one end customer
 - one workspace
 - one project
-- one repository
-- one collection of support calls
+- one support queue
 
 <Warning>
-  If you build customer-facing search, prefer `asset_class` or explicit `asset_ids`.
-  Global search should be an explicit product decision.
+  If you're building customer-facing search, scope by `asset_class` or explicit `asset_ids`. Global search (`scope: "all"`) searches across your indexed assets.
 </Warning>
 
-## 3. Types choose searchable surfaces
+## Indexing surface types
 
-`types` controls which surfaces you index or search.
+`types` controls what gets indexed and searched.
 
-| Type | Use it when |
+| Type | Use when |
 | --- | --- |
-| `video` | The visual content matters. |
-| `audio` | Sound, speakers, or acoustic cues matter. |
-| `transcript` | Spoken words and text retrieval matter. |
+| `audio` | Speaker identity, acoustic events, sound-level patterns. |
+| `video` | On-screen content, visual context, screen recordings. |
+| `transcript` | Spoken words, topic retrieval, semantic search over dialogue. |
 
-You can combine types:
-
-```ts
-types: ["video", "audio", "transcript"]
-```
-
-## 4. Indexing is asynchronous
-
-Ingest returns quickly with a `task_id`. The asset is searchable after the task
-reaches `ready`.
+Most voice AI use cases want all three:
 
 ```ts
-const ingest = await client.ingest(request);
-const task = await client.pollTask(ingest.task_id);
+types: ["audio", "video", "transcript"]
 ```
 
-Task polling returns the asset id, asset class, indexed types, status, and any
-error if indexing fails.
+## Indexing is async
 
-## 5. Search returns timestamped matches
+Ingest returns a `task_id` immediately. The actual indexing happens in the background. Poll until `ready` or `failed`.
 
-Search results include `start_ms` and `end_ms` so your UI can jump directly to
-the matching moment.
+```ts
+const { task_id } = await client.ingest(request);
+const task = await client.pollTask(task_id);
+
+if (task.status === "failed") {
+  throw new Error(task.error ?? "indexing failed");
+}
+```
+
+Task states: `pending` → `indexing` → `ready` (or `failed`).
+
+## Search returns timestamped matches
+
+Results include `start_ms` and `end_ms`: millisecond offsets into the source recording.
 
 ```json
 {
-  "asset_id": "video_123",
-  "score": 0.84,
+  "asset_id": "call_8294",
+  "score": 0.87,
   "start_ms": 42000,
   "end_ms": 58000,
   "match_type": "transcript"
 }
 ```
 
-Use `threshold` to control strictness. Higher values return fewer, more
-confident matches.
+`threshold` controls how strict the match has to be. Default is `0.5`. Raise it to get fewer, higher-confidence results.
 
-## 6. Backend provider details stay hidden
+## Your data stays yours
 
-The SDK only exposes sf-voice concepts:
+The API returns: `asset_id`, `asset_class`, `types`, scores, and timestamps. Provider IDs, index keys, and pipeline details stay behind the API.
 
-- `asset_id`
-- `asset_class`
-- `types`
-- `threshold`
-
-Provider indexes, provider ids, and type mappings are handled by the backend.
-
-<Card title="TypeScript SDK" icon="code" href="/sdks/typescript">
-  See the full TypeScript API reference.
+<Card title="TypeScript SDK" icon="square-js" href="/sdks/typescript">
+  Inputs, outputs, and error types for the TypeScript client.
 </Card>

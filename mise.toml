@@ -428,6 +428,11 @@ description = "fraud-prototype: dial a scammer call (STAFF_PHONE_E164 from .env)
 dir = "apps/fraud-prototype"
 run = "pnpm run scammer"
 
+[tasks."docs:dev"]
+description = "mintlify docs dev server (http://localhost:3000)"
+dir = "docs"
+run = "mintlify dev"
+
 [tasks."web:dev"]
 description = "frontend dev server"
 dir = "core/frontend"

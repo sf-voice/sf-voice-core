@@ -1,0 +1,63 @@
+---
+title: "SDK Overview"
+description: "SDKs for the media API."
+---
+
+The SDKs are open source at [github.com/sf-voice/sf-voice-core](https://github.com/sf-voice/sf-voice-core).
+
+These docs cover SDK version `0.1.1`. We are iterating quickly, so pin your SDK version and expect breaking changes between versions until the API settles.
+
+The SDKs cover the core operations: `ingest`, `getTask`, `pollTask`, `listAssets`, `getAsset`, `deleteAsset`, `search`. Method names follow the naming convention of each language.
+
+<CardGroup cols={2}>
+  <Card title="TypeScript" icon="square-js" href="/sdks/typescript">
+    `@sf-voice/media` — Node.js, Bun, Deno, browser
+  </Card>
+  <Card title="Python" icon="python" href="/sdks/python">
+    `sf-voice-media` — sync and async clients
+  </Card>
+  <Card title="Elixir" icon="code" href="/sdks/elixir">
+    `:sf_voice` — `Req`-based, returns `{:ok, _}` or `{:error, _}`
+  </Card>
+  <Card title="Go" icon="code" href="/sdks/go">
+    `sfvoice` — idiomatic Go with `context.Context`
+  </Card>
+  <Card title="Rust" icon="gear" href="/sdks/rust">
+    `sf_voice_media` — async with `tokio`, builder pattern
+  </Card>
+  <Card title="Java" icon="java" href="/sdks/java">
+    `com.sfvoice:sf-voice-media-java` — synchronous, Java 17+
+  </Card>
+  <Card title="Kotlin" icon="code" href="/sdks/kotlin">
+    `com.sfvoice:sf-voice-media-kotlin` — coroutine-native with Ktor
+  </Card>
+  <Card title="C++" icon="code" href="/sdks/cpp">
+    single header — `std::future`-based, CPR + nlohmann
+  </Card>
+</CardGroup>
+
+## Authentication
+
+SDKs send your API key as the `X-API-Key` request header. Keep it in an environment variable and avoid committing it to source control.
+
+## Error handling
+
+SDKs use three error categories:
+
+| Error | When it's thrown |
+| --- | --- |
+| API error | The server returned a non-2xx response. Carries `code`, `message`, and `status`. |
+| Request timeout | A single HTTP request exceeded the configured timeout. |
+| Poll timeout | `pollTask` ran out of time before the task reached `ready` or `failed`. |
+
+Error codes from the API:
+
+| Code | Meaning |
+| --- | --- |
+| `unauthorized` | Invalid or missing API key. |
+| `not_found` | Asset or task ID doesn't exist. |
+| `bucket_not_connected` | S3 source used before bucket is configured. |
+| `s3_access_denied` | SDK can't read from the specified S3 key. |
+| `unsupported_format` | File type isn't supported for indexing. |
+| `file_too_large` | Upload exceeds the size limit. |
+| `rate_limited` | Too many requests. Back off and retry. |
