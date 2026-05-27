@@ -27,6 +27,11 @@
                   "pages": ["introduction", "quickstart", "how-it-works"]
                },
                {
+                  "group": "SDKs",
+                  "icon": "code",
+                  "pages": ["sdks/typescript"]
+               },
+               {
                   "group": "Integrations",
                   "pages": [
                      "integrations/overview",
