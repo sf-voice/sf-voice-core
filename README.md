@@ -1,4 +1,4 @@
-# sf-voice core
+# San Francisco Voice Company
 
 [![frontend](https://github.com/sf-voice/sf-voice-core/actions/workflows/frontend.yml/badge.svg)](https://github.com/sf-voice/sf-voice-core/actions/workflows/frontend.yml)
 [![api](https://github.com/sf-voice/sf-voice-core/actions/workflows/sf-voice-api.yml/badge.svg)](https://github.com/sf-voice/sf-voice-core/actions/workflows/sf-voice-api.yml)
@@ -47,7 +47,7 @@ Start with the full examples index in [`apps/EXAMPLES.md`](apps/EXAMPLES.md).
 
 | language | example | what it shows |
 | --- | --- | --- |
-| TypeScript / JavaScript | [`apps/fifteenlabs`](apps/fifteenlabs), [`apps/fraud-prototype`](apps/fraud-prototype) | browser ingest/search demo and phone-line fraud prototype |
+| TypeScript / JavaScript | [`apps/fifteenlabs`](apps/fifteenlabs) | browser ingest/search demo |
 | Python | [`apps/cohere`](apps/cohere) | sync and async SDK CLI usage |
 | Go | [`apps/livecart`](apps/livecart) | ingest, poll, search, asset listing, and soft delete |
 | C++ | [`apps/chips`](apps/chips) | CMake CLI demo with local or fetched C++ dependencies |
@@ -72,7 +72,7 @@ core/
   backend/api/         ─ Rust + Axum API 
   frontend/            ─ React + rspack + Tailwind frontend
   plane/               ─ C++ for data plane management on customer's infra
-  inference/           ─ Python for hosted inference 
+  inference/           ─ Propriotary models
 infra/
   dev/                 ─ docker-compose for local MySQL
   deploy/              ─ prod compose files, Caddyfile, bootstrap scripts
