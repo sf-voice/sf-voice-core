@@ -1,0 +1,145 @@
+---
+title: "Guía rápida"
+description: "Indexa un recurso multimedia y ejecuta tu primera búsqueda acotada."
+icon: "rocket"
+---
+
+Esta guía te lleva desde la clave de API hasta el primer resultado de búsqueda con el SDK de TypeScript.
+
+## Instalación
+
+<CodeGroup>
+```sh pnpm
+pnpm add @sf-voice/media@latest
+```
+
+```sh npm
+npm install @sf-voice/media@latest
+```
+
+```sh bun
+bun install @sf-voice/media@latest
+```
+</CodeGroup>
+
+## 1. Crear un cliente
+
+```ts
+import { SfVoiceMedia } from "@sf-voice/media";
+
+const client = new SfVoiceMedia({
+  baseUrl: "https://api.sf-voice.com",
+  apiKey: process.env.SF_VOICE_API_KEY!,
+});
+```
+
+## 2. Ingerir un recurso
+
+Usa un `asset_id` de tu propio sistema. Usa `asset_class` para agrupar recursos
+que deban buscarse juntos, como todos los medios de un mismo cliente.
+
+```ts
+const ingest = await client.ingest({
+  source: "url",
+  asset_id: "video_123",
+  asset_class: "customer_acme",
+  url: "https://example.com/recording.mp4",
+  media_type: "video",
+  types: ["video", "audio", "transcript"],
+  metadata: {
+    title: "product demo",
+    customer_id: "acme",
+  },
+});
+```
+
+La respuesta incluye un `task_id` para la indexación.
+
+```json
+{
+  "asset_id": "video_123",
+  "task_id": "task_abc123",
+  "status": "pending"
+}
+```
+
+## 3. Esperar la indexación
+
+```ts
+const task = await client.pollTask(ingest.task_id, {
+  intervalMs: 2_000,
+  timeoutMs: 120_000,
+});
+
+if (task.status === "failed") {
+  throw new Error(task.error ?? "ingest task failed");
+}
+```
+
+## 4. Buscar
+
+Busca dentro de la misma `asset_class` para que los resultados se mantengan acotados al cliente o
+grupo previsto.
+
+```ts
+const search = await client.search({
+  query: "where does the customer mention pricing?",
+  asset_class: "customer_acme",
+  types: ["transcript"],
+  threshold: 0.7,
+  limit: 10,
+});
+
+console.log(search.results);
+```
+
+## Ejemplo completo
+
+```ts
+import { SfVoiceMedia, SfVoiceMediaError } from "@sf-voice/media";
+
+const client = new SfVoiceMedia({
+  baseUrl: "https://api.sf-voice.com",
+  apiKey: process.env.SF_VOICE_API_KEY!,
+});
+
+try {
+  const ingest = await client.ingest({
+    source: "url",
+    asset_id: "video_123",
+    asset_class: "customer_acme",
+    url: "https://example.com/recording.mp4",
+    media_type: "video",
+    types: ["video", "audio", "transcript"],
+  });
+
+  const task = await client.pollTask(ingest.task_id);
+
+  if (task.status === "failed") {
+    throw new Error(task.error ?? "ingest task failed");
+  }
+
+  const search = await client.search({
+    query: "pricing",
+    asset_class: "customer_acme",
+    types: ["transcript"],
+  });
+
+  console.log(search.results);
+} catch (error) {
+  if (error instanceof SfVoiceMediaError) {
+    console.error(error.code, error.status, error.message);
+  }
+  throw error;
+}
+```
+
+## Próximos pasos
+
+<Card title="Cómo funciona" icon="workflow" href="/es/how-it-works">
+  Aprende cómo encajan la ingestión, la indexación, el sondeo de tareas y la búsqueda acotada.
+</Card>
+
+<Card title="SDK de TypeScript" icon="code" href="/es/sdks/typescript">
+  Consulta todos los formatos de entrada y salida expuestos por el SDK.
+</Card>

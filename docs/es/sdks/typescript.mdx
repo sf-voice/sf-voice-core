@@ -1,0 +1,413 @@
+---
+title: "SDK de TypeScript"
+description: "Ingiere contenido multimedia, sondea trabajos de indexación y busca en vídeo, audio y transcripciones desde TypeScript."
+icon: "code"
+---
+
+El SDK `@sf-voice/media` envuelve la API de sf-voice media para aplicaciones TypeScript.
+Úsalo para enviar recursos multimedia, esperar a la indexación y buscar en superficies de vídeo, audio
+y transcripción con tus propios ID de recursos orientados al cliente.
+
+<Columns cols={3}>
+  <Card title="Ingerir recursos" icon="upload">
+    Envía contenido multimedia desde una URL, una clave de S3 o un buffer de archivo/navegador.
+  </Card>
+  <Card title="Conserva tus IDs" icon="fingerprint">
+    Pasa tu propio `asset_id` para que los resultados se vinculen a tu sistema.
+  </Card>
+  <Card title="Acotar la búsqueda" icon="search">
+    Usa `asset_class` o `asset_ids` para mantener la búsqueda vinculada al cliente o grupo correcto.
+  </Card>
+</Columns>
+
+<Note>
+  El SDK solo expone términos de sf-voice. El mapeo específico del proveedor ocurre en el backend.
+</Note>
+
+<Card title="¿Nuevo en sf-voice media?" icon="sparkles" href="/es/introduction">
+  Empieza con la visión general del producto antes de usar la referencia del SDK.
+</Card>
+
+## Instalación
+
+<CodeGroup>
+```sh pnpm
+pnpm add @sf-voice/media@latest
+```
+
+```sh npm
+npm install @sf-voice/media@latest
+```
+
+```sh bun
+bun install @sf-voice/media@latest
+```
+</CodeGroup>
+
+## Crear un cliente
+
+```ts
+import { SfVoiceMedia } from "@sf-voice/media";
+
+const client = new SfVoiceMedia({
+  baseUrl: "https://api.sf-voice.com",
+  apiKey: process.env.SF_VOICE_API_KEY!,
+  timeoutMs: 30_000,
+});
+```
+
+| Opción | Obligatorio | Descripción |
+| --- | ---: | --- |
+| `baseUrl` | Sí | URL base de la API de sf-voice media. |
+| `apiKey` | Sí | Clave de API enviada como cabecera `X-API-Key`. |
+| `timeoutMs` | No | Tiempo de espera por solicitud en milisegundos. Por defecto `30_000`. |
+
+## Campos principales
+
+| Campo | Descripción |
+| --- | --- |
+| `asset_id` | Tu ID único para el recurso multimedia. Obligatorio al ingerir. |
+| `asset_class` | Grupo lógico opcional, como un cliente, workspace, proyecto o repositorio. Úsalo para acotar la búsqueda. |
+| `types` | Superficies multimedia opcionales a indexar o buscar: `"video"`, `"audio"`, `"transcript"`. |
+| `metadata` | Metadatos planos opcionales de clave/valor. Los valores deben ser cadenas, números o booleanos. |
+| `threshold` | Puntuación mínima de búsqueda opcional de `0.0` a `1.0`. Valores más altos devuelven menos resultados, pero más fiables. |
+
+## Cómo elegir `asset_class`
+
+Usa `asset_class` para el límite dentro del cual tu producto debe buscar por defecto.
+Para la mayoría de productos orientados al cliente, ese es el cliente final, workspace, proyecto,
+repositorio o colección.
+
+Buenos ejemplos de `asset_class`:
+
+- `customer_acme`
+- `workspace_123`
+- `project_onboarding`
+- `repo_mobile_app`
+
+<Warning>
+  No dependas de la búsqueda global para flujos orientados al cliente, a menos que cada usuario tenga permiso para buscar en todos los recursos indexados.
+</Warning>
+
+## Flujo de extremo a extremo
+
+<Steps>
+  <Step title="Enviar un recurso">
+    ```ts
+    const ingest = await client.ingest({
+      source: "url",
+      asset_id: "video_123",
+      asset_class: "customer_acme",
+      url: "https://example.com/recording.mp4",
+      media_type: "video",
+      types: ["video", "audio", "transcript"],
+      metadata: {
+        title: "product demo",
+        customer_id: "acme",
+      },
+    });
+    ```
+  </Step>
+
+  <Step title="Esperar la indexación">
+    ```ts
+    const task = await client.pollTask(ingest.task_id, {
+      intervalMs: 2_000,
+      timeoutMs: 120_000,
+    });
+
+    if (task.status === "failed") {
+      throw new Error(task.error ?? "ingest task failed");
+    }
+    ```
+  </Step>
+
+  <Step title="Buscar en el contenido indexado">
+    ```ts
+    const search = await client.search({
+      query: "where does the customer mention pricing?",
+      asset_class: "customer_acme",
+      types: ["transcript"],
+      threshold: 0.7,
+      limit: 10,
+    });
+
+    console.log(search.results);
+    ```
+  </Step>
+</Steps>
+
+## Uso en navegador y servidor
+
+El SDK funciona en cualquier entorno donde el runtime proporcione `fetch`, `FormData` y `Blob`.
+
+| Runtime | Fuente de ingestión recomendada |
+| --- | --- |
+| App de navegador | `source: "file"` para subidas directas desde inputs de archivo. |
+| Servicio backend | `source: "url"` o `source: "s3"` cuando el contenido ya esté almacenado. |
+| Runtime worker | `source: "url"` o `source: "file"` según las API de cuerpo de solicitud disponibles. |
+
+<Note>
+  Para archivos grandes, prefiere subir el contenido primero a tu capa de almacenamiento e ingerirlo por URL o clave de S3.
+</Note>
+
+## Ingestión
+
+`ingest(request)` envía contenido multimedia para indexación y devuelve inmediatamente un ID de tarea.
+
+### Entrada
+
+Campos comunes:
+
+| Campo | Obligatorio | Descripción |
+| --- | ---: | --- |
+| `asset_id` | Sí | Tu ID único para el recurso. |
+| `asset_class` | No | Grupo lógico para el recurso. La búsqueda puede usarlo más adelante como ámbito. |
+| `media_type` | No | `"video"` o `"audio"`. |
+| `types` | No | Superficies a indexar: `"video"`, `"audio"`, `"transcript"`. |
+| `metadata` | No | Metadatos planos de clave/valor para tu propia correlación. |
+
+Campos específicos de la fuente:
+
+| Fuente | Campos obligatorios | Descripción |
+| --- | --- | --- |
+| `url` | `url` | Ingerir desde una URL pública o accesible desde el backend. |
+| `s3` | `s3_key` | Ingerir desde una clave de S3 ya conectada a sf-voice. |
+| `file` | `file`, `filename` | Subir un `Blob`, `ArrayBuffer` o `Uint8Array` directamente. |
+
+### Ejemplos
+
+<CodeGroup>
+```ts URL
+const ingest = await client.ingest({
+  source: "url",
+  asset_id: "video_123",
+  asset_class: "customer_acme",
+  url: "https://example.com/recording.mp4",
+  media_type: "video",
+  types: ["video", "audio", "transcript"],
+});
+```
+
+```ts S3
+const ingest = await client.ingest({
+  source: "s3",
+  asset_id: "support_call_456",
+  asset_class: "customer_acme",
+  s3_key: "uploads/customer_acme/support_call_456.mp3",
+  media_type: "audio",
+  types: ["audio", "transcript"],
+});
+```
+
+```ts File
+const file = await input.files?.[0]?.arrayBuffer();
+if (!file) throw new Error("missing file");
+
+const ingest = await client.ingest({
+  source: "file",
+  asset_id: "browser_upload_789",
+  asset_class: "customer_acme",
+  file,
+  filename: "demo.mp4",
+  content_type: "video/mp4",
+  media_type: "video",
+  types: ["video", "audio", "transcript"],
+});
+```
+</CodeGroup>
+
+### Salida
+
+```ts
+type IngestResponse = {
+  asset_id: string;
+  task_id: string;
+  status: "pending";
+};
+```
+
+```json
+{
+  "asset_id": "video_123",
+  "task_id": "task_abc123",
+  "status": "pending"
+}
+```
+
+## Tareas y sondeo
+
+Usa `getTask(taskId)` para obtener el estado de la tarea una vez. Usa `pollTask(taskId, options)` para
+esperar hasta que la tarea alcance `"ready"` o `"failed"`.
+
+```ts
+const task = await client.pollTask("task_abc123", {
+  intervalMs: 2_000,
+  timeoutMs: 120_000,
+});
+```
+
+```ts
+type Task = {
+  task_id: string;
+  asset_id: string;
+  asset_class?: string;
+  types: Array<"video" | "audio" | "transcript">;
+  status: "pending" | "indexing" | "ready" | "failed";
+  error?: string;
+  created_at: string;
+  completed_at?: string;
+};
+```
+
+## Búsqueda
+
+`search(request)` busca en el contenido indexado con lenguaje natural.
+
+<Warning>
+  Prefiere `asset_class` o `asset_ids` para búsquedas orientadas al cliente. Usa `scope: "all"` solo cuando quieras buscar intencionadamente en todos los recursos.
+</Warning>
+
+La búsqueda tiene tres modos de acotación:
+
+| Modo | Ejemplo | Úsalo cuando |
+| --- | --- | --- |
+| `asset_class` | `{ asset_class: "customer_acme" }` | Buscas en un cliente, workspace, proyecto o colección. |
+| `asset_ids` | `{ asset_ids: ["video_123"] }` | Buscas en un conjunto conocido de recursos. |
+| `scope: "all"` | `{ scope: "all" }` | Buscas intencionadamente en todos los recursos indexados. |
+
+### Entrada
+
+| Campo | Obligatorio | Descripción |
+| --- | ---: | --- |
+| `query` | Sí | Consulta de búsqueda en lenguaje natural. |
+| `types` | No | Qué superficies buscar: `"video"`, `"audio"`, `"transcript"`. |
+| `asset_ids` | No | Restringe la búsqueda a IDs de recursos de cliente específicos. |
+| `asset_class` | No | Restringe la búsqueda a un grupo lógico. Recomendado para búsqueda acotada al cliente. |
+| `scope` | No | Establece en `"all"` solo cuando busques intencionadamente en todos los recursos. |
+| `threshold` | No | Puntuación mínima de coincidencia de `0.0` a `1.0`. Por defecto el valor predeterminado de la API. |
+| `page` | No | Número de página. |
+| `limit` | No | Máximo de resultados por página. |
+
+### Ejemplos
+
+<CodeGroup>
+```ts Asset class
+const search = await client.search({
+  query: "refund policy",
+  asset_class: "customer_acme",
+  types: ["transcript"],
+});
+```
+
+```ts Specific assets
+const search = await client.search({
+  query: "installation steps",
+  asset_ids: ["video_123", "video_456"],
+  types: ["video", "transcript"],
+});
+```
+
+```ts All assets
+const search = await client.search({
+  query: "security review",
+  scope: "all",
+  types: ["transcript"],
+});
+```
+</CodeGroup>
+
+### Salida
+
+```ts
+type SearchResponse = {
+  results: Array<{
+    asset_id: string;
+    score: number;
+    start_ms: number;
+    end_ms: number;
+    match_type: "video" | "audio" | "transcript";
+    thumbnail_url?: string;
+  }>;
+  page_info: {
+    total: number;
+    page: number;
+    limit: number;
+    next_page_token?: string;
+  };
+};
+```
+
+```json
+{
+  "results": [
+    {
+      "asset_id": "video_123",
+      "score": 0.84,
+      "start_ms": 42000,
+      "end_ms": 58000,
+      "match_type": "transcript",
+      "thumbnail_url": "https://api.sf-voice.com/assets/video_123/thumb.jpg"
+    }
+  ],
+  "page_info": {
+    "total": 1,
+    "page": 1,
+    "limit": 10
+  }
+}
+```
+
+`start_ms` y `end_ms` son desplazamientos en milisegundos dentro del contenido de origen. Úsalos
+para saltar el reproductor directamente al momento coincidente.
+
+## Recursos
+
+```ts
+const assets = await client.listAssets({ page: 1, limit: 20 });
+const asset = await client.getAsset("video_123");
+await client.deleteAsset("video_123");
+```
+
+```ts
+type Asset = {
+  asset_id: string;
+  asset_class?: string;
+  media_type: "video" | "audio";
+  source_type: "url" | "s3" | "file";
+  types: Array<"video" | "audio" | "transcript">;
+  status: "pending" | "indexing" | "ready" | "failed";
+  metadata?: Record<string, string | number | boolean>;
+  duration_ms?: number;
+  created_at: string;
+  updated_at: string;
+};
+```
+
+## Errores
+
+Cada respuesta de API no 2xx lanza `SfVoiceMediaError`.
+
+```ts
+import { SfVoiceMediaError } from "@sf-voice/media";
+
+try {
+  await client.search({
+    query: "pricing",
+    asset_class: "customer_acme",
+  });
+} catch (error) {
+  if (error instanceof SfVoiceMediaError) {
+    console.error(error.code);
+    console.error(error.status);
+    console.error(error.message);
+  }
+  throw error;
+}
+```
+
+`SfVoiceMediaRequestTimeoutError` se lanza cuando una solicitud HTTP individual supera
+el tiempo de espera del cliente.
+
+`SfVoiceMediaPollTimeoutError` se lanza cuando `pollTask` supera su tiempo de espera de sondeo
+antes de que la tarea alcance `"ready"` o `"failed"`.
