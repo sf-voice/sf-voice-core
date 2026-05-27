@@ -1,7 +1,10 @@
 """
-Conan 2 recipe for sf_voice — header-only C++17 SDK for the sf-voice media API.
+Conan 2 recipe for sf_voice — header-only C++17 helper for the sf-voice media API.
 
-Usage (consumer):
+This is provided for convenience if you already use Conan. It is not published
+to any remote registry. Use it locally or via CMake FetchContent instead.
+
+Usage (local):
     conan install . --output-folder=build --build=missing
     cmake -B build -DCMAKE_TOOLCHAIN_FILE=build/conan_toolchain.cmake
     cmake --build build
@@ -17,10 +20,10 @@ class SfVoiceMediaConan(ConanFile):
     name        = "sf_voice"
     version     = "0.1.1"
     license     = "MIT"
-    description = "Header-only C++17 SDK for the sf-voice media API"
+    description = "Header-only C++17 helper for the sf-voice media API"
     url         = "https://github.com/sf-voice/sf-voice-core"
     homepage    = "https://sf-voice.com"
-    topics      = ("media", "video", "audio", "sdk", "http", "header-only")
+    topics      = ("media", "video", "audio", "http", "header-only")
 
     # header-only: no compiler/os/arch settings needed
     package_type = "header-library"

@@ -4,6 +4,12 @@ on:
    push:
       tags:
          - "elixir/v*"
+   workflow_dispatch:
+      inputs:
+         version:
+            description: "Version to publish (e.g. 0.1.1)"
+            required: true
+
 
 concurrency:
    group: publish-elixir-sdk-${{ github.ref }}
@@ -22,6 +28,14 @@ jobs:
       steps:
          - uses: actions/checkout@v4
 
+         - name: resolve version
+           run: |
+              if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+                echo "VERSION=${{ github.event.inputs.version }}" >> "$GITHUB_ENV"
+              else
+                echo "VERSION=${GITHUB_REF_NAME#elixir/v}" >> "$GITHUB_ENV"
+              fi
+
          - name: setup elixir + otp
            uses: erlef/setup-beam@v1
            with:
@@ -31,7 +45,7 @@ jobs:
          - name: verify tag version
            run: |
               set -euo pipefail
-              TAG_VERSION="${GITHUB_REF_NAME#elixir/v}"
+              TAG_VERSION="$VERSION"
               PACKAGE_VERSION="$(sed -n 's/.*@version "\([^"]*\)".*/\1/p' mix.exs | head -1)"
               if [ "$TAG_VERSION" != "$PACKAGE_VERSION" ]; then
                 echo "tag version $TAG_VERSION does not match mix.exs version $PACKAGE_VERSION"

@@ -4,6 +4,12 @@ on:
    push:
       tags:
          - "rust/v*"
+   workflow_dispatch:
+      inputs:
+         version:
+            description: "Version to publish (e.g. 0.1.1)"
+            required: true
+
 
 concurrency:
    group: publish-rust-sdk-${{ github.ref }}
@@ -19,6 +25,14 @@ jobs:
       steps:
          - uses: actions/checkout@v4
 
+         - name: resolve version
+           run: |
+              if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+                echo "VERSION=${{ github.event.inputs.version }}" >> "$GITHUB_ENV"
+              else
+                echo "VERSION=${GITHUB_REF_NAME#rust/v}" >> "$GITHUB_ENV"
+              fi
+
          - name: install rust toolchain
            uses: dtolnay/rust-toolchain@stable
            with:
@@ -27,7 +41,7 @@ jobs:
          - name: verify tag version
            run: |
               set -euo pipefail
-              TAG_VERSION="${GITHUB_REF_NAME#rust/v}"
+              TAG_VERSION="$VERSION"
               PACKAGE_VERSION="$(awk -F'"' '/^version = / { print $2; exit }' rust/Cargo.toml)"
               if [ "$TAG_VERSION" != "$PACKAGE_VERSION" ]; then
                 echo "tag version $TAG_VERSION does not match Cargo.toml version $PACKAGE_VERSION"

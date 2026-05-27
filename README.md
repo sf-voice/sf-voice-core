@@ -12,7 +12,6 @@
   - [Python](python#installation)
   - [Go](go#installation)
   - [Rust](rust#installation)
-  - [C++](cpp#installation)
   - [Java](java#installation)
   - [Kotlin](kotlin#installation)
   - [Elixir](elixir/sf_voice#installation)
@@ -36,7 +35,6 @@ artifact.
 | Python | [`sf-voice-media`](python) | `pip install sf-voice-media==0.1.1` |
 | Go | [`github.com/sf-voice/sf-voice-media-go`](go) | `go get github.com/sf-voice/sf-voice-media-go@v0.1.1` |
 | Rust | [`sf_voice_media`](rust) | `cargo add sf_voice_media@0.1.1` |
-| C++ | [`cpp/`](cpp) | use Conan package `sf_voice/0.1.1` or include this repo's `cpp/` package from your CMake build |
 | Java | [`java/`](java) | build the local jar with `(cd java && gradle jar)`, then depend on `com.sfvoice:sf-voice-media-java:0.1.1` |
 | Kotlin | [`kotlin/`](kotlin) | build the local jar with `(cd kotlin && gradle jar)`, then depend on `com.sfvoice:sf-voice-media-kotlin:0.1.1` |
 | Elixir | [`elixir/sf_voice`](elixir/sf_voice) | add `{:sf_voice, "~> 0.1.1"}` to `deps` |
@@ -50,7 +48,7 @@ Start with the full examples index in [`apps/EXAMPLES.md`](apps/EXAMPLES.md).
 | TypeScript / JavaScript | [`apps/fifteenlabs`](apps/fifteenlabs) | browser ingest/search demo |
 | Python | [`apps/cohere`](apps/cohere) | sync and async SDK CLI usage |
 | Go | [`apps/livecart`](apps/livecart) | ingest, poll, search, asset listing, and soft delete |
-| C++ | [`apps/chips`](apps/chips) | CMake CLI demo with local or fetched C++ dependencies |
+| C++ | [`apps/chips`](apps/chips) | example: calling the API from C++ with CPR and nlohmann/json |
 | Java | [`apps/sf-voice/java-example`](apps/sf-voice/java-example) | Spring Boot REST proxy using the Java SDK |
 | Kotlin | [`apps/sf-voice/kotlin-example`](apps/sf-voice/kotlin-example) | Ktor REST proxy using the Kotlin SDK |
 | Rust | [`rust`](rust) | SDK source package; no standalone app example yet |
@@ -77,8 +75,9 @@ infra/
   dev/                 ─ docker-compose for local MySQL
   deploy/              ─ prod compose files, Caddyfile, bootstrap scripts
 ts/, python/, go/,
-rust/, cpp/, java/,
+rust/, java/,
 kotlin/, elixir/       ─ language SDKs for the sf-voice media API
+cpp/                   ─ C++ example (single-header helper, not a published package)
 docs/                  ─ misc operational notes (telnyx setup, etc)
 mise.toml              ─ tool versions + tasks for every stack in here
 .env                   ─ single source of truth for every var, every app

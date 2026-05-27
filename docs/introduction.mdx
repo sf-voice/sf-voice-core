@@ -1,9 +1,9 @@
 ---
 title: "Introduction"
-description: "Media search APIs and SDKs for voice AI products."
+description: "What's San Francisco Voice Company"
 ---
 
-San Francisco Voice Company builds media search APIs and SDKs for voice AI products.
+**We make voice AI better.**
 
 Our first feature is a search engine for media. Ingest audio or video, search it with natural language, and use the returned timestamps to jump back into the recording. You do not need to build your own transcript store, embedding pipeline, or media search layer first.
 
@@ -11,13 +11,13 @@ Our first feature is a search engine for media. Ingest audio or video, search it
   These docs cover version `0.1.1`. We are iterating quickly, so pin your SDK version and expect breaking changes between versions until the API settles.
 </Warning>
 
-Search is where we start. Next up is benchmarking and debugging tooling for voice AI systems.
+Search is where we start. Next up is benchmarking and toolings for voice AI systems.
 
-## What you can build with it
+## What you can build with our media SDKs. 
 
-- Search customer calls by topic, objection, or feature request.
+- Search all audio by topic, objection, or feature request as humanly possible **"Where does customers got impatient?"**.
 - Find calls where your AI interrupted the caller, spoke too slowly, or repeated itself.
-- Scope each end customer to their own calls.
+- Scope each end customer to their own audio.
 - Build compliance review, QA workflows, or knowledge bases on top of your call archive.
 
 ## The core model
@@ -35,7 +35,7 @@ Assets carry IDs and scope from your own system.
 
 <Steps>
   <Step title="Ingest">
-    Send a URL, S3 key, or file upload with your `asset_id`. The API returns a `task_id` immediately.
+    Send a URL, authenticate us to your bucket via S3 key, or file upload with your `asset_id`. The API returns a `task_id` immediately.
   </Step>
   <Step title="Index">
     Poll the task until it reaches `ready`. Indexing runs in the background.
@@ -61,7 +61,7 @@ Regional processing:
 
 ## SDKs
 
-Eight SDKs, with language-specific clients for the same media API.
+Seven installable SDKs. Open source at [github.com/sf-voice/sf-voice-core](https://github.com/sf-voice/sf-voice-core).
 
 <CardGroup cols={4}>
   <Card title="TypeScript" icon="square-js" href="/sdks/typescript" />
@@ -71,10 +71,9 @@ Eight SDKs, with language-specific clients for the same media API.
   <Card title="Rust" icon="gear" href="/sdks/rust" />
   <Card title="Java" icon="java" href="/sdks/java" />
   <Card title="Kotlin" icon="code" href="/sdks/kotlin" />
-  <Card title="C++" icon="code" href="/sdks/cpp" />
 </CardGroup>
 
-SDKs are open source: [github.com/sf-voice/sf-voice-core](https://github.com/sf-voice/sf-voice-core)
+Building in C++? See the [C++ example](/sdks/cpp) — a single-header helper you can copy into your project.
 
 ## Start here
 

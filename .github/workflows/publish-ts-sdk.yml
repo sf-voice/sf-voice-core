@@ -4,6 +4,12 @@ on:
    push:
       tags:
          - "ts/v*"
+   workflow_dispatch:
+      inputs:
+         version:
+            description: "Version to publish (e.g. 0.1.1)"
+            required: true
+
 
 concurrency:
    group: publish-ts-sdk-${{ github.ref }}
@@ -19,6 +25,14 @@ jobs:
          id-token: write
       steps:
          - uses: actions/checkout@v4
+
+         - name: resolve version
+           run: |
+              if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+                echo "VERSION=${{ github.event.inputs.version }}" >> "$GITHUB_ENV"
+              else
+                echo "VERSION=${GITHUB_REF_NAME#ts/v}" >> "$GITHUB_ENV"
+              fi
 
          - name: setup node
            uses: actions/setup-node@v4
@@ -37,7 +51,7 @@ jobs:
          - name: verify tag version
            run: |
               set -euo pipefail
-              TAG_VERSION="${GITHUB_REF_NAME#ts/v}"
+              TAG_VERSION="$VERSION"
               PACKAGE_VERSION="$(node -p "require('./ts/sdk/package.json').version")"
               if [ "$TAG_VERSION" != "$PACKAGE_VERSION" ]; then
                 echo "tag version $TAG_VERSION does not match package.json version $PACKAGE_VERSION"
@@ -52,4 +66,6 @@ jobs:
 
          - name: publish
            working-directory: ts/sdk
-           run: npm publish --access public
+           env:
+              NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
+           run: npm publish --provenance --access public

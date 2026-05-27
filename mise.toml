@@ -183,15 +183,15 @@ echo "[ci:sdk:kotlin] compileKotlin"
 gradle compileKotlin --no-daemon --quiet
 """
 
-[tasks."ci:sdk:cpp"]
-description = "sdk ci: c++ — cmake configure (fetches nlohmann_json + cpr on first run)"
+[tasks."ci:cpp-example"]
+description = "c++ example: cmake configure check (fetches nlohmann_json + cpr on first run)"
 run = """
 set -e
 if ! command -v cmake >/dev/null 2>&1; then
-  echo "[ci:sdk:cpp] cmake not found — install with: brew install cmake" >&2
+  echo "[ci:cpp-example] cmake not found — install with: brew install cmake" >&2
   exit 1
 fi
-echo "[ci:sdk:cpp] cmake configure"
+echo "[ci:cpp-example] cmake configure"
 cmake -S cpp -B cpp/build \
   -DCMAKE_BUILD_TYPE=Release \
   -DSF_VOICE_EXAMPLES=OFF \
@@ -200,7 +200,7 @@ cmake -S cpp -B cpp/build \
 """
 
 [tasks."ci:sdk"]
-description = "sdk ci: all sdks — ts, go, python, rust, java, kotlin, cpp"
+description = "sdk ci: all sdks — ts, go, python, rust, java, kotlin"
 run = """
 set -e
 mise run ci:sdk:ts
@@ -209,7 +209,6 @@ mise run ci:sdk:python
 mise run ci:sdk:rust
 mise run ci:sdk:java
 mise run ci:sdk:kotlin
-mise run ci:sdk:cpp
 echo "[ci:sdk] all sdk checks passed."
 """
 

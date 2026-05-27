@@ -4,6 +4,12 @@ on:
    push:
       tags:
          - "go/v*"
+   workflow_dispatch:
+      inputs:
+         version:
+            description: "Version to publish (e.g. 0.1.1)"
+            required: true
+
 
 concurrency:
    group: publish-go-sdk-${{ github.ref }}
@@ -17,6 +23,14 @@ jobs:
          contents: read
       steps:
          - uses: actions/checkout@v4
+
+         - name: resolve version
+           run: |
+              if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+                echo "VERSION=${{ github.event.inputs.version }}" >> "$GITHUB_ENV"
+              else
+                echo "VERSION=${GITHUB_REF_NAME#go/v}" >> "$GITHUB_ENV"
+              fi
 
          - name: setup go
            uses: actions/setup-go@v5
