@@ -1,0 +1,116 @@
+---
+title: "Elixir"
+description: "用于媒体 API 的 Elixir SDK。"
+---
+
+`:sf_voice` —— 基于 `Req`。所有函数返回 `{:ok, result}` 或 `{:error, %SfVoiceMedia.Error{}}`。
+
+在 Phoenix 或 Oban 代码中使用此 SDK，其中对 `{:ok, _}` / `{:error, _}` 的模式匹配能很好地融入应用的其余部分。
+
+## 安装
+
+添加到你的 `mix.exs`：
+
+```elixir
+def deps do
+  [
+    {:sf_voice, "~> 0.1.1"}
+  ]
+end
+```
+
+然后获取依赖：
+
+```sh
+mix deps.get
+```
+
+## 创建客户端
+
+```elixir
+client = SfVoiceMedia.new("https://api.sf-voice.com",
+  api_key: System.get_env("SF_VOICE_API_KEY")
+)
+```
+
+`new/2` 接受 `http_opts` 作为关键字列表。这些选项会直接传给 `Req` —— 用于自定义超时、代理或重试配置。
+
+## 摄入
+
+```elixir
+{:ok, resp} = SfVoiceMedia.ingest(client, %{
+  source: "url",
+  asset_id: "call_001",
+  asset_class: "customer_acme",
+  url: "https://storage.example.com/calls/001.mp3",
+  media_type: "audio",
+  types: ["audio", "transcript"],
+  metadata: %{caller: "+14155550199"}
+})
+
+task_id = resp.task_id
+```
+
+请求的键是原子。响应的键以字符串形式返回（JSON 约定）。
+
+## 等待索引完成
+
+```elixir
+# poll_task!/3 在超时或失败时抛出异常
+task = SfVoiceMedia.poll_task!(client, task_id, interval_ms: 2_000, timeout_ms: 120_000)
+```
+
+如果任务失败，`poll_task!` 会抛出 `%SfVoiceMedia.Error{}`；如果在 `timeout_ms` 内未完成，则抛出超时错误。
+
+如果你更喜欢用模式匹配而非异常：
+
+```elixir
+case SfVoiceMedia.get_task(client, task_id) do
+  {:ok, %{status: "ready"}} -> :indexed
+  {:ok, %{status: "failed", error: reason}} -> {:error, reason}
+  {:ok, _} -> :still_running
+  {:error, err} -> {:error, err}
+end
+```
+
+## 搜索
+
+```elixir
+{:ok, result} = SfVoiceMedia.search(client, %{
+  query: "customer asks about pricing",
+  asset_class: "customer_acme",
+  types: ["transcript"],
+  threshold: 0.7,
+  limit: 10
+})
+
+Enum.each(result.results, fn r ->
+  IO.puts("#{r.asset_id} #{r.start_ms}-#{r.end_ms} (#{r.score})")
+end)
+```
+
+## 资产
+
+```elixir
+# 列表
+{:ok, resp} = SfVoiceMedia.list_assets(client, %{page: 1, limit: 20})
+
+# 单个
+{:ok, asset} = SfVoiceMedia.get_asset(client, "call_001")
+
+# 删除
+{:ok, _} = SfVoiceMedia.delete_asset(client, "call_001")
+```
+
+## 错误
+
+`%SfVoiceMedia.Error{}` 有三个字段：`code`、`message`、`status`。
+
+```elixir
+case SfVoiceMedia.search(client, %{query: "...", asset_class: "customer_acme"}) do
+  {:ok, result} -> result
+  {:error, %SfVoiceMedia.Error{code: code, message: msg}} ->
+    Logger.error("search failed: #{code} — #{msg}")
+    {:error, code}
+end
+```

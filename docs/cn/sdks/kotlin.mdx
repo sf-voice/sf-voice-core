@@ -1,0 +1,105 @@
+---
+title: "Kotlin"
+description: "用于搜索 API 的 Kotlin SDK。基于 Ktor 的原生协程。"
+---
+
+`com.sfvoice:sf-voice-media-kotlin` —— 基于 Ktor 的原生协程 Kotlin 客户端。所有方法都是 `suspend` 函数。
+
+在希望取消跟随协程作用域的 Kotlin 服务中使用此 SDK。
+
+## 安装
+
+```kotlin
+// build.gradle.kts
+dependencies {
+    implementation("com.sfvoice:sf-voice-media-kotlin:0.1.1")
+}
+```
+
+## 创建客户端
+
+```kotlin
+import com.sfvoice.media.SfVoiceMediaClient
+
+val client = SfVoiceMediaClient(
+    apiKey = System.getenv("SF_VOICE_API_KEY"),
+    baseUrl = "https://api.sf-voice.com"
+)
+```
+
+## 摄入
+
+```kotlin
+import com.sfvoice.media.IngestRequest
+
+val resp = client.ingest(
+    IngestRequest(
+        source = "url",
+        assetId = "call_001",
+        assetClass = "customer_acme",
+        url = "https://storage.example.com/calls/001.mp3",
+        mediaType = "audio",
+        types = listOf("audio", "transcript")
+    )
+)
+val taskId = resp.taskId
+```
+
+## 等待索引完成
+
+```kotlin
+import com.sfvoice.media.SfVoiceMediaException
+
+val task = client.pollTask(taskId, intervalMs = 2_000, timeoutMs = 120_000)
+
+if (task.status == "failed") {
+    error("indexing failed: ${task.error}")
+}
+```
+
+`pollTask` 在 API 错误或超时时会抛出 `SfVoiceMediaException`。
+
+## 搜索
+
+```kotlin
+import com.sfvoice.media.SearchBody
+
+val resp = client.search(
+    SearchBody(
+        query = "customer asks about pricing",
+        assetClass = "customer_acme",
+        types = listOf("transcript"),
+        threshold = 0.7f,
+        limit = 10
+    )
+)
+
+resp.results.forEach { r ->
+    println("${r.assetId} ${r.startMs}–${r.endMs}ms (${r.score})")
+}
+```
+
+## 资产
+
+```kotlin
+// 列表
+val resp = client.listAssets(page = 1, limit = 20)
+
+// 单个
+val asset = client.getAsset("call_001")
+
+// 删除
+client.deleteAsset("call_001")
+```
+
+## 错误
+
+```kotlin
+import com.sfvoice.media.SfVoiceMediaException
+
+try {
+    client.search(SearchBody(query = "...", assetClass = "customer_acme"))
+} catch (e: SfVoiceMediaException) {
+    println("${e.code} ${e.status}: ${e.message}")
+}
+```

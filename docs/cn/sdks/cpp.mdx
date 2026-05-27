@@ -1,0 +1,129 @@
+---
+title: "C++"
+description: "用于搜索和摄入 API 的 C++ SDK。单头文件，基于 std::future，C++17。"
+---
+
+基于 [CPR](https://github.com/libcpr/cpr) 和 [nlohmann/json](https://github.com/nlohmann/json) 构建的单头文件 C++17 SDK。所有方法返回 `std::future<Result<T>>`。
+
+当你希望将 HTTP 客户端保持在 C++ 中，并通过 `Result<T>` 类型（而非异常）处理失败时，使用此 SDK。
+
+## 安装
+
+### CMake (FetchContent)
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(
+  sf_voice
+  GIT_REPOSITORY https://github.com/sf-voice/sf-voice-core
+  GIT_TAG        v0.1.1
+  SOURCE_SUBDIR  cpp
+)
+FetchContent_MakeAvailable(sf_voice)
+
+target_link_libraries(your_target PRIVATE sf_voice)
+```
+
+### 手动安装
+
+将 `cpp/include/sf_voice/client.hpp` 复制到你的项目中。确保 CPR 和 nlohmann/json 在你的 include 路径上。
+
+## 创建客户端
+
+```cpp
+#include <sf_voice/client.hpp>
+
+sfvoice::SfVoiceMedia client(
+    "https://api.sf-voice.com",
+    std::getenv("SF_VOICE_API_KEY")
+);
+```
+
+## 摄入
+
+```cpp
+sfvoice::IngestRequest req;
+req.source    = "url";
+req.asset_id  = "call_001";
+req.asset_class = "customer_acme";
+req.url       = "https://storage.example.com/calls/001.mp3";
+req.media_type = "audio";
+req.types     = {"audio", "transcript"};
+
+auto future = client.ingest(req);
+auto result = future.get();
+
+if (!result) {
+    std::cerr << "ingest failed: " << result.error().message << "\n";
+    return;
+}
+
+auto task_id = result.value().task_id;
+```
+
+## 等待索引完成
+
+```cpp
+auto task_future = client.poll_task(task_id);
+auto task_result = task_future.get();
+
+if (!task_result) {
+    std::cerr << "polling failed: " << task_result.error().message << "\n";
+    return;
+}
+
+auto task = task_result.value();
+if (task.status == "failed") {
+    std::cerr << "indexing failed: " << task.error.value_or("unknown") << "\n";
+}
+```
+
+## 搜索
+
+```cpp
+sfvoice::SearchRequest req;
+req.query       = "customer asks about pricing";
+req.asset_class = "customer_acme";
+req.types       = {"transcript"};
+req.threshold   = 0.7f;
+req.limit       = 10;
+
+auto future = client.search(req);
+auto result = future.get();
+
+if (result) {
+    for (const auto& r : result.value().results) {
+        std::cout << r.asset_id << " "
+                  << r.start_ms << "–" << r.end_ms << "ms "
+                  << "(" << r.score << ")\n";
+    }
+}
+```
+
+## 资产
+
+```cpp
+// 列表
+auto list = client.list_assets().get();
+
+// 单个
+auto asset = client.get_asset("call_001").get();
+
+// 删除
+auto del = client.delete_asset("call_001").get();
+```
+
+## Result 类型
+
+`Result<T>` 是一个带标签的联合体：
+
+```cpp
+auto result = client.ingest(req).get();
+
+if (result) {
+    // 成功：result.value() 是响应
+} else {
+    // 失败：result.error() 是 SfVoiceError { code, message, status }
+    std::cerr << result.error().code << ": " << result.error().message << "\n";
+}
+```

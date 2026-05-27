@@ -1,0 +1,116 @@
+---
+title: "Elixir"
+description: "SDK Elixir per l'API media."
+---
+
+`:sf_voice` — basato su `Req`. Tutte le funzioni restituiscono `{:ok, result}` o `{:error, %SfVoiceMedia.Error{}}`.
+
+Usa questo SDK in codice Phoenix o Oban dove il pattern matching su `{:ok, _}` / `{:error, _}` si integra con il resto dell'applicazione.
+
+## Installazione
+
+Aggiungi al tuo `mix.exs`:
+
+```elixir
+def deps do
+  [
+    {:sf_voice, "~> 0.1.1"}
+  ]
+end
+```
+
+Poi recupera le dipendenze:
+
+```sh
+mix deps.get
+```
+
+## Creare un client
+
+```elixir
+client = SfVoiceMedia.new("https://api.sf-voice.com",
+  api_key: System.get_env("SF_VOICE_API_KEY")
+)
+```
+
+`new/2` accetta `http_opts` come keyword list. Queste vengono passate direttamente a `Req` — usale per timeout personalizzati, proxy o configurazione dei retry.
+
+## Ingestione
+
+```elixir
+{:ok, resp} = SfVoiceMedia.ingest(client, %{
+  source: "url",
+  asset_id: "call_001",
+  asset_class: "customer_acme",
+  url: "https://storage.example.com/calls/001.mp3",
+  media_type: "audio",
+  types: ["audio", "transcript"],
+  metadata: %{caller: "+14155550199"}
+})
+
+task_id = resp.task_id
+```
+
+Le chiavi della richiesta sono atomi. Le chiavi della risposta tornano come stringhe (convenzione JSON).
+
+## Attendere l'indicizzazione
+
+```elixir
+# poll_task!/3 solleva un'eccezione in caso di timeout o fallimento
+task = SfVoiceMedia.poll_task!(client, task_id, interval_ms: 2_000, timeout_ms: 120_000)
+```
+
+`poll_task!` solleva `%SfVoiceMedia.Error{}` se il task fallisce, o un errore di timeout se non si completa entro `timeout_ms`.
+
+Se preferisci il pattern matching alle eccezioni:
+
+```elixir
+case SfVoiceMedia.get_task(client, task_id) do
+  {:ok, %{status: "ready"}} -> :indexed
+  {:ok, %{status: "failed", error: reason}} -> {:error, reason}
+  {:ok, _} -> :still_running
+  {:error, err} -> {:error, err}
+end
+```
+
+## Ricerca
+
+```elixir
+{:ok, result} = SfVoiceMedia.search(client, %{
+  query: "customer asks about pricing",
+  asset_class: "customer_acme",
+  types: ["transcript"],
+  threshold: 0.7,
+  limit: 10
+})
+
+Enum.each(result.results, fn r ->
+  IO.puts("#{r.asset_id} #{r.start_ms}-#{r.end_ms} (#{r.score})")
+end)
+```
+
+## Asset
+
+```elixir
+# elenco
+{:ok, resp} = SfVoiceMedia.list_assets(client, %{page: 1, limit: 20})
+
+# singolo
+{:ok, asset} = SfVoiceMedia.get_asset(client, "call_001")
+
+# elimina
+{:ok, _} = SfVoiceMedia.delete_asset(client, "call_001")
+```
+
+## Errori
+
+`%SfVoiceMedia.Error{}` ha tre campi: `code`, `message`, `status`.
+
+```elixir
+case SfVoiceMedia.search(client, %{query: "...", asset_class: "customer_acme"}) do
+  {:ok, result} -> result
+  {:error, %SfVoiceMedia.Error{code: code, message: msg}} ->
+    Logger.error("search failed: #{code} — #{msg}")
+    {:error, code}
+end
+```

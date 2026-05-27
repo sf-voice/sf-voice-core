@@ -1,0 +1,63 @@
+---
+title: "SDK 概览"
+description: "面向媒体 API 的 SDK。"
+---
+
+SDK 在 [github.com/sf-voice/sf-voice-core](https://github.com/sf-voice/sf-voice-core) 上开源。
+
+本文档对应 SDK 版本 `0.1.1`。我们迭代很快，请固定你的 SDK 版本，并预期在 API 稳定之前各版本间会出现破坏性变更。
+
+SDK 涵盖核心操作：`ingest`、`getTask`、`pollTask`、`listAssets`、`getAsset`、`deleteAsset`、`search`。方法名遵循各语言的命名约定。
+
+<CardGroup cols={2}>
+  <Card title="TypeScript" icon="square-js" href="/sdks/typescript">
+    `@sf-voice/media` —— Node.js、Bun、Deno、浏览器
+  </Card>
+  <Card title="Python" icon="python" href="/sdks/python">
+    `sf-voice-media` —— 同步与异步客户端
+  </Card>
+  <Card title="Elixir" icon="code" href="/sdks/elixir">
+    `:sf_voice` —— 基于 `Req`，返回 `{:ok, _}` 或 `{:error, _}`
+  </Card>
+  <Card title="Go" icon="code" href="/sdks/go">
+    `sfvoice` —— 使用 `context.Context` 的惯用 Go 风格
+  </Card>
+  <Card title="Rust" icon="gear" href="/sdks/rust">
+    `sf_voice_media` —— 基于 `tokio` 的异步，构建者模式
+  </Card>
+  <Card title="Java" icon="java" href="/sdks/java">
+    `com.sfvoice:sf-voice-media-java` —— 同步，Java 17+
+  </Card>
+  <Card title="Kotlin" icon="code" href="/sdks/kotlin">
+    `com.sfvoice:sf-voice-media-kotlin` —— 基于 Ktor 的原生协程
+  </Card>
+  <Card title="C++" icon="code" href="/sdks/cpp">
+    单头文件 —— 基于 `std::future`，CPR + nlohmann
+  </Card>
+</CardGroup>
+
+## 鉴权
+
+SDK 通过 `X-API-Key` 请求头发送你的 API 密钥。请将其放在环境变量中，避免提交到源代码版本控制。
+
+## 错误处理
+
+SDK 使用三类错误：
+
+| 错误 | 何时抛出 |
+| --- | --- |
+| API 错误 | 服务器返回非 2xx 响应。携带 `code`、`message` 和 `status`。 |
+| 请求超时 | 单次 HTTP 请求超过了配置的超时。 |
+| 轮询超时 | `pollTask` 在任务到达 `ready` 或 `failed` 之前耗尽时间。 |
+
+API 错误码：
+
+| 代码 | 含义 |
+| --- | --- |
+| `unauthorized` | API 密钥无效或缺失。 |
+| `not_found` | 资产或任务 ID 不存在。 |
+| `bucket_not_connected` | 在未配置 bucket 时使用了 S3 源。 |
+| `s3_access_denied` | SDK 无法读取指定的 S3 key。 |
+| `unsupported_format` | 文件类型不支持建立索引。 |
+| `file_too_large` | 上传超过大小限制。 |
+| `rate_limited` | 请求过多。请退避后重试。 |

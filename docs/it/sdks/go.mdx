@@ -1,0 +1,118 @@
+---
+title: "Go"
+description: "SDK Go per l'API del motore di ricerca. Go idiomatico con supporto del context."
+---
+
+Package `sfvoice` — ogni richiesta accetta un `context.Context`, così la cancellazione e i deadline restano nella tua applicazione.
+
+## Installazione
+
+```sh
+go get github.com/sf-voice/sf-voice-media-go@v0.1.1
+```
+
+## Creare un client
+
+```go
+import sfvoice "github.com/sf-voice/sf-voice-media-go"
+
+client := sfvoice.New(
+    "https://api.sf-voice.com",
+    os.Getenv("SF_VOICE_API_KEY"),
+)
+```
+
+`http.Client` personalizzato:
+
+```go
+client := sfvoice.NewWithHTTPClient(baseURL, apiKey, &http.Client{
+    Timeout: 30 * time.Second,
+})
+```
+
+## Ingestione
+
+```go
+resp, err := client.Ingest(ctx, &sfvoice.IngestRequest{
+    Source:     "url",
+    AssetID:    "call_001",
+    AssetClass: "customer_acme",
+    URL:        "https://storage.example.com/calls/001.mp3",
+    MediaType:  "audio",
+    Types:      []string{"audio", "transcript"},
+})
+if err != nil {
+    return err
+}
+taskID := resp.TaskID
+```
+
+## Attendere l'indicizzazione
+
+```go
+task, err := client.PollTask(ctx, taskID, &sfvoice.PollOptions{
+    IntervalMs: 2000,
+    TimeoutMs:  120_000,
+})
+if err != nil {
+    return err // *sfvoice.PollTimeoutError in caso di timeout
+}
+
+if task.Status == sfvoice.TaskStatusFailed {
+    return fmt.Errorf("indexing failed: %s", task.Error)
+}
+```
+
+`PollOptions` è opzionale — passa `nil` per i valori predefiniti (intervallo 1500ms, timeout 120s).
+
+Distinguere un errore di timeout:
+
+```go
+var pollErr *sfvoice.PollTimeoutError
+if errors.As(err, &pollErr) {
+    log.Printf("timed out polling task %s", pollErr.TaskID)
+}
+```
+
+## Ricerca
+
+```go
+resp, err := client.Search(ctx, &sfvoice.SearchRequest{
+    Query:      "customer asks about pricing",
+    AssetClass: "customer_acme",
+    Types:      []string{"transcript"},
+    Threshold:  0.7,
+    Limit:      10,
+})
+if err != nil {
+    return err
+}
+
+for _, r := range resp.Results {
+    fmt.Printf("%s %d–%dms (%.2f)\n", r.AssetID, r.StartMs, r.EndMs, r.Score)
+}
+```
+
+## Asset
+
+```go
+// elenco
+resp, err := client.ListAssets(ctx, &sfvoice.ListAssetsParams{Page: 1, Limit: 20})
+
+// singolo
+asset, err := client.GetAsset(ctx, "call_001")
+
+// elimina
+err = client.DeleteAsset(ctx, "call_001")
+```
+
+## Errori
+
+Le risposte API non-2xx restituiscono `*sfvoice.Error`:
+
+```go
+var apiErr *sfvoice.Error
+if errors.As(err, &apiErr) {
+    log.Printf("api error %d [%s]: %s", apiErr.Status, apiErr.Code, apiErr.Message)
+}
+```

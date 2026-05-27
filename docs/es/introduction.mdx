@@ -1,76 +1,83 @@
 ---
 title: "Introducción"
-description: "Lo que hace sf-voice media y cómo convierte audio y vídeo en recursos buscables."
-icon: "sparkles"
+description: "APIs y SDKs de búsqueda de medios para productos de IA de voz."
 ---
 
-sf-voice media es una capa de API y SDK para hacer que el audio y el vídeo sean buscables.
-Nos envías el contenido multimedia, mantienes tus propios ID de recursos, eliges las superficies que quieres indexar
-y consultas el contenido indexado en lenguaje natural.
+San Francisco Voice Company crea APIs y SDKs de búsqueda de medios para productos de IA de voz.
 
-<Columns cols={3}>
-  <Card title="Ingerir contenido multimedia" icon="upload">
-    Envía vídeo o audio desde una URL, una clave de S3 o subiendo un archivo.
-  </Card>
-  <Card title="Indexar superficies útiles" icon="layers">
-    Elige si indexar vídeo, audio, transcripción o una combinación de ellos.
-  </Card>
-  <Card title="Buscar con contexto" icon="search">
-    Busca por cliente, workspace, proyecto o ID de recursos explícitos.
-  </Card>
-</Columns>
+Nuestra primera funcionalidad es un motor de búsqueda para medios. Ingiera audio o vídeo, búsquelo con lenguaje natural y use las marcas de tiempo devueltas para saltar de nuevo a la grabación. No necesita construir antes su propio almacenamiento de transcripciones, pipeline de embeddings o capa de búsqueda de medios.
 
-## Para qué construirlo
+<Warning>
+  Esta documentación cubre la versión `0.1.1`. Estamos iterando rápido, así que fije la versión del SDK y espere cambios incompatibles entre versiones hasta que la API se estabilice.
+</Warning>
 
-sf-voice media está dirigido a equipos de producto que necesitan buscar y recuperar contenido multimedia
-dentro de su propia aplicación.
+La búsqueda es donde empezamos. Lo siguiente son herramientas de benchmarking y depuración para sistemas de IA de voz.
 
-Casos de uso comunes:
+## Lo que puede construir
 
-- Buscar en llamadas de clientes por tema, objeción, solicitud de funcionalidad o defecto.
-- Buscar en demos de producto y vídeos de soporte por lo que se dijo o se mostró.
-- Permitir que cada cliente final busque únicamente su propio contenido subido.
-- Construir flujos de revisión de medios, cumplimiento, QA o base de conocimiento.
+- Buscar llamadas de clientes por tema, objeción o petición de funcionalidad.
+- Encontrar llamadas en las que su IA interrumpió al interlocutor, habló demasiado lento o se repitió.
+- Limitar a cada cliente final a sus propias llamadas.
+- Construir revisión de cumplimiento, flujos de QA o bases de conocimiento sobre su archivo de llamadas.
 
 ## El modelo central
 
-Cada recurso comienza con los ID y el ámbito que provienen de tu sistema.
+Los assets llevan los IDs y el alcance desde su propio sistema.
 
-| Concepto | Significado |
+| Campo | Qué es |
 | --- | --- |
-| `asset_id` | Tu ID único para un recurso multimedia. Obligatorio al ingerir. |
-| `asset_class` | Un grupo lógico para los recursos, como un cliente, workspace, proyecto o repositorio. |
-| `types` | Las superficies multimedia a indexar o buscar: `video`, `audio` y `transcript`. |
-| `metadata` | Metadatos opcionales planos de clave/valor para correlación y visualización. |
-
-<Note>
-  La API pública usa términos de sf-voice. Los ID específicos del proveedor backend y los mapeos no forman parte del contrato del SDK.
-</Note>
+| `asset_id` | Su ID para la grabación. Requerido. Se devuelve en los resultados de búsqueda para que pueda enlazar de vuelta con su sistema. |
+| `asset_class` | Un grupo lógico — un cliente, un workspace, un proyecto. Limita la búsqueda para que los resultados no se filtren entre fronteras. |
+| `types` | Qué indexar: `audio`, `video`, `transcript`, o cualquier combinación. |
+| `metadata` | Pares clave/valor planos para correlación y visualización. |
 
 ## Ciclo de vida
 
 <Steps>
-  <Step title="Enviar contenido multimedia">
-    Envía una URL, una clave de S3 o un archivo con tu `asset_id`.
+  <Step title="Ingerir">
+    Envíe una URL, una clave de S3 o una carga de archivo con su `asset_id`. La API devuelve inmediatamente un `task_id`.
   </Step>
-
-  <Step title="Sondear la tarea de indexación">
-    La API devuelve un `task_id` inmediatamente. Sondea hasta que la tarea pase a `ready`
-    o `failed`.
+  <Step title="Indexar">
+    Sondee la tarea hasta que alcance `ready`. La indexación se ejecuta en segundo plano.
   </Step>
-
-  <Step title="Buscar en recursos acotados">
-    Busca por `asset_class`, por `asset_ids` explícitos o por `scope: "all"` cuando
-    la búsqueda global sea intencional.
+  <Step title="Buscar">
+    Consulte con lenguaje natural, limitado a una `asset_class` o `asset_ids` explícitos. Los resultados incluyen `start_ms` y `end_ms`.
   </Step>
 </Steps>
 
-## Empieza aquí
+## Datos y privacidad
 
-<Card title="Guía rápida" icon="rocket" href="/es/quickstart">
-  Ingiere un recurso, espera la indexación y ejecuta tu primera búsqueda.
+Indexamos sus medios y conservamos la representación buscable: embeddings, transcripciones y metadatos. Los archivos fuente pasan por el pipeline de procesamiento y no se retienen una vez completada la indexación.
+
+**Usted mantiene la propiedad de sus medios. Nosotros almacenamos los datos indexados necesarios para la búsqueda.**
+
+Procesamiento regional:
+- **Clientes de EE. UU.** — procesados en Estados Unidos.
+- **Clientes de UE y Reino Unido** — procesados en Europa.
+
+<Card title="Datos y privacidad" icon="shield" href="/data-privacy">
+  Manejo de datos, retención, procesamiento regional y detalles del DPA.
 </Card>
 
-<Card title="SDK de TypeScript" icon="code" href="/es/sdks/typescript">
-  Usa `@sf-voice/media` desde una aplicación TypeScript.
+## SDKs
+
+Ocho SDKs, con clientes específicos por lenguaje para la misma API de medios.
+
+<CardGroup cols={4}>
+  <Card title="TypeScript" icon="square-js" href="/sdks/typescript" />
+  <Card title="Python" icon="python" href="/sdks/python" />
+  <Card title="Elixir" icon="code" href="/sdks/elixir" />
+  <Card title="Go" icon="code" href="/sdks/go" />
+  <Card title="Rust" icon="gear" href="/sdks/rust" />
+  <Card title="Java" icon="java" href="/sdks/java" />
+  <Card title="Kotlin" icon="code" href="/sdks/kotlin" />
+  <Card title="C++" icon="code" href="/sdks/cpp" />
+</CardGroup>
+
+Los SDKs son open source: [github.com/sf-voice/sf-voice-core](https://github.com/sf-voice/sf-voice-core)
+
+## Empiece aquí
+
+<Card title="Inicio rápido" icon="rocket" href="/quickstart">
+  Ingiera una grabación, espere a la indexación y ejecute su primera búsqueda.
 </Card>

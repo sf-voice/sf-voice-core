@@ -1,46 +1,25 @@
 ---
-title: "TypeScript SDK"
-description: "在 TypeScript 中摄取媒体、轮询索引作业,并在视频、音频和转录文本中搜索。"
-icon: "code"
+title: "TypeScript"
+description: "用于搜索 API 的 TypeScript SDK。可在 Node.js、Bun、Deno 和浏览器中运行。"
 ---
 
-`@sf-voice/media` SDK 为 TypeScript 应用封装了 sf-voice media API。
-使用它可以提交媒体资产、等待索引,并使用你自己的面向客户的资产 ID 在视频、
-音频和转录文本维度中进行搜索。
+`@sf-voice/media` —— 需要具备 `fetch`、`FormData` 和 `Blob` 的运行时。
 
-<Columns cols={3}>
-  <Card title="摄取资产" icon="upload">
-    通过 URL、S3 键或浏览器/文件缓冲区提交媒体。
-  </Card>
-  <Card title="保留你的 ID" icon="fingerprint">
-    传入你自己的 `asset_id`,以便结果能映射回你的系统。
-  </Card>
-  <Card title="限定搜索范围" icon="search">
-    使用 `asset_class` 或 `asset_ids`,确保搜索绑定到正确的客户或分组。
-  </Card>
-</Columns>
-
-<Note>
-  SDK 仅暴露 sf-voice 的术语。与具体提供方相关的映射在后端进行。
-</Note>
-
-<Card title="第一次使用 sf-voice media?" icon="sparkles" href="/cn/introduction">
-  在使用 SDK 参考之前,先从产品概览开始。
-</Card>
+当前版本：`0.1.1`。在 API 变化期间请固定该版本。
 
 ## 安装
 
 <CodeGroup>
 ```sh pnpm
-pnpm add @sf-voice/media@latest
+pnpm add @sf-voice/media@0.1.1
 ```
 
 ```sh npm
-npm install @sf-voice/media@latest
+npm install @sf-voice/media@0.1.1
 ```
 
 ```sh bun
-bun install @sf-voice/media@latest
+bun add @sf-voice/media@0.1.1
 ```
 </CodeGroup>
 
@@ -52,172 +31,76 @@ import { SfVoiceMedia } from "@sf-voice/media";
 const client = new SfVoiceMedia({
   baseUrl: "https://api.sf-voice.com",
   apiKey: process.env.SF_VOICE_API_KEY!,
-  timeoutMs: 30_000,
 });
 ```
 
-| 选项 | 必填 | 说明 |
-| --- | ---: | --- |
-| `baseUrl` | 是 | sf-voice media API 的基础 URL。 |
-| `apiKey` | 是 | 以 `X-API-Key` 请求头发送的 API 密钥。 |
-| `timeoutMs` | 否 | 每次请求的超时时间(毫秒)。默认为 `30_000`。 |
+| 选项 | 类型 | 默认值 | |
+| --- | --- | --- | --- |
+| `baseUrl` | `string` | — | 必填。 |
+| `apiKey` | `string` | — | 必填。作为 `X-API-Key` 发送。 |
+| `timeoutMs` | `number` | `30_000` | 单次请求的中断超时。 |
 
-## 核心字段
+## 摄入
 
-| 字段 | 说明 |
-| --- | --- |
-| `asset_id` | 你为媒体资产指定的唯一 ID。摄取时必填。 |
-| `asset_class` | 可选的逻辑分组,例如客户、工作区、项目或代码仓库。用于限定搜索范围。 |
-| `types` | 可选的待索引或搜索的媒体维度:`"video"`、`"audio"`、`"transcript"`。 |
-| `metadata` | 可选的扁平键/值元数据。值必须为字符串、数字或布尔值。 |
-| `threshold` | 可选的最小搜索分数,范围 `0.0` 到 `1.0`。值越高,返回的结果越少,但置信度越高。 |
+`ingest(request)` 提交一条录音并立即返回 `task_id`。
 
-## 选择 `asset_class`
+### 从 URL
 
-使用 `asset_class` 表示你的产品默认应在其中进行搜索的边界。
-对大多数面向客户的产品而言,这就是终端客户、工作区、项目、
-代码仓库或集合。
-
-`asset_class` 的良好示例:
-
-- `customer_acme`
-- `workspace_123`
-- `project_onboarding`
-- `repo_mobile_app`
-
-<Warning>
-  对面向客户的工作流,不要依赖全局搜索,除非允许每位用户都搜索所有已索引的资产。
-</Warning>
-
-## 端到端流程
-
-<Steps>
-  <Step title="提交一个资产">
-    ```ts
-    const ingest = await client.ingest({
-      source: "url",
-      asset_id: "video_123",
-      asset_class: "customer_acme",
-      url: "https://example.com/recording.mp4",
-      media_type: "video",
-      types: ["video", "audio", "transcript"],
-      metadata: {
-        title: "product demo",
-        customer_id: "acme",
-      },
-    });
-    ```
-  </Step>
-
-  <Step title="等待索引">
-    ```ts
-    const task = await client.pollTask(ingest.task_id, {
-      intervalMs: 2_000,
-      timeoutMs: 120_000,
-    });
-
-    if (task.status === "failed") {
-      throw new Error(task.error ?? "ingest task failed");
-    }
-    ```
-  </Step>
-
-  <Step title="搜索已索引的媒体">
-    ```ts
-    const search = await client.search({
-      query: "where does the customer mention pricing?",
-      asset_class: "customer_acme",
-      types: ["transcript"],
-      threshold: 0.7,
-      limit: 10,
-    });
-
-    console.log(search.results);
-    ```
-  </Step>
-</Steps>
-
-## 浏览器与服务端使用
-
-只要运行时提供 `fetch`、`FormData` 和 `Blob`,SDK 即可工作。
-
-| 运行时 | 推荐的摄取来源 |
-| --- | --- |
-| 浏览器应用 | `source: "file"`,用于从文件输入直接上传。 |
-| 后端服务 | 媒体已存储时使用 `source: "url"` 或 `source: "s3"`。 |
-| Worker 运行时 | 根据可用的请求体 API,使用 `source: "url"` 或 `source: "file"`。 |
-
-<Note>
-  对于大文件,建议先将媒体上传到你的存储层,然后通过 URL 或 S3 键摄取。
-</Note>
-
-## 摄取
-
-`ingest(request)` 提交媒体进行索引,并立即返回一个任务 ID。
-
-### 输入
-
-通用字段:
-
-| 字段 | 必填 | 说明 |
-| --- | ---: | --- |
-| `asset_id` | 是 | 你为资产指定的唯一 ID。 |
-| `asset_class` | 否 | 资产的逻辑分组。后续搜索可将其作为范围。 |
-| `media_type` | 否 | `"video"` 或 `"audio"`。 |
-| `types` | 否 | 要索引的维度:`"video"`、`"audio"`、`"transcript"`。 |
-| `metadata` | 否 | 用于你自己关联用途的扁平键/值元数据。 |
-
-来源相关字段:
-
-| 来源 | 必填字段 | 说明 |
-| --- | --- | --- |
-| `url` | `url` | 从公开或后端可访问的 URL 摄取。 |
-| `s3` | `s3_key` | 从已连接到 sf-voice 的 S3 键摄取。 |
-| `file` | `file`、`filename` | 直接上传 `Blob`、`ArrayBuffer` 或 `Uint8Array`。 |
-
-### 示例
-
-<CodeGroup>
-```ts URL
-const ingest = await client.ingest({
+```ts
+const { task_id } = await client.ingest({
   source: "url",
-  asset_id: "video_123",
+  asset_id: "call_001",
   asset_class: "customer_acme",
-  url: "https://example.com/recording.mp4",
-  media_type: "video",
-  types: ["video", "audio", "transcript"],
+  url: "https://storage.example.com/calls/001.mp3",
+  media_type: "audio",
+  types: ["audio", "transcript"],
+  metadata: { caller: "+14155550199" },
 });
 ```
 
-```ts S3
-const ingest = await client.ingest({
+### 从 S3
+
+```ts
+const { task_id } = await client.ingest({
   source: "s3",
-  asset_id: "support_call_456",
+  asset_id: "call_001",
   asset_class: "customer_acme",
-  s3_key: "uploads/customer_acme/support_call_456.mp3",
+  s3_key: "calls/customer_acme/001.mp3",
   media_type: "audio",
   types: ["audio", "transcript"],
 });
 ```
 
-```ts File
-const file = await input.files?.[0]?.arrayBuffer();
-if (!file) throw new Error("missing file");
+### 从文件
 
-const ingest = await client.ingest({
+```ts
+const buffer = await file.arrayBuffer();
+
+const { task_id } = await client.ingest({
   source: "file",
-  asset_id: "browser_upload_789",
+  asset_id: "call_001",
   asset_class: "customer_acme",
-  file,
-  filename: "demo.mp4",
-  content_type: "video/mp4",
-  media_type: "video",
-  types: ["video", "audio", "transcript"],
+  file: buffer,
+  filename: "001.mp3",
+  content_type: "audio/mpeg",
+  media_type: "audio",
+  types: ["audio", "transcript"],
 });
 ```
-</CodeGroup>
 
-### 输出
+`file` 接受 `Blob`、`ArrayBuffer` 或 `Uint8Array`。
+
+### 通用字段
+
+| 字段 | 必填 | |
+| --- | --- | --- |
+| `asset_id` | 是 | 你的 ID。会在搜索结果中返回。 |
+| `asset_class` | 否 | 逻辑分组。限制搜索范围，使结果不会跨越边界泄漏。 |
+| `media_type` | 否 | `"audio"` 或 `"video"`。省略时会自动检测。 |
+| `types` | 否 | 要索引的表面：`"audio"`、`"video"`、`"transcript"`。默认全部。 |
+| `metadata` | 否 | 供你自己使用的扁平 string/number/boolean 键值对。 |
+
+### 响应
 
 ```ts
 type IngestResponse = {
@@ -227,32 +110,38 @@ type IngestResponse = {
 };
 ```
 
-```json
-{
-  "asset_id": "video_123",
-  "task_id": "task_abc123",
-  "status": "pending"
+## 任务
+
+### 轮询直到完成
+
+```ts
+const task = await client.pollTask(task_id, {
+  intervalMs: 2_000,   // 检查间隔（默认 1_500）
+  timeoutMs: 120_000,  // 超过此时长后放弃（默认 120_000）
+});
+
+if (task.status === "failed") {
+  throw new Error(task.error ?? "indexing failed");
 }
 ```
 
-## 任务与轮询
+如果任务未能在超时时间内到达 `ready` 或 `failed`，`pollTask` 会抛出 `SfVoiceMediaPollTimeoutError`。
 
-使用 `getTask(taskId)` 获取一次任务状态。使用 `pollTask(taskId, options)`
-等待任务进入 `"ready"` 或 `"failed"` 状态。
+### 检查一次
 
 ```ts
-const task = await client.pollTask("task_abc123", {
-  intervalMs: 2_000,
-  timeoutMs: 120_000,
-});
+const task = await client.getTask(task_id);
+// task.status: "pending" | "indexing" | "ready" | "failed"
 ```
+
+### 任务结构
 
 ```ts
 type Task = {
   task_id: string;
   asset_id: string;
   asset_class?: string;
-  types: Array<"video" | "audio" | "transcript">;
+  types: Array<"audio" | "video" | "transcript">;
   status: "pending" | "indexing" | "ready" | "failed";
   error?: string;
   created_at: string;
@@ -262,120 +151,90 @@ type Task = {
 
 ## 搜索
 
-`search(request)` 使用自然语言搜索已索引的媒体。
+`search(request)` 在已索引的录音中返回带时间戳的匹配。
 
-<Warning>
-  对面向客户的搜索,优先使用 `asset_class` 或 `asset_ids`。仅在确实希望搜索所有资产时才使用 `scope: "all"`。
-</Warning>
-
-搜索有三种范围模式:
-
-| 模式 | 示例 | 适用场景 |
-| --- | --- | --- |
-| `asset_class` | `{ asset_class: "customer_acme" }` | 搜索一个客户、工作区、项目或集合。 |
-| `asset_ids` | `{ asset_ids: ["video_123"] }` | 搜索一组已知的资产。 |
-| `scope: "all"` | `{ scope: "all" }` | 有意搜索所有已索引的资产。 |
-
-### 输入
-
-| 字段 | 必填 | 说明 |
-| --- | ---: | --- |
-| `query` | 是 | 自然语言搜索查询。 |
-| `types` | 否 | 要搜索的维度:`"video"`、`"audio"`、`"transcript"`。 |
-| `asset_ids` | 否 | 将搜索限定到特定客户资产 ID。 |
-| `asset_class` | 否 | 将搜索限定到一个逻辑分组。建议用于按客户限定的搜索。 |
-| `scope` | 否 | 仅在有意搜索所有资产时设置为 `"all"`。 |
-| `threshold` | 否 | 最低匹配分数,范围 `0.0` 到 `1.0`。默认为 API 默认值。 |
-| `page` | 否 | 页码。 |
-| `limit` | 否 | 每页最大结果数。 |
-
-### 示例
-
-<CodeGroup>
-```ts Asset class
-const search = await client.search({
-  query: "refund policy",
-  asset_class: "customer_acme",
-  types: ["transcript"],
-});
-```
-
-```ts Specific assets
-const search = await client.search({
-  query: "installation steps",
-  asset_ids: ["video_123", "video_456"],
-  types: ["video", "transcript"],
-});
-```
-
-```ts All assets
-const search = await client.search({
-  query: "security review",
-  scope: "all",
-  types: ["transcript"],
-});
-```
-</CodeGroup>
-
-### 输出
+### 按 asset class 搜索
 
 ```ts
-type SearchResponse = {
-  results: Array<{
-    asset_id: string;
-    score: number;
-    start_ms: number;
-    end_ms: number;
-    match_type: "video" | "audio" | "transcript";
-    thumbnail_url?: string;
-  }>;
-  page_info: {
-    total: number;
-    page: number;
-    limit: number;
-    next_page_token?: string;
-  };
+const { results } = await client.search({
+  query: "customer asks about cancelling their subscription",
+  asset_class: "customer_acme",
+  types: ["transcript"],
+  threshold: 0.7,
+  limit: 10,
+});
+```
+
+### 按指定资产搜索
+
+```ts
+const { results } = await client.search({
+  query: "pricing question",
+  asset_ids: ["call_001", "call_002"],
+});
+```
+
+### 在所有已索引的资产中搜索
+
+```ts
+const { results } = await client.search({
+  query: "AI interrupted the caller",
+  scope: "all",
+});
+```
+
+<Warning>
+  `scope: "all"` 会在你所有已索引的资产中搜索。任何面向客户的场景请使用 `asset_class` 或 `asset_ids`。
+</Warning>
+
+### 搜索字段
+
+| 字段 | 必填 | |
+| --- | --- | --- |
+| `query` | 是 | 自然语言。 |
+| `types` | 否 | `"audio"`、`"video"`、`"transcript"`。省略时全部搜索。 |
+| `asset_class` | 否 | 限定到一个逻辑分组。 |
+| `asset_ids` | 否 | 限定到特定的一组资产。 |
+| `scope` | 否 | 设置为 `"all"` 以在所有已索引资产中搜索。 |
+| `threshold` | 否 | `0.0`–`1.0`。默认 `0.5`。值越高，结果越少但越可信。 |
+| `page` | 否 | 页码。 |
+| `limit` | 否 | 每页结果数。最大 50。 |
+
+### 结果结构
+
+```ts
+type SearchResult = {
+  asset_id: string;
+  score: number;      // 0.0–1.0
+  start_ms: number;   // 录音中的偏移量
+  end_ms: number;
+  match_type: "audio" | "video" | "transcript";
+  thumbnail_url?: string;
 };
 ```
 
-```json
-{
-  "results": [
-    {
-      "asset_id": "video_123",
-      "score": 0.84,
-      "start_ms": 42000,
-      "end_ms": 58000,
-      "match_type": "transcript",
-      "thumbnail_url": "https://api.sf-voice.com/assets/video_123/thumb.jpg"
-    }
-  ],
-  "page_info": {
-    "total": 1,
-    "page": 1,
-    "limit": 10
-  }
-}
-```
-
-`start_ms` 和 `end_ms` 是源媒体内的毫秒偏移量。使用它们可以让播放器
-直接跳转到匹配时刻。
+`start_ms` 和 `end_ms` 是源录音中的毫秒数。用它们将播放器定位到匹配片段。
 
 ## 资产
 
 ```ts
-const assets = await client.listAssets({ page: 1, limit: 20 });
-const asset = await client.getAsset("video_123");
-await client.deleteAsset("video_123");
+// 列表（分页）
+const { items, page_info } = await client.listAssets({ page: 1, limit: 20 });
+
+// 单个
+const asset = await client.getAsset("call_001");
+
+// 删除
+await client.deleteAsset("call_001");
 ```
 
 ```ts
 type Asset = {
   asset_id: string;
   asset_class?: string;
-  media_type: "video" | "audio";
+  media_type: "audio" | "video";
   source_type: "url" | "s3" | "file";
-  types: Array<"video" | "audio" | "transcript">;
+  types: Array<"audio" | "video" | "transcript">;
   status: "pending" | "indexing" | "ready" | "failed";
   metadata?: Record<string, string | number | boolean>;
   duration_ms?: number;
@@ -386,27 +245,22 @@ type Asset = {
 
 ## 错误
 
-每个非 2xx 的 API 响应都会抛出 `SfVoiceMediaError`。
-
 ```ts
 import { SfVoiceMediaError } from "@sf-voice/media";
 
 try {
-  await client.search({
-    query: "pricing",
-    asset_class: "customer_acme",
-  });
-} catch (error) {
-  if (error instanceof SfVoiceMediaError) {
-    console.error(error.code);
-    console.error(error.status);
-    console.error(error.message);
+  await client.search({ query: "...", asset_class: "customer_acme" });
+} catch (err) {
+  if (err instanceof SfVoiceMediaError) {
+    console.error(err.code);    // 机器可读的代码
+    console.error(err.status);  // HTTP 状态
+    console.error(err.message); // 面向用户的可读信息
   }
-  throw error;
 }
 ```
 
-当单次 HTTP 请求超过客户端超时时,会抛出 `SfVoiceMediaRequestTimeoutError`。
-
-当 `pollTask` 在任务到达 `"ready"` 或 `"failed"` 之前超过其轮询超时时,会抛出
-`SfVoiceMediaPollTimeoutError`。
+| 类 | 何时 |
+| --- | --- |
+| `SfVoiceMediaError` | API 返回非 2xx 响应。 |
+| `SfVoiceMediaRequestTimeoutError` | 单次请求超过了 `timeoutMs`。 |
+| `SfVoiceMediaPollTimeoutError` | `pollTask` 在到达终态前超时。携带 `taskId`。 |

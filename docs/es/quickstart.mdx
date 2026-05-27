@@ -1,28 +1,27 @@
 ---
-title: "Guía rápida"
-description: "Indexa un recurso multimedia y ejecuta tu primera búsqueda acotada."
-icon: "rocket"
+title: "Inicio rápido"
+description: "Del API key al primer resultado de búsqueda."
 ---
 
-Esta guía te lleva desde la clave de API hasta el primer resultado de búsqueda con el SDK de TypeScript.
+Instale el SDK de TypeScript, ingiera una grabación, espere a que se indexe y ejecute una búsqueda.
 
 ## Instalación
 
 <CodeGroup>
 ```sh pnpm
-pnpm add @sf-voice/media@latest
+pnpm add @sf-voice/media@0.1.1
 ```
 
 ```sh npm
-npm install @sf-voice/media@latest
+npm install @sf-voice/media@0.1.1
 ```
 
 ```sh bun
-bun install @sf-voice/media@latest
+bun add @sf-voice/media@0.1.1
 ```
 </CodeGroup>
 
-## 1. Crear un cliente
+## Crear un cliente
 
 ```ts
 import { SfVoiceMedia } from "@sf-voice/media";
@@ -33,65 +32,50 @@ const client = new SfVoiceMedia({
 });
 ```
 
-## 2. Ingerir un recurso
+## Ingerir una grabación
 
-Usa un `asset_id` de tu propio sistema. Usa `asset_class` para agrupar recursos
-que deban buscarse juntos, como todos los medios de un mismo cliente.
+Pase su propio `asset_id` — así identificará la grabación en los resultados de búsqueda. Use `asset_class` para agrupar grabaciones que pertenezcan al mismo cliente o workspace.
 
 ```ts
-const ingest = await client.ingest({
+const { task_id } = await client.ingest({
   source: "url",
-  asset_id: "video_123",
+  asset_id: "call_001",
   asset_class: "customer_acme",
-  url: "https://example.com/recording.mp4",
-  media_type: "video",
-  types: ["video", "audio", "transcript"],
-  metadata: {
-    title: "product demo",
-    customer_id: "acme",
-  },
+  url: "https://example.com/call.mp3",
+  media_type: "audio",
+  types: ["audio", "transcript"],
 });
 ```
 
-La respuesta incluye un `task_id` para la indexación.
-
-```json
-{
-  "asset_id": "video_123",
-  "task_id": "task_abc123",
-  "status": "pending"
-}
-```
-
-## 3. Esperar la indexación
+## Esperar la indexación
 
 ```ts
-const task = await client.pollTask(ingest.task_id, {
+const task = await client.pollTask(task_id, {
   intervalMs: 2_000,
   timeoutMs: 120_000,
 });
 
 if (task.status === "failed") {
-  throw new Error(task.error ?? "ingest task failed");
+  throw new Error(task.error ?? "indexing failed");
 }
 ```
 
-## 4. Buscar
-
-Busca dentro de la misma `asset_class` para que los resultados se mantengan acotados al cliente o
-grupo previsto.
+## Buscar
 
 ```ts
-const search = await client.search({
-  query: "where does the customer mention pricing?",
+const { results } = await client.search({
+  query: "customer asks about pricing",
   asset_class: "customer_acme",
   types: ["transcript"],
   threshold: 0.7,
-  limit: 10,
 });
 
-console.log(search.results);
+for (const r of results) {
+  console.log(r.asset_id, r.start_ms, r.end_ms, r.score);
+}
 ```
+
+Los resultados incluyen `start_ms` y `end_ms` para que pueda llevar un reproductor al segmento coincidente.
 
 ## Ejemplo completo
 
@@ -104,42 +88,42 @@ const client = new SfVoiceMedia({
 });
 
 try {
-  const ingest = await client.ingest({
+  const { task_id } = await client.ingest({
     source: "url",
-    asset_id: "video_123",
+    asset_id: "call_001",
     asset_class: "customer_acme",
-    url: "https://example.com/recording.mp4",
-    media_type: "video",
-    types: ["video", "audio", "transcript"],
+    url: "https://example.com/call.mp3",
+    media_type: "audio",
+    types: ["audio", "transcript"],
   });
 
-  const task = await client.pollTask(ingest.task_id);
+  const task = await client.pollTask(task_id);
 
   if (task.status === "failed") {
-    throw new Error(task.error ?? "ingest task failed");
+    throw new Error(task.error ?? "indexing failed");
   }
 
-  const search = await client.search({
-    query: "pricing",
+  const { results } = await client.search({
+    query: "customer asks about pricing",
     asset_class: "customer_acme",
-    types: ["transcript"],
   });
 
-  console.log(search.results);
-} catch (error) {
-  if (error instanceof SfVoiceMediaError) {
-    console.error(error.code, error.status, error.message);
+  console.log(results);
+} catch (err) {
+  if (err instanceof SfVoiceMediaError) {
+    console.error(err.code, err.status, err.message);
   }
-  throw error;
+  throw err;
 }
 ```
 
 ## Próximos pasos
 
-<Card title="Cómo funciona" icon="workflow" href="/es/how-it-works">
-  Aprende cómo encajan la ingestión, la indexación, el sondeo de tareas y la búsqueda acotada.
-</Card>
-
-<Card title="SDK de TypeScript" icon="code" href="/es/sdks/typescript">
-  Consulta todos los formatos de entrada y salida expuestos por el SDK.
-</Card>
+<CardGroup cols={2}>
+  <Card title="Cómo funciona" icon="workflow" href="/how-it-works">
+    Comprenda el ciclo ingestar → indexar → buscar.
+  </Card>
+  <Card title="SDK de TypeScript" icon="square-js" href="/sdks/typescript">
+    Entradas, salidas y tipos de error.
+  </Card>
+</CardGroup>
