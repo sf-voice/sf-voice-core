@@ -22,7 +22,7 @@ defmodule SfVoiceMedia.Error do
   @impl true
   @doc """
   Format the exception into a human-readable string.
-  
+
   Formats an `%SfVoiceMedia.Error{}` as `"[<code>] <message> (HTTP <status>)"`.
   """
   @spec message(t()) :: String.t()
@@ -32,35 +32,25 @@ defmodule SfVoiceMedia.Error do
 
   # ── constructors ─────────────────────────────────────────────────────────────
 
-  
-  
   @doc """
   Builds an SfVoiceMedia.Error from the API error envelope.
-  
+
   Parses a response body with the shape `%{"error" => %{"code" => code, "message" => message}}`
   and returns an `%SfVoiceMedia.Error{}` populated with `code`, `message`, and the given HTTP `status`.
   If the body does not match that shape, the function falls back to a generic HTTP error.
+  `message: "request failed with status <status>"`, and `status` set to the given status.
+
+  ## Parameters
+
+    - status: HTTP status code returned by the request.
+    - body: Parsed response body (map) or `nil`.
+
   """
   @spec from_response(non_neg_integer(), map() | nil) :: t()
   def from_response(status, %{"error" => %{"code" => code, "message" => msg}}) do
     %__MODULE__{code: code, message: msg, status: status}
   end
 
-  @doc """
-  Builds an `SfVoiceMedia.Error` from an HTTP status and an optional API response body.
-  
-  If the body is a map matching `%{"error" => %{"code" => code, "message" => message}}`,
-  the returned error will use the provided `code` and `message`. For any other body
-  shape (including `nil`), returns a fallback error with `code: "http_error"`,
-  `message: "request failed with status #{status}"`, and `status` set to the given status.
-  
-  ## Parameters
-  
-    - status: HTTP status code returned by the request.
-    - body: Parsed response body (map) or `nil`.
-  
-  """
-  @spec from_response(non_neg_integer(), map() | nil) :: t()
   def from_response(status, _body) do
     %__MODULE__{
       code: "http_error",
@@ -69,11 +59,9 @@ defmodule SfVoiceMedia.Error do
     }
   end
 
-  
-  
   @doc """
   Create a client-side timeout error for a polling task.
-  
+
   The returned `%SfVoiceMedia.Error{}` has `code: "poll_timeout"`, a `message` that includes the `task_id` and `timeout_ms`, and `status: nil`.
   """
   @spec poll_timeout(String.t(), non_neg_integer()) :: t()
