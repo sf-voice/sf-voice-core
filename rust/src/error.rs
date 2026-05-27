@@ -51,7 +51,30 @@ impl SfVoiceMediaError {
     ///
     /// # Examples
     ///
-///
+    /// ```ignore
+    /// let env = br#"{"error":{"code":"bad_request","message":"invalid input"}}"#;
+    /// let err = SfVoiceMediaError::from_response(400, env);
+    /// match err {
+    ///     SfVoiceMediaError::Api { code, message, status } => {
+    ///         assert_eq!(code, "bad_request");
+    ///         assert_eq!(message, "invalid input");
+    ///         assert_eq!(status, 400);
+    ///     }
+    ///     _ => panic!("expected Api variant"),
+    /// }
+    ///
+    /// let plain = b"plain text error";
+    /// let err2 = SfVoiceMediaError::from_response(500, plain);
+    /// match err2 {
+    ///     SfVoiceMediaError::Api { code, message, status } => {
+    ///         assert_eq!(code, "http_error");
+    ///         assert_eq!(message, "plain text error");
+    ///         assert_eq!(status, 500);
+    ///     }
+    ///     _ => panic!("expected Api variant"),
+    /// }
+    /// ```
+    pub(crate) fn from_response(status: u16, body: &[u8]) -> Self {
         if let Ok(env) = serde_json::from_slice::<ApiErrorEnvelope>(body) {
             return Self::Api {
                 code: env.error.code,
