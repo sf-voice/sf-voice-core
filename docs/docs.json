@@ -18,18 +18,99 @@
       }
    },
    "navigation": {
-      "tabs": [
+      "languages": [
          {
-            "tab": "Documentation",
-            "groups": [
+            "language": "en",
+            "tabs": [
                {
-                  "group": "Get Started",
-                  "pages": ["introduction", "quickstart", "how-it-works"]
-               },
+                  "tab": "Documentation",
+                  "groups": [
+                     {
+                        "group": "Get Started",
+                        "pages": ["introduction", "quickstart", "how-it-works"]
+                     },
+                     {
+                        "group": "SDKs",
+                        "icon": "code",
+                        "pages": ["sdks/typescript"]
+                     }
+                  ]
+               }
+            ]
+         },
+         {
+            "language": "fr",
+            "tabs": [
                {
-                  "group": "SDKs",
-                  "icon": "code",
-                  "pages": ["sdks/typescript"]
+                  "tab": "Documentation",
+                  "groups": [
+                     {
+                        "group": "Commencer",
+                        "pages": ["fr/introduction", "fr/quickstart", "fr/how-it-works"]
+                     },
+                     {
+                        "group": "SDKs",
+                        "icon": "code",
+                        "pages": ["fr/sdks/typescript"]
+                     }
+                  ]
+               }
+            ]
+         },
+         {
+            "language": "es",
+            "tabs": [
+               {
+                  "tab": "Documentación",
+                  "groups": [
+                     {
+                        "group": "Empezar",
+                        "pages": ["es/introduction", "es/quickstart", "es/how-it-works"]
+                     },
+                     {
+                        "group": "SDKs",
+                        "icon": "code",
+                        "pages": ["es/sdks/typescript"]
+                     }
+                  ]
+               }
+            ]
+         },
+         {
+            "language": "it",
+            "tabs": [
+               {
+                  "tab": "Documentazione",
+                  "groups": [
+                     {
+                        "group": "Inizia",
+                        "pages": ["it/introduction", "it/quickstart", "it/how-it-works"]
+                     },
+                     {
+                        "group": "SDKs",
+                        "icon": "code",
+                        "pages": ["it/sdks/typescript"]
+                     }
+                  ]
+               }
+            ]
+         },
+         {
+            "language": "cn",
+            "tabs": [
+               {
+                  "tab": "文档",
+                  "groups": [
+                     {
+                        "group": "开始使用",
+                        "pages": ["cn/introduction", "cn/quickstart", "cn/how-it-works"]
+                     },
+                     {
+                        "group": "SDK",
+                        "icon": "code",
+                        "pages": ["cn/sdks/typescript"]
+                     }
+                  ]
                }
             ]
          }
