@@ -1,4 +1,4 @@
-package sh.sfvoice.demo;
+package sh.sf-voice.demo;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

@@ -1,4 +1,4 @@
-package sh.sfvoice.demo.controller;
+package sh.sf-voice.demo.controller;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.DecimalMax;

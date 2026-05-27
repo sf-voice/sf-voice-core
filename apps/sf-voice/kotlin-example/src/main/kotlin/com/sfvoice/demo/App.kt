@@ -1,8 +1,8 @@
-package sh.sfvoice.demo
+package sh.sf-voice.demo
 
-import sh.sfvoice.demo.routes.ingestRoutes
-import sh.sfvoice.demo.routes.searchRoutes
-import sh.sfvoice.media.SfVoiceMediaClient
+import sh.sf-voice.demo.routes.ingestRoutes
+import sh.sf-voice.demo.routes.searchRoutes
+import sh.sf-voice.media.SfVoiceMediaClient
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*

@@ -1,4 +1,4 @@
-package sh.sfvoice.media
+package sh.sf-voice.media
 
 import io.ktor.client.*
 import io.ktor.client.call.*

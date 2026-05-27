@@ -5,7 +5,7 @@ plugins {
     `maven-publish`
 }
 
-group = "sh.sfvoice"
+group = "sh.sf-voice"
 version = "0.1.1"
 
 repositories {
