@@ -3,6 +3,7 @@ defmodule EllieAiWeb.TelnyxWebhookControllerTest do
 
   alias EllieAi.{Groups, Orgs}
   alias EllieAi.Calls.CallRegistry
+  alias EllieAi.Test.ReqStub
   alias EllieAi.Test.TelnyxSigningHelper
 
   # signature verification is unit-tested in EllieAi.Telnyx.SignatureTest;
@@ -11,8 +12,8 @@ defmodule EllieAiWeb.TelnyxWebhookControllerTest do
   # dev bypass — every test sends a real signature.
   #
   # async: false because we touch the application-level CallSupervisor
-  # + CallRegistry. AudioBridge fails to start (no OPENAI_API_KEY in
-  # test, the :ignore path), so CallTree boots with CallServer + VadGate.
+  # + CallRegistry. AudioBridge is swapped for a local stub in test, so
+  # CallTree boots without opening an OpenAI websocket.
 
   setup do
     # ensure no stray call trees from prior tests are still running.
@@ -36,6 +37,22 @@ defmodule EllieAiWeb.TelnyxWebhookControllerTest do
         resto_org_slug: "test-org",
         telnyx_phone_number: "+15555550100"
       })
+
+    Req.Test.stub(EllieAi.RestoClient, fn conn ->
+      ReqStub.assert_request(conn, "GET", conn.request_path)
+
+      conn
+      |> Plug.Conn.put_status(404)
+      |> Req.Test.json(%{"errors" => %{"detail" => "Not Found"}})
+    end)
+
+    Req.Test.stub(EllieAi.Telnyx.Client, fn conn ->
+      ReqStub.assert_request(conn, "POST", conn.request_path)
+
+      conn
+      |> Plug.Conn.put_status(200)
+      |> Req.Test.json(%{"data" => %{}})
+    end)
 
     %{org: org}
   end
@@ -118,8 +135,14 @@ defmodule EllieAiWeb.TelnyxWebhookControllerTest do
     test "401s when the signature is wrong", %{conn: conn} do
       conn =
         conn
-        |> Plug.Conn.put_req_header("telnyx-signature-ed25519", Base.encode64(:crypto.strong_rand_bytes(64)))
-        |> Plug.Conn.put_req_header("telnyx-timestamp", Integer.to_string(System.system_time(:second)))
+        |> Plug.Conn.put_req_header(
+          "telnyx-signature-ed25519",
+          Base.encode64(:crypto.strong_rand_bytes(64))
+        )
+        |> Plug.Conn.put_req_header(
+          "telnyx-timestamp",
+          Integer.to_string(System.system_time(:second))
+        )
         |> Plug.Conn.put_req_header("content-type", "application/json")
         |> post(~p"/telnyx/webhook", "{}")
 

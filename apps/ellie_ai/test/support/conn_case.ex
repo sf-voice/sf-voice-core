@@ -29,7 +29,10 @@ defmodule EllieAiWeb.ConnCase do
     end
   end
 
-  setup _tags do
+  setup tags do
+    Req.Test.set_req_test_from_context(tags)
+    Req.Test.verify_on_exit!()
+
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 end

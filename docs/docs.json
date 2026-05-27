@@ -30,7 +30,7 @@
                   "group": "Integrations",
                   "pages": [
                      "integrations/overview",
-                     "integrations/livekit",
+                     "integrations/livecart",
                      "integrations/twilio",
                      "integrations/telnyx",
                      "integrations/pipecat",

@@ -7,11 +7,9 @@ defmodule EllieAi.CustomersTest do
 
   alias EllieAi.{Customers, Groups, Orgs}
   alias EllieAi.Customers.CustomerSummary
+  alias EllieAi.Test.ReqStub
 
   setup do
-    bypass = Bypass.open()
-    base = "http://localhost:#{bypass.port}"
-
     {:ok, group} = Groups.upsert_by_slug("seasons", %{name: "Seasons"})
 
     {:ok, org} =
@@ -20,11 +18,11 @@ defmodule EllieAi.CustomersTest do
         name: "Seasons SF",
         location: "San Francisco",
         time_zone: "America/Los_Angeles",
-        resto_base_url: base,
+        resto_base_url: "https://resto.test",
         resto_org_slug: "seasons-sf"
       })
 
-    %{bypass: bypass, org: org, group: group}
+    %{org: org, group: group}
   end
 
   defp customer_payload(overrides \\ %{}) do
@@ -47,8 +45,7 @@ defmodule EllieAi.CustomersTest do
   end
 
   describe "lookup_by_phone/2 — step 1 (local hit)" do
-    test "returns the cached row without calling resto", %{bypass: bypass, org: org} do
-      Bypass.down(bypass)
+    test "returns the cached row without calling resto", %{org: org} do
       {:ok, _} = Customers.upsert_from_resto(org.id, customer_payload())
 
       assert {:ok, %CustomerSummary{first_name: "Lois"}} =
@@ -57,17 +54,14 @@ defmodule EllieAi.CustomersTest do
   end
 
   describe "lookup_by_phone/2 — step 2 (resto fallback)" do
-    test "on cache miss, queries resto and upserts the result", %{bypass: bypass, org: org} do
+    test "on cache miss, queries resto and upserts the result", %{org: org} do
       payload = customer_payload(%{"first_name" => "Avery"})
 
-      Bypass.stub(
-        bypass,
-        "GET",
-        "/api/orgs/seasons-sf/customers/by_phone/+14155550100",
-        fn conn ->
-          Plug.Conn.resp(conn, 200, Jason.encode!(%{"customer" => payload}))
-        end
-      )
+      Req.Test.stub(EllieAi.RestoClient, fn conn ->
+        ReqStub.json(conn, "GET", "/api/orgs/seasons-sf/customers/by_phone/+14155550100", 200, %{
+          "customer" => payload
+        })
+      end)
 
       assert {:ok, %CustomerSummary{first_name: "Avery"}} =
                Customers.lookup_by_phone(org, "+14155550100")
@@ -77,26 +71,26 @@ defmodule EllieAi.CustomersTest do
                Customers.lookup_by_phone(org, "+14155550100")
     end
 
-    test "404 from resto means :not_found", %{bypass: bypass, org: org} do
-      Bypass.stub(
-        bypass,
-        "GET",
-        "/api/orgs/seasons-sf/customers/by_phone/+14155550199",
-        fn conn ->
-          Plug.Conn.resp(conn, 404, ~s({"errors":{"detail":"Not Found"}}))
-        end
-      )
+    test "404 from resto means :not_found", %{org: org} do
+      Req.Test.stub(EllieAi.RestoClient, fn conn ->
+        ReqStub.json(conn, "GET", "/api/orgs/seasons-sf/customers/by_phone/+14155550199", 404, %{
+          "errors" => %{"detail" => "Not Found"}
+        })
+      end)
 
       assert :not_found = Customers.lookup_by_phone(org, "+14155550199")
     end
 
-    test "5xx from resto bubbles a transient error", %{bypass: bypass, org: org} do
-      Bypass.stub(
-        bypass,
-        "GET",
-        "/api/orgs/seasons-sf/customers/by_phone/+14155550101",
-        fn conn -> Plug.Conn.resp(conn, 500, "boom") end
-      )
+    test "5xx from resto bubbles a transient error", %{org: org} do
+      Req.Test.stub(EllieAi.RestoClient, fn conn ->
+        ReqStub.text(
+          conn,
+          "GET",
+          "/api/orgs/seasons-sf/customers/by_phone/+14155550101",
+          500,
+          "boom"
+        )
+      end)
 
       assert {:error, {:transient, _}} = Customers.lookup_by_phone(org, "+14155550101")
     end
@@ -109,18 +103,14 @@ defmodule EllieAi.CustomersTest do
   end
 
   describe "lookup_by_phone/2 — cross-org isolation" do
-    test "the same phone in two orgs is two distinct cache rows", %{
-      bypass: bypass,
-      group: group,
-      org: org_a
-    } do
+    test "the same phone in two orgs is two distinct cache rows", %{group: group, org: org_a} do
       {:ok, org_b} =
         Orgs.upsert_by_slug("seasons-la", %{
           group_id: group.id,
           name: "Seasons LA",
           location: "Los Angeles",
           time_zone: "America/Los_Angeles",
-          resto_base_url: "http://localhost:#{bypass.port}",
+          resto_base_url: "https://resto.test",
           resto_org_slug: "seasons-la"
         })
 
@@ -141,7 +131,7 @@ defmodule EllieAi.CustomersTest do
   end
 
   describe "reconcile_from_resto/1" do
-    test "pulls every customer from resto and upserts each", %{bypass: bypass, org: org} do
+    test "pulls every customer from resto and upserts each", %{org: org} do
       a = customer_payload(%{"first_name" => "Alpha"})
 
       b =
@@ -150,16 +140,17 @@ defmodule EllieAi.CustomersTest do
           "contacts" => [%{"kind" => "phone", "value" => "+14155550200", "preferred" => true}]
         })
 
-      Bypass.stub(bypass, "GET", "/api/orgs/seasons-sf/customers", fn conn ->
-        Plug.Conn.resp(conn, 200, Jason.encode!(%{"customers" => [a, b]}))
+      Req.Test.stub(EllieAi.RestoClient, fn conn ->
+        ReqStub.json(conn, "GET", "/api/orgs/seasons-sf/customers", 200, %{"customers" => [a, b]})
       end)
 
       assert {:ok, 2} = Customers.reconcile_from_resto(org)
       assert Customers.list(org.id) |> length() == 2
     end
 
-    test "transient resto failure surfaces the error", %{bypass: bypass, org: org} do
-      Bypass.down(bypass)
+    test "transient resto failure surfaces the error", %{org: org} do
+      Req.Test.stub(EllieAi.RestoClient, &ReqStub.transport_error/1)
+
       assert {:error, {:transient, _}} = Customers.reconcile_from_resto(org)
     end
   end

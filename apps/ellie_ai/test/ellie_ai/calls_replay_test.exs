@@ -3,11 +3,9 @@ defmodule EllieAi.CallsReplayTest do
 
   alias EllieAi.{Calls, Groups, Orgs}
   alias EllieAi.Calls.Constants
+  alias EllieAi.Test.ReqStub
 
   setup do
-    bypass = Bypass.open()
-    base = "http://localhost:#{bypass.port}"
-
     {:ok, group} = Groups.upsert_by_slug("seasons", %{name: "Seasons"})
 
     {:ok, org} =
@@ -16,7 +14,7 @@ defmodule EllieAi.CallsReplayTest do
         name: "Seasons SF",
         location: "San Francisco",
         time_zone: "America/Los_Angeles",
-        resto_base_url: base,
+        resto_base_url: "https://resto.test",
         resto_org_slug: "seasons-sf"
       })
 
@@ -24,15 +22,16 @@ defmodule EllieAi.CallsReplayTest do
     {:ok, _} = Calls.start_call(org.id, ccid, %{"from" => "+14155550111", "to" => "+14155550112"})
     call = Calls.get_by_ccid(ccid)
 
-    %{bypass: bypass, org: org, ccid: ccid, call: call}
+    %{org: org, ccid: ccid, call: call}
   end
 
   test "replay re-executes the tool and creates a new row pointing at the original",
-       %{bypass: bypass, call: call} do
-    Bypass.stub(bypass, "GET", "/api/orgs/seasons-sf/availability", fn conn ->
-      conn
-      |> Plug.Conn.put_resp_content_type("application/json")
-      |> Plug.Conn.resp(200, ~s({"date":"2026-06-01","tables":[]}))
+       %{call: call} do
+    Req.Test.stub(EllieAi.RestoClient, fn conn ->
+      ReqStub.json(conn, "GET", "/api/orgs/seasons-sf/availability", 200, %{
+        "date" => "2026-06-01",
+        "tables" => []
+      })
     end)
 
     {:ok, original} =
@@ -55,15 +54,17 @@ defmodule EllieAi.CallsReplayTest do
     assert length(all) == 2
   end
 
-  test "replay with overridden arguments uses the override", %{bypass: bypass, call: call} do
+  test "replay with overridden arguments uses the override", %{call: call} do
     test_pid = self()
 
-    Bypass.stub(bypass, "GET", "/api/orgs/seasons-sf/availability", fn conn ->
+    Req.Test.stub(EllieAi.RestoClient, fn conn ->
+      ReqStub.assert_request(conn, "GET", "/api/orgs/seasons-sf/availability")
       send(test_pid, {:request, conn.query_string})
 
-      conn
-      |> Plug.Conn.put_resp_content_type("application/json")
-      |> Plug.Conn.resp(200, ~s({"date":"2026-07-15","tables":[]}))
+      ReqStub.json(conn, "GET", "/api/orgs/seasons-sf/availability", 200, %{
+        "date" => "2026-07-15",
+        "tables" => []
+      })
     end)
 
     {:ok, original} =

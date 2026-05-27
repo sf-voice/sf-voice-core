@@ -4,21 +4,19 @@ defmodule EllieAiWeb.TelnyxWebhookE2ETest do
   with the dev test keypair so the SignaturePlug accepts each request:
 
       call.initiated → call tree spawned, system_event recorded,
-                       answer posted to telnyx (mocked via bypass)
+                       answer posted to telnyx (mocked via Req.Test)
       call.answered  → streaming_start posted, system_event recorded
       call.hangup    → call finished, system_event recorded
 
-  the openai realtime ws is not started in this test (no
-  OPENAI_API_KEY), so AudioBridge declines to start and its absence is
-  the expected condition. that keeps the test deterministic without
-  needing a real ws server. all other parts of the pipeline (telnyx
-  http client + bypass, call_server, system_event recording) run for
-  real.
+  the openai realtime ws is replaced by AudioBridgeStub in test. all
+  other parts of the pipeline (telnyx http client, call_server,
+  system_event recording) run for real.
   """
 
   use EllieAiWeb.ConnCase, async: false
 
   alias EllieAi.{Calls, Groups, Orgs}
+  alias EllieAi.Test.ReqStub
   alias EllieAi.Test.TelnyxSigningHelper
 
   setup do
@@ -31,14 +29,12 @@ defmodule EllieAiWeb.TelnyxWebhookE2ETest do
     pid = Ecto.Adapters.SQL.Sandbox.start_owner!(EllieAi.Repo, shared: true)
     on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
 
-    telnyx_bypass = Bypass.open()
-    base = "http://localhost:#{telnyx_bypass.port}"
-
     prev_telnyx = Application.get_env(:ellie_ai, EllieAi.Telnyx.Client, [])
 
-    Application.put_env(:ellie_ai, EllieAi.Telnyx.Client,
-      base_url: base,
-      api_key: "test-key"
+    Application.put_env(
+      :ellie_ai,
+      EllieAi.Telnyx.Client,
+      Keyword.put(prev_telnyx, :api_key, "test-key")
     )
 
     audio_dir =
@@ -53,7 +49,8 @@ defmodule EllieAiWeb.TelnyxWebhookE2ETest do
       File.rm_rf!(audio_dir)
     end)
 
-    {:ok, group} = Groups.create(%{slug: "test-group-e2e-#{System.unique_integer([:positive])}", name: "Test"})
+    {:ok, group} =
+      Groups.create(%{slug: "test-group-e2e-#{System.unique_integer([:positive])}", name: "Test"})
 
     {:ok, org} =
       Orgs.create(%{
@@ -65,28 +62,41 @@ defmodule EllieAiWeb.TelnyxWebhookE2ETest do
         telnyx_phone_number: "+15555550199"
       })
 
-    %{telnyx: telnyx_bypass, org: org}
+    Req.Test.stub(EllieAi.RestoClient, fn conn ->
+      ReqStub.assert_request(conn, "GET", conn.request_path)
+
+      conn
+      |> Plug.Conn.put_status(404)
+      |> Req.Test.json(%{"errors" => %{"detail" => "Not Found"}})
+    end)
+
+    %{org: org}
   end
 
   test "call.initiated → call.answered → call.hangup walks the lifecycle",
-       %{conn: conn, telnyx: telnyx, org: org} do
+       %{conn: conn, org: org} do
     ccid = "ccid-e2e-#{System.unique_integer([:positive])}"
 
     test_pid = self()
+    answer_path = "/v2/calls/#{ccid}/actions/answer"
+    streaming_start_path = "/v2/calls/#{ccid}/actions/streaming_start"
 
-    Bypass.stub(telnyx, "POST", "/v2/calls/#{ccid}/actions/answer", fn conn ->
-      send(test_pid, {:telnyx, :answer})
-      Plug.Conn.resp(conn, 200, ~s({"data":{}}))
-    end)
+    Req.Test.stub(EllieAi.Telnyx.Client, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"POST", ^answer_path} ->
+          send(test_pid, {:telnyx, :answer})
+          ReqStub.json(conn, "POST", answer_path, 200, %{"data" => %{}})
 
-    Bypass.stub(telnyx, "POST", "/v2/calls/#{ccid}/actions/streaming_start", fn conn ->
-      send(test_pid, {:telnyx, :streaming_start})
-      Plug.Conn.resp(conn, 200, ~s({"data":{}}))
-    end)
+        {"POST", ^streaming_start_path} ->
+          send(test_pid, {:telnyx, :streaming_start})
 
-    Bypass.stub(telnyx, "POST", "/v2/calls/#{ccid}/actions/hangup", fn conn ->
-      send(test_pid, {:telnyx, :hangup})
-      Plug.Conn.resp(conn, 200, ~s({"data":{}}))
+          ReqStub.json(conn, "POST", streaming_start_path, 200, %{
+            "data" => %{}
+          })
+
+        other ->
+          flunk("unexpected telnyx request: #{inspect(other)}")
+      end
     end)
 
     initiated_body =
@@ -109,10 +119,11 @@ defmodule EllieAiWeb.TelnyxWebhookE2ETest do
     assert call
     assert call.status == "ringing"
 
-    events = eventually_nonempty(fn ->
-      Calls.list_system_events(call.id)
-      |> Enum.filter(&(&1.kind == "telnyx.call.initiated"))
-    end)
+    events =
+      eventually_nonempty(fn ->
+        Calls.list_system_events(call.id)
+        |> Enum.filter(&(&1.kind == "telnyx.call.initiated"))
+      end)
 
     assert events != []
 
@@ -147,10 +158,11 @@ defmodule EllieAiWeb.TelnyxWebhookE2ETest do
     conn3 = signed_post(conn, hangup_body)
     assert response(conn3, 200) == ""
 
-    final = eventually(fn ->
-      c = Calls.get(call.id)
-      if c && c.status == "ended", do: c, else: nil
-    end)
+    final =
+      eventually(fn ->
+        c = Calls.get(call.id)
+        if c && c.status == "ended", do: c, else: nil
+      end)
 
     assert final.status == "ended"
     assert final.ended_at

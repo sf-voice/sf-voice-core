@@ -8,6 +8,8 @@ defmodule EllieAi.Telnyx.Client do
 
   require Logger
 
+  alias EllieAi.HttpClient
+
   @default_base_url "https://api.telnyx.com"
 
   @doc "telnyx requires this before audio flows."
@@ -49,11 +51,14 @@ defmodule EllieAi.Telnyx.Client do
 
     url = "#{base_url()}/v2/calls"
 
-    Req.post(url,
-      json: body,
-      auth: {:bearer, api_key()},
-      retry: :transient,
-      max_retries: Keyword.get(opts, :max_retries, 2)
+    Req.post(
+      url,
+      HttpClient.request_options(__MODULE__,
+        json: body,
+        auth: {:bearer, api_key()},
+        retry: :transient,
+        max_retries: Keyword.get(opts, :max_retries, 2)
+      )
     )
     |> case do
       {:ok, %Req.Response{status: status, body: %{"data" => %{"call_control_id" => new_ccid}}}}
@@ -87,11 +92,14 @@ defmodule EllieAi.Telnyx.Client do
   defp post_action(call_control_id, action, body, opts) do
     url = "#{base_url()}/v2/calls/#{call_control_id}/actions/#{action}"
 
-    Req.post(url,
-      json: body,
-      auth: {:bearer, api_key()},
-      retry: :transient,
-      max_retries: Keyword.get(opts, :max_retries, 3)
+    Req.post(
+      url,
+      HttpClient.request_options(__MODULE__,
+        json: body,
+        auth: {:bearer, api_key()},
+        retry: :transient,
+        max_retries: Keyword.get(opts, :max_retries, 3)
+      )
     )
     |> handle_response(action)
   end

@@ -5,3 +5,4 @@ packages:
   - "core/*"
   - "ts/sdk"
   - "apps/fraud-prototype"
+  - "apps/fifteenlabs"

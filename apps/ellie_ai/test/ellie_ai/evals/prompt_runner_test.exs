@@ -1,6 +1,6 @@
 defmodule EllieAi.Evals.PromptRunnerTest do
   @moduledoc """
-  unit-tests the runner's wiring against a bypass-mocked openai
+  unit-tests the runner's wiring against a Req.Test-mocked openai
   endpoint. proves the suite walks every case, scores responses, and
   averages them. the `:llm_eval` test in `eval_suite_test.exs` is the
   hot version that hits real openai — that one is opt-in.
@@ -9,27 +9,25 @@ defmodule EllieAi.Evals.PromptRunnerTest do
   use ExUnit.Case, async: false
 
   alias EllieAi.Evals.PromptRunner
+  alias EllieAi.Test.ReqStub
 
   setup do
-    bypass = Bypass.open()
-    base = "http://localhost:#{bypass.port}"
+    Req.Test.set_req_test_to_shared()
+    Req.Test.verify_on_exit!()
 
-    prev = Application.get_env(:ellie_ai, PromptRunner, [])
-    Application.put_env(:ellie_ai, PromptRunner, base_url: base)
     System.put_env("OPENAI_API_KEY", "test-key")
 
     on_exit(fn ->
-      Application.put_env(:ellie_ai, PromptRunner, prev)
       System.delete_env("OPENAI_API_KEY")
     end)
 
-    %{bypass: bypass}
+    :ok
   end
 
-  test "scores every case and averages them", %{bypass: bypass} do
+  test "scores every case and averages them" do
     counter = :counters.new(1, [:atomics])
 
-    Bypass.stub(bypass, "POST", "/v1/chat/completions", fn conn ->
+    Req.Test.stub(PromptRunner, fn conn ->
       # alternate response: even calls are the assistant under test
       # (returns "ok"), odd calls are the scorer (returns 0.9).
       n = :counters.add(counter, 1, 1) || :counters.get(counter, 1)
@@ -45,8 +43,11 @@ defmodule EllieAi.Evals.PromptRunnerTest do
         end
 
       _ = n
-      Plug.Conn.resp(conn, 200, content)
-      |> Plug.Conn.put_resp_content_type("application/json")
+
+      conn
+      |> ReqStub.assert_request("POST", "/v1/chat/completions")
+      |> Plug.Conn.put_status(200)
+      |> Req.Test.json(Jason.decode!(content))
     end)
 
     result = PromptRunner.run()

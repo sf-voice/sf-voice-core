@@ -4,6 +4,7 @@ defmodule EllieAi.RestoClient do
 
   require Logger
 
+  alias EllieAi.HttpClient
   alias EllieAi.Orgs.Org
   alias EllieAi.Utils
 
@@ -164,7 +165,7 @@ defmodule EllieAi.RestoClient do
 
     started = System.monotonic_time(:millisecond)
 
-    case Req.request(base_opts ++ opts) do
+    case Req.request(HttpClient.request_options(__MODULE__, base_opts ++ opts)) do
       {:ok, response} ->
         log_request(method, url, response.status, started)
         {:ok, decode_body(response)}
@@ -226,5 +227,4 @@ defmodule EllieAi.RestoClient do
   end
 
   defp normalize_phone(_), do: {:error, {:permanent, "phone is required"}}
-
 end
