@@ -3,13 +3,11 @@
 [![frontend](https://github.com/sf-voice/sf-voice-core/actions/workflows/frontend.yml/badge.svg)](https://github.com/sf-voice/sf-voice-core/actions/workflows/frontend.yml)
 [![api](https://github.com/sf-voice/sf-voice-core/actions/workflows/sf-voice-api.yml/badge.svg)](https://github.com/sf-voice/sf-voice-core/actions/workflows/sf-voice-api.yml)
 [![typescript sdk](https://github.com/sf-voice/sf-voice-core/actions/workflows/publish-ts-sdk.yml/badge.svg)](https://github.com/sf-voice/sf-voice-core/actions/workflows/publish-ts-sdk.yml)
-[![python sdk](https://github.com/sf-voice/sf-voice-core/actions/workflows/publish-python-sdk.yml/badge.svg)](https://github.com/sf-voice/sf-voice-core/actions/workflows/publish-python-sdk.yml)
 
 ## Contents
 
 - [Installable SDKs](#installable-sdks)
   - [TypeScript / JavaScript](ts/sdk#installation)
-  - [Python](python#installation)
   - [Go](go#installation)
   - [Rust](rust#installation)
   - [C++](cpp#installation)
@@ -33,7 +31,6 @@ artifact.
 | language | package | how to use it |
 | --- | --- | --- |
 | TypeScript / JavaScript | [`@sf-voice/media`](ts/sdk) | `pnpm add @sf-voice/media@0.1.1` or `npm install @sf-voice/media@0.1.1` |
-| Python | [`sf-voice-media`](python) | `pip install sf-voice-media==0.1.1` |
 | Go | [`github.com/sf-voice/sf-voice-media-go`](go) | `go get github.com/sf-voice/sf-voice-media-go@v0.1.1` |
 | Rust | [`sf_voice_media`](rust) | `cargo add sf_voice_media@0.1.1` |
 | C++ | [`cpp/`](cpp) | use Conan package `sf_voice/0.1.1` or include this repo's `cpp/` package from your CMake build |
