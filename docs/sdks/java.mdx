@@ -34,7 +34,7 @@ dependencies {
 ## Create a client
 
 ```java
-import sh.sf-voice.media.SfVoiceMediaClient;
+import com.sfvoice.media.SfVoiceMediaClient;
 
 SfVoiceMediaClient client = new SfVoiceMediaClient(
     System.getenv("SF_VOICE_API_KEY"),
@@ -45,8 +45,8 @@ SfVoiceMediaClient client = new SfVoiceMediaClient(
 ## Ingest
 
 ```java
-import sh.sf-voice.media.models.IngestRequest;
-import sh.sf-voice.media.models.IngestResponse;
+import com.sfvoice.media.models.IngestRequest;
+import com.sfvoice.media.models.IngestResponse;
 
 IngestRequest req = IngestRequest.fromUrl("https://storage.example.com/calls/001.mp3")
     .assetId("call_001")
@@ -62,7 +62,7 @@ String taskId = resp.getTaskId();
 ## Poll until ready
 
 ```java
-import sh.sf-voice.media.models.Task;
+import com.sfvoice.media.models.Task;
 
 Task task = client.pollTask(taskId, 2000, 120_000);
 
@@ -76,8 +76,8 @@ if ("failed".equals(task.getStatus())) {
 ## Search
 
 ```java
-import sh.sf-voice.media.models.SearchRequest;
-import sh.sf-voice.media.models.SearchResponse;
+import com.sfvoice.media.models.SearchRequest;
+import com.sfvoice.media.models.SearchResponse;
 
 SearchRequest req = SearchRequest.query("customer asks about pricing")
     .assetClass("customer_acme")
@@ -110,7 +110,7 @@ client.deleteAsset("call_001");
 ## Errors
 
 ```java
-import sh.sf-voice.media.SfVoiceMediaException;
+import com.sfvoice.media.SfVoiceMediaException;
 
 try {
     client.search(req);

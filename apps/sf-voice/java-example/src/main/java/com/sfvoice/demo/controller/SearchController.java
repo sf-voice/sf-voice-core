@@ -1,4 +1,4 @@
-package sh.sf-voice.demo.controller;
+package com.sfvoice.demo.controller;
 
 import com.sfvoice.media.SfVoiceMediaClient;
 import com.sfvoice.media.SfVoiceMediaException;

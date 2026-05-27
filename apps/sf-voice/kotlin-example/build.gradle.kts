@@ -12,7 +12,7 @@ kotlin {
 }
 
 application {
-    mainClass.set("sh.sf-voice.demo.AppKt")
+    mainClass.set("com.sfvoice.demo.AppKt")
 }
 
 dependencies {

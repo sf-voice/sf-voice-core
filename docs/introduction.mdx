@@ -2,10 +2,11 @@
 title: "Introduction"
 description: "What's San Francisco Voice Company"
 ---
-
 **We make voice AI better.**
 
-Our first feature is a search engine for media. Ingest audio or video, search it with natural language, and use the returned timestamps to jump back into the recording. You do not need to build your own transcript store, embedding pipeline, or media search layer first.
+Our first feature is a search engine for media. 
+
+You do not need to build your own transcript store, embedding pipeline, or media search layer first.
 
 <Warning>
   These docs cover version `0.1.1`. We are iterating quickly, so pin your SDK version and expect breaking changes between versions until the API settles.
@@ -17,25 +18,15 @@ Search is where we start. Next up is benchmarking and toolings for voice AI syst
 
 - Search all audio by topic, objection, or feature request as humanly possible **"Where does customers got impatient?"**.
 - Find calls where your AI interrupted the caller, spoke too slowly, or repeated itself.
-- Scope each end customer to their own audio.
-- Build compliance review, QA workflows, or knowledge bases on top of your call archive.
+- Find specifc content within a video even when nobody is talking.
+- Build compliance review, QA workflows, or knowledge bases on top of your audio or video archive.
 
-## The core model
-
-Assets carry IDs and scope from your own system.
-
-| Field | What it is |
-| --- | --- |
-| `asset_id` | Your ID for the recording. Required. Returned on search results so you can join back to your system. |
-| `asset_class` | A logical group — one customer, one workspace, one project. Scopes search so results don't leak across boundaries. |
-| `types` | What to index: `audio`, `video`, `transcript`, or any combination. |
-| `metadata` | Flat key/value pairs for correlation and display. |
 
 ## Lifecycle
 
 <Steps>
   <Step title="Ingest">
-    Send a URL, authenticate us to your bucket via S3 key, or file upload with your `asset_id`. The API returns a `task_id` immediately.
+    Send a URL, authenticate us to your bucket via S3 key, or file upload with your `asset_id` (more details about [asset_id is here](#)). The API returns a `task_id` immediately.
   </Step>
   <Step title="Index">
     Poll the task until it reaches `ready`. Indexing runs in the background.

@@ -3,7 +3,7 @@ plugins {
     id 'maven-publish'
 }
 
-group = 'com.sfvoice'
+group = 'sh.sf-voice'
 version = '0.1.1'
 
 java {

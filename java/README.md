@@ -10,7 +10,7 @@ Gradle:
 
 ```kotlin
 dependencies {
-    implementation("com.sfvoice:sf-voice-media-java:0.1.1")
+    implementation("sh.sf-voice:sf-voice-media-java:0.1.1")
 }
 ```
 
@@ -88,4 +88,3 @@ The client exposes blocking methods:
 ## Examples
 
 - [`../apps/sf-voice/java-example`](../apps/sf-voice/java-example) - Spring Boot REST proxy example.
-

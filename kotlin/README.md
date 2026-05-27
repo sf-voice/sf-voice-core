@@ -10,7 +10,7 @@ Gradle:
 
 ```kotlin
 dependencies {
-    implementation("com.sfvoice:sf-voice-media-kotlin:0.1.1")
+    implementation("sh.sf-voice:sf-voice-media-kotlin:0.1.1")
 }
 ```
 
@@ -84,4 +84,3 @@ The client exposes suspend functions:
 ## Examples
 
 - [`../apps/sf-voice/kotlin-example`](../apps/sf-voice/kotlin-example) - Ktor REST proxy example.
-
