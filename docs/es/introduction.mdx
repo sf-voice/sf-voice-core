@@ -1,0 +1,76 @@
+---
+title: "Introducción"
+description: "Lo que hace sf-voice media y cómo convierte audio y vídeo en recursos buscables."
+icon: "sparkles"
+---
+
+sf-voice media es una capa de API y SDK para hacer que el audio y el vídeo sean buscables.
+Nos envías el contenido multimedia, mantienes tus propios ID de recursos, eliges las superficies que quieres indexar
+y consultas el contenido indexado en lenguaje natural.
+
+<Columns cols={3}>
+  <Card title="Ingerir contenido multimedia" icon="upload">
+    Envía vídeo o audio desde una URL, una clave de S3 o subiendo un archivo.
+  </Card>
+  <Card title="Indexar superficies útiles" icon="layers">
+    Elige si indexar vídeo, audio, transcripción o una combinación de ellos.
+  </Card>
+  <Card title="Buscar con contexto" icon="search">
+    Busca por cliente, workspace, proyecto o ID de recursos explícitos.
+  </Card>
+</Columns>
+
+## Para qué construirlo
+
+sf-voice media está dirigido a equipos de producto que necesitan buscar y recuperar contenido multimedia
+dentro de su propia aplicación.
+
+Casos de uso comunes:
+
+- Buscar en llamadas de clientes por tema, objeción, solicitud de funcionalidad o defecto.
+- Buscar en demos de producto y vídeos de soporte por lo que se dijo o se mostró.
+- Permitir que cada cliente final busque únicamente su propio contenido subido.
+- Construir flujos de revisión de medios, cumplimiento, QA o base de conocimiento.
+
+## El modelo central
+
+Cada recurso comienza con los ID y el ámbito que provienen de tu sistema.
+
+| Concepto | Significado |
+| --- | --- |
+| `asset_id` | Tu ID único para un recurso multimedia. Obligatorio al ingerir. |
+| `asset_class` | Un grupo lógico para los recursos, como un cliente, workspace, proyecto o repositorio. |
+| `types` | Las superficies multimedia a indexar o buscar: `video`, `audio` y `transcript`. |
+| `metadata` | Metadatos opcionales planos de clave/valor para correlación y visualización. |
+
+<Note>
+  La API pública usa términos de sf-voice. Los ID específicos del proveedor backend y los mapeos no forman parte del contrato del SDK.
+</Note>
+
+## Ciclo de vida
+
+<Steps>
+  <Step title="Enviar contenido multimedia">
+    Envía una URL, una clave de S3 o un archivo con tu `asset_id`.
+  </Step>
+
+  <Step title="Sondear la tarea de indexación">
+    La API devuelve un `task_id` inmediatamente. Sondea hasta que la tarea pase a `ready`
+    o `failed`.
+  </Step>
+
+  <Step title="Buscar en recursos acotados">
+    Busca por `asset_class`, por `asset_ids` explícitos o por `scope: "all"` cuando
+    la búsqueda global sea intencional.
+  </Step>
+</Steps>
+
+## Empieza aquí
+
+<Card title="Guía rápida" icon="rocket" href="/es/quickstart">
+  Ingiere un recurso, espera la indexación y ejecuta tu primera búsqueda.
+</Card>
+
+<Card title="SDK de TypeScript" icon="code" href="/es/sdks/typescript">
+  Usa `@sf-voice/media` desde una aplicación TypeScript.
+</Card>
