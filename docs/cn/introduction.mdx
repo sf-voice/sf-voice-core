@@ -1,0 +1,74 @@
+---
+title: "简介"
+description: "sf-voice media 的功能,以及它如何将音频和视频转化为可搜索的资产。"
+icon: "sparkles"
+---
+
+sf-voice media 是一个让音频和视频可被搜索的 API 与 SDK 层。
+你将媒体内容发送给我们,自行保留资产 ID,选择想要索引的内容维度,
+并用自然语言查询已索引的媒体。
+
+<Columns cols={3}>
+  <Card title="摄取媒体" icon="upload">
+    通过 URL、S3 键或文件上传方式提交视频或音频。
+  </Card>
+  <Card title="索引有用的维度" icon="layers">
+    选择索引视频、音频、转录文本,或它们的组合。
+  </Card>
+  <Card title="按上下文搜索" icon="search">
+    按客户、工作区、项目或显式资产 ID 进行搜索。
+  </Card>
+</Columns>
+
+## 你可以用它构建什么
+
+sf-voice media 面向需要在自家应用中对媒体进行搜索和检索的产品团队。
+
+常见用例:
+
+- 按主题、异议、功能请求或缺陷在客户通话中进行搜索。
+- 按所说或所展示的内容,在产品演示和支持视频中进行搜索。
+- 让每位终端客户仅搜索其自身上传的媒体。
+- 构建媒体审核、合规、QA 或知识库工作流。
+
+## 核心模型
+
+每个资产都从源自你系统的 ID 与范围开始。
+
+| 概念 | 含义 |
+| --- | --- |
+| `asset_id` | 你为媒体资产指定的唯一 ID。摄取时必填。 |
+| `asset_class` | 资产的逻辑分组,例如客户、工作区、项目或代码仓库。 |
+| `types` | 要索引或搜索的媒体维度:`video`、`audio` 和 `transcript`。 |
+| `metadata` | 可选的扁平键/值元数据,用于关联和展示。 |
+
+<Note>
+  公共 API 使用 sf-voice 的术语。后端特定的提供方 ID 与映射不属于 SDK 合约的一部分。
+</Note>
+
+## 生命周期
+
+<Steps>
+  <Step title="提交媒体">
+    使用你的 `asset_id` 发送 URL、S3 键或文件上传。
+  </Step>
+
+  <Step title="轮询索引任务">
+    API 会立即返回一个 `task_id`。持续轮询直到任务变为 `ready`
+    或 `failed`。
+  </Step>
+
+  <Step title="搜索范围内的资产">
+    按 `asset_class`、显式 `asset_ids`,或在确实需要全局搜索时使用 `scope: "all"` 进行搜索。
+  </Step>
+</Steps>
+
+## 从这里开始
+
+<Card title="快速开始" icon="rocket" href="/cn/quickstart">
+  摄取一个资产,等待索引,并运行你的第一次搜索。
+</Card>
+
+<Card title="TypeScript SDK" icon="code" href="/cn/sdks/typescript">
+  在 TypeScript 应用中使用 `@sf-voice/media`。
+</Card>

@@ -1,0 +1,76 @@
+---
+title: "Introduction"
+description: "Ce que fait sf-voice media et comment il transforme l'audio et la vidéo en ressources consultables."
+icon: "sparkles"
+---
+
+sf-voice media est une couche API et SDK qui rend l'audio et la vidéo consultables.
+Vous nous envoyez vos médias, conservez vos propres identifiants d'actifs, choisissez les surfaces que vous souhaitez indexer,
+et interrogez les médias indexés en langage naturel.
+
+<Columns cols={3}>
+  <Card title="Ingérer les médias" icon="upload">
+    Soumettez une vidéo ou un audio depuis une URL, une clé S3 ou un téléversement de fichier.
+  </Card>
+  <Card title="Indexer les surfaces utiles" icon="layers">
+    Choisissez d'indexer la vidéo, l'audio, la transcription, ou une combinaison de ces éléments.
+  </Card>
+  <Card title="Rechercher avec contexte" icon="search">
+    Recherchez par client, espace de travail, projet ou identifiants d'actifs explicites.
+  </Card>
+</Columns>
+
+## Ce que vous construisez avec
+
+sf-voice media s'adresse aux équipes produit qui ont besoin de recherche et de récupération de médias
+au sein de leur propre application.
+
+Cas d'usage courants :
+
+- Rechercher dans les appels clients par sujet, objection, demande de fonctionnalité ou défaut.
+- Rechercher dans les démos produit et les vidéos de support par ce qui a été dit ou montré.
+- Permettre à chaque client final de rechercher uniquement ses propres médias téléversés.
+- Construire des workflows de revue de médias, de conformité, de QA ou de base de connaissances.
+
+## Le modèle principal
+
+Chaque actif commence avec des identifiants et une portée provenant de votre système.
+
+| Concept | Signification |
+| --- | --- |
+| `asset_id` | Votre identifiant unique pour un actif média. Obligatoire à l'ingestion. |
+| `asset_class` | Un groupe logique pour les actifs, tel qu'un client, un espace de travail, un projet ou un dépôt. |
+| `types` | Les surfaces médias à indexer ou rechercher : `video`, `audio` et `transcript`. |
+| `metadata` | Métadonnées clé/valeur plates optionnelles pour la corrélation et l'affichage. |
+
+<Note>
+  L'API publique utilise les termes sf-voice. Les identifiants et mappages spécifiques au backend ne font pas partie du contrat du SDK.
+</Note>
+
+## Cycle de vie
+
+<Steps>
+  <Step title="Soumettre le média">
+    Envoyez une URL, une clé S3 ou un téléversement de fichier avec votre `asset_id`.
+  </Step>
+
+  <Step title="Interroger la tâche d'indexation">
+    L'API renvoie immédiatement un `task_id`. Interrogez jusqu'à ce que la tâche devienne `ready`
+    ou `failed`.
+  </Step>
+
+  <Step title="Rechercher dans les actifs cadrés">
+    Recherchez par `asset_class`, par `asset_ids` explicites, ou par `scope: "all"` lorsque
+    la recherche globale est intentionnelle.
+  </Step>
+</Steps>
+
+## Commencez ici
+
+<Card title="Démarrage rapide" icon="rocket" href="/fr/quickstart">
+  Ingérez un actif, attendez l'indexation, et lancez votre première recherche.
+</Card>
+
+<Card title="SDK TypeScript" icon="code" href="/fr/sdks/typescript">
+  Utilisez `@sf-voice/media` depuis une application TypeScript.
+</Card>

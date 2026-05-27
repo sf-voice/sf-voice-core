@@ -1,0 +1,145 @@
+---
+title: "Avvio rapido"
+description: "Indicizza un asset multimediale ed esegui la tua prima ricerca con ambito definito."
+icon: "rocket"
+---
+
+Questa guida ti porta dalla chiave API al primo risultato di ricerca con l'SDK TypeScript.
+
+## Installazione
+
+<CodeGroup>
+```sh pnpm
+pnpm add @sf-voice/media@latest
+```
+
+```sh npm
+npm install @sf-voice/media@latest
+```
+
+```sh bun
+bun install @sf-voice/media@latest
+```
+</CodeGroup>
+
+## 1. Crea un client
+
+```ts
+import { SfVoiceMedia } from "@sf-voice/media";
+
+const client = new SfVoiceMedia({
+  baseUrl: "https://api.sf-voice.com",
+  apiKey: process.env.SF_VOICE_API_KEY!,
+});
+```
+
+## 2. Ingerisci un asset
+
+Usa un `asset_id` proveniente dal tuo sistema. Usa `asset_class` per raggruppare gli asset
+che devono essere cercati insieme, come tutti i contenuti di un singolo cliente.
+
+```ts
+const ingest = await client.ingest({
+  source: "url",
+  asset_id: "video_123",
+  asset_class: "customer_acme",
+  url: "https://example.com/recording.mp4",
+  media_type: "video",
+  types: ["video", "audio", "transcript"],
+  metadata: {
+    title: "product demo",
+    customer_id: "acme",
+  },
+});
+```
+
+La risposta include un `task_id` per l'indicizzazione.
+
+```json
+{
+  "asset_id": "video_123",
+  "task_id": "task_abc123",
+  "status": "pending"
+}
+```
+
+## 3. Attendi l'indicizzazione
+
+```ts
+const task = await client.pollTask(ingest.task_id, {
+  intervalMs: 2_000,
+  timeoutMs: 120_000,
+});
+
+if (task.status === "failed") {
+  throw new Error(task.error ?? "ingest task failed");
+}
+```
+
+## 4. Cerca
+
+Esegui la ricerca all'interno della stessa `asset_class` affinché i risultati restino limitati al cliente o
+gruppo previsto.
+
+```ts
+const search = await client.search({
+  query: "where does the customer mention pricing?",
+  asset_class: "customer_acme",
+  types: ["transcript"],
+  threshold: 0.7,
+  limit: 10,
+});
+
+console.log(search.results);
+```
+
+## Esempio completo
+
+```ts
+import { SfVoiceMedia, SfVoiceMediaError } from "@sf-voice/media";
+
+const client = new SfVoiceMedia({
+  baseUrl: "https://api.sf-voice.com",
+  apiKey: process.env.SF_VOICE_API_KEY!,
+});
+
+try {
+  const ingest = await client.ingest({
+    source: "url",
+    asset_id: "video_123",
+    asset_class: "customer_acme",
+    url: "https://example.com/recording.mp4",
+    media_type: "video",
+    types: ["video", "audio", "transcript"],
+  });
+
+  const task = await client.pollTask(ingest.task_id);
+
+  if (task.status === "failed") {
+    throw new Error(task.error ?? "ingest task failed");
+  }
+
+  const search = await client.search({
+    query: "pricing",
+    asset_class: "customer_acme",
+    types: ["transcript"],
+  });
+
+  console.log(search.results);
+} catch (error) {
+  if (error instanceof SfVoiceMediaError) {
+    console.error(error.code, error.status, error.message);
+  }
+  throw error;
+}
+```
+
+## Passaggi successivi
+
+<Card title="Come funziona" icon="workflow" href="/it/how-it-works">
+  Scopri come ingestione, indicizzazione, polling dei task e ricerca con ambito si integrano.
+</Card>
+
+<Card title="SDK TypeScript" icon="code" href="/it/sdks/typescript">
+  Vedi ogni forma di input e output esposta dall'SDK.
+</Card>
