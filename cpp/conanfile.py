@@ -15,7 +15,7 @@ import os
 
 class SfVoiceMediaConan(ConanFile):
     name        = "sf_voice"
-    version     = "0.1.0"
+    version     = "0.1.1"
     license     = "MIT"
     description = "Header-only C++17 SDK for the sf-voice media API"
     url         = "https://github.com/sf-voice/sf-voice-core"
