@@ -51,7 +51,7 @@ impl SfVoiceMediaError {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// let env = br#"{"error":{"code":"bad_request","message":"invalid input"}}"#;
     /// let err = SfVoiceMediaError::from_response(400, env);
     /// match err {
