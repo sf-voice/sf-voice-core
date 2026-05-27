@@ -1,4 +1,4 @@
-package com.sfvoice.media
+package sh.sfvoice.media
 
 import io.ktor.client.*
 import io.ktor.client.call.*
@@ -72,7 +72,7 @@ class SfVoiceMediaClient(
      * Initiates ingestion and returns the created task information immediately.
      *
      * @param request Details of the media to ingest and any ingestion options.
-     * @return An IngestResponse containing the created task's ID and associated metadata. 
+     * @return An IngestResponse containing the created task's ID and associated metadata.
      */
     suspend fun ingest(request: IngestRequest): IngestResponse {
         val response = http.post("$baseUrl/v1/ingest") {
@@ -148,7 +148,7 @@ class SfVoiceMediaClient(
      * Performs a semantic search over indexed media.
      *
      * @param request The search query and any filters or pagination parameters to apply.
-     * @return A SearchResponse containing matching results and associated metadata. 
+     * @return A SearchResponse containing matching results and associated metadata.
      */
     suspend fun search(request: SearchRequest): SearchResponse {
         val response = http.post("$baseUrl/v1/search") {

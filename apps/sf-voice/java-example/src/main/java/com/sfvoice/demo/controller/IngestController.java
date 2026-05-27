@@ -1,10 +1,10 @@
-package com.sfvoice.demo.controller;
+package sh.sfvoice.demo.controller;
 
-import com.sfvoice.media.SfVoiceMediaClient;
-import com.sfvoice.media.SfVoiceMediaException;
-import com.sfvoice.media.models.IngestRequest;
-import com.sfvoice.media.models.IngestResponse;
-import com.sfvoice.media.models.Task;
+import sh.sfvoice.media.SfVoiceMediaClient;
+import sh.sfvoice.media.SfVoiceMediaException;
+import sh.sfvoice.media.models.IngestRequest;
+import sh.sfvoice.media.models.IngestResponse;
+import sh.sfvoice.media.models.Task;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 

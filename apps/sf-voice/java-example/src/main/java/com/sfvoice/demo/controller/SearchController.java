@@ -1,10 +1,10 @@
-package com.sfvoice.demo.controller;
+package sh.sfvoice.demo.controller;
 
-import com.sfvoice.media.SfVoiceMediaClient;
-import com.sfvoice.media.SfVoiceMediaException;
-import com.sfvoice.media.models.AssetListResponse;
-import com.sfvoice.media.models.SearchRequest;
-import com.sfvoice.media.models.SearchResponse;
+import sh.sfvoice.media.SfVoiceMediaClient;
+import sh.sfvoice.media.SfVoiceMediaException;
+import sh.sfvoice.media.models.AssetListResponse;
+import sh.sfvoice.media.models.SearchRequest;
+import sh.sfvoice.media.models.SearchResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

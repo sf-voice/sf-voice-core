@@ -1,9 +1,9 @@
-package com.sfvoice.demo.routes
+package sh.sfvoice.demo.routes
 
-import com.sfvoice.media.SearchMatchType
-import com.sfvoice.media.SfVoiceMediaClient
-import com.sfvoice.media.SfVoiceMediaException
-import com.sfvoice.media.SearchRequest
+import sh.sfvoice.media.SearchMatchType
+import sh.sfvoice.media.SfVoiceMediaClient
+import sh.sfvoice.media.SfVoiceMediaException
+import sh.sfvoice.media.SearchRequest
 import io.ktor.http.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
