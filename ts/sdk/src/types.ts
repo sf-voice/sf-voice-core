@@ -6,20 +6,20 @@
 // ─── shared ──────────────────────────────────────────────────────────────────
 
 export type MediaType = "video" | "audio";
-export type SourceType = "url" | "s3";
+export type SourceType = "url" | "s3" | "file";
 export type TaskStatus = "pending" | "indexing" | "ready" | "failed";
-export type SearchMatchType = "visual" | "conversation" | "text_in_video";
+export type MediaSearchType = "video" | "audio" | "transcript";
 
-export type MediaMetadata = {
-  title?: string;
-  tags?: string[];
-};
+export type MediaMetadata = Record<string, string | number | boolean>;
+export type IngestFile = Blob | ArrayBuffer | Uint8Array;
 
 /** a single asset in the library */
 export type Asset = {
-  id: string;
+  asset_id: string;
+  asset_class?: string;
   media_type: MediaType;
   source_type: SourceType;
+  types: MediaSearchType[];
   status: TaskStatus;
   metadata?: MediaMetadata;
   duration_ms?: number;
@@ -38,19 +38,33 @@ export type PageInfo = {
 
 // ─── ingest ──────────────────────────────────────────────────────────────────
 
-export type IngestRequest =
-  | {
-      source: "url";
-      url: string;
-      media_type?: MediaType;
-      metadata?: MediaMetadata;
-    }
-  | {
-      source: "s3";
-      s3_key: string;
-      media_type?: MediaType;
-      metadata?: MediaMetadata;
-    };
+export type IngestBase = {
+  /** customer-provided unique id for correlating this asset */
+  asset_id: string;
+  /** logical group for this asset. the backend maps this to a provider index. */
+  asset_class?: string;
+  media_type?: MediaType;
+  metadata?: MediaMetadata;
+  types?: MediaSearchType[];
+};
+
+export type IngestRequest = IngestBase &
+  (
+    | {
+        source: "url";
+        url: string;
+      }
+    | {
+        source: "s3";
+        s3_key: string;
+      }
+    | {
+        source: "file";
+        file: IngestFile;
+        filename: string;
+        content_type?: string;
+      }
+  );
 
 export type IngestResponse = {
   asset_id: string;
@@ -63,6 +77,8 @@ export type IngestResponse = {
 export type Task = {
   task_id: string;
   asset_id: string;
+  asset_class?: string;
+  types: MediaSearchType[];
   status: TaskStatus;
   error?: string;
   created_at: string;
@@ -86,9 +102,12 @@ export type AssetListResponse = {
 
 export type SearchRequest = {
   query: string;
-  types?: SearchMatchType[];
+  types?: MediaSearchType[];
   asset_ids?: string[];
-  /** 0.0–1.0, default 0.5 */
+  asset_class?: string;
+  /** set this to "all" to intentionally search every asset. */
+  scope?: "all";
+  /** minimum match score from 0.0 to 1.0. higher values return fewer, more confident results. default 0.5. */
   threshold?: number;
   page?: number;
   /** max 50 */
@@ -100,7 +119,7 @@ export type SearchResult = {
   score: number;
   start_ms: number;
   end_ms: number;
-  match_type: SearchMatchType;
+  match_type: MediaSearchType;
   thumbnail_url?: string;
 };
 

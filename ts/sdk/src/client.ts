@@ -38,6 +38,26 @@ function toQueryString(
   return "?" + new URLSearchParams(entries.map(([k, v]) => [k, String(v)] as [string, string]));
 }
 
+function toUploadBlob(
+  file: Blob | ArrayBuffer | Uint8Array,
+  contentType?: string
+): Blob {
+  if (file instanceof Blob) return file;
+
+  const bytes =
+    file instanceof ArrayBuffer
+      ? file
+      : (() => {
+          const copy = new Uint8Array(file.byteLength);
+          copy.set(file);
+          return copy.buffer;
+        })();
+
+  return contentType !== undefined
+    ? new Blob([bytes], { type: contentType })
+    : new Blob([bytes]);
+}
+
 // ─── client ──────────────────────────────────────────────────────────────────
 
 export type SfVoiceMediaOptions = {
@@ -69,7 +89,6 @@ export class SfVoiceMedia {
     // strip trailing slash so every path concat is predictable
     this.baseUrl = baseUrl.replace(/\/$/, "");
     this.headers = {
-      "Content-Type": "application/json",
       "X-API-Key": apiKey,
     };
     this.timeoutMs = timeoutMs;
@@ -86,17 +105,30 @@ export class SfVoiceMedia {
   private async request<T>(
     method: string,
     path: string,
-    body?: unknown
+    body?: unknown,
+    initBody?: BodyInit,
+    headers: Record<string, string> = {}
   ): Promise<T> {
     const url = `${this.baseUrl}${path}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     const init: RequestInit = {
       method,
-      headers: this.headers,
+      headers: {
+        ...this.headers,
+        ...headers,
+      },
       signal: controller.signal,
     };
-    if (body !== undefined) {
+
+    if (initBody !== undefined) {
+      init.body = initBody;
+    } else if (body !== undefined) {
+      init.headers = {
+        ...this.headers,
+        "Content-Type": "application/json",
+        ...headers,
+      };
       init.body = JSON.stringify(body);
     }
 
@@ -145,19 +177,44 @@ export class SfVoiceMedia {
   // ─── public methods ────────────────────────────────────────────────────────
 
   /**
-   * submit a media file for ingestion from a URL or S3 key.
+   * submit a media file for ingestion from a URL, S3 key, or file upload.
    * returns immediately with a task_id you can poll with `getTask` or `pollTask`.
    *
    * @example
    * ```ts
    * const { task_id } = await client.ingest({
    *   source: "url",
+   *   asset_id: "customer-video-123",
+   *   asset_class: "customer_456",
    *   url: "https://example.com/clip.mp4",
-   *   metadata: { title: "Demo clip" },
+   *   metadata: { title: "demo clip" },
+   *   types: ["video", "transcript"],
    * });
    * ```
    */
   async ingest(req: IngestRequest): Promise<IngestResponse> {
+    if (req.source === "file") {
+      const form = new FormData();
+      const file = toUploadBlob(req.file, req.content_type);
+
+      form.append("source", req.source);
+      form.append("asset_id", req.asset_id);
+      form.append("file", file, req.filename);
+      if (req.asset_class !== undefined) {
+        form.append("asset_class", req.asset_class);
+      }
+      if (req.media_type !== undefined) form.append("media_type", req.media_type);
+      if (req.content_type !== undefined) {
+        form.append("content_type", req.content_type);
+      }
+      if (req.metadata !== undefined) {
+        form.append("metadata", JSON.stringify(req.metadata));
+      }
+      if (req.types !== undefined) form.append("types", JSON.stringify(req.types));
+
+      return this.request<IngestResponse>("POST", "/v1/ingest", undefined, form);
+    }
+
     return this.request<IngestResponse>("POST", "/v1/ingest", req);
   }
 
@@ -188,15 +245,15 @@ export class SfVoiceMedia {
   }
 
   /**
-   * fetch a single asset by id.
+   * fetch a single asset by asset_id.
    *
    * @example
    * ```ts
-   * const asset = await client.getAsset("ast_abc123");
+   * const asset = await client.getAsset("customer-video-123");
    * ```
    */
-  async getAsset(id: string): Promise<Asset> {
-    return this.request<Asset>("GET", `/v1/assets/${encodeURIComponent(id)}`);
+  async getAsset(assetId: string): Promise<Asset> {
+    return this.request<Asset>("GET", `/v1/assets/${encodeURIComponent(assetId)}`);
   }
 
   /**
@@ -206,11 +263,11 @@ export class SfVoiceMedia {
    *
    * @example
    * ```ts
-   * await client.deleteAsset("ast_abc123");
+   * await client.deleteAsset("customer-video-123");
    * ```
    */
-  async deleteAsset(id: string): Promise<void> {
-    return this.request<void>("DELETE", `/v1/assets/${encodeURIComponent(id)}`);
+  async deleteAsset(assetId: string): Promise<void> {
+    return this.request<void>("DELETE", `/v1/assets/${encodeURIComponent(assetId)}`);
   }
 
   /**
@@ -220,7 +277,8 @@ export class SfVoiceMedia {
    * ```ts
    * const { results } = await client.search({
    *   query: "someone mentions the product roadmap",
-   *   types: ["conversation"],
+   *   asset_class: "customer_456",
+   *   types: ["transcript"],
    *   threshold: 0.7,
    * });
    * ```
