@@ -1,50 +1,67 @@
 """
-sf-voice-media Python SDK.
-
-Quick start (sync):
-
-    from sf_voice import SfVoiceMedia
-
-    client = SfVoiceMedia(api_key="your-key", base_url="https://api.sf-voice.com")
-    resp = client.ingest(source="url", url="https://example.com/video.mp4")
-    task = client.poll_task(resp.task_id)
-
-Quick start (async):
-
-    from sf_voice import AsyncSfVoiceMedia
-
-    async with AsyncSfVoiceMedia(api_key="your-key") as client:
-        resp = await client.ingest(source="url", url="https://example.com/video.mp4")
-        task = await client.poll_task(resp.task_id)
+sf-voice media python sdk.
 """
 
 from .async_client import AsyncSfVoiceMedia
 from .client import SfVoiceMedia
-from .errors import SfVoiceMediaError
+from .errors import (
+    SfVoiceMediaError,
+    SfVoiceMediaPollTimeoutError,
+    SfVoiceMediaRequestTimeoutError,
+)
 from .models import (
+    ApiErrorCode,
     Asset,
     AssetListResponse,
+    FileIngestRequest,
+    IngestFile,
+    IngestRequest,
     IngestResponse,
+    ListAssetsParams,
+    MediaMetadata,
+    MediaMetadataValue,
+    MediaSearchType,
+    MediaType,
     PageInfo,
+    PollTaskOptions,
+    S3IngestRequest,
+    SearchRequest,
     SearchResponse,
     SearchResult,
+    SourceType,
     Task,
+    TaskStatus,
+    UrlIngestRequest,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
-    # clients
     "SfVoiceMedia",
     "AsyncSfVoiceMedia",
-    # errors
     "SfVoiceMediaError",
-    # models
+    "SfVoiceMediaPollTimeoutError",
+    "SfVoiceMediaRequestTimeoutError",
+    "ApiErrorCode",
     "Asset",
     "AssetListResponse",
+    "FileIngestRequest",
+    "IngestFile",
+    "IngestRequest",
     "IngestResponse",
+    "ListAssetsParams",
+    "MediaMetadata",
+    "MediaMetadataValue",
+    "MediaSearchType",
+    "MediaType",
     "PageInfo",
+    "PollTaskOptions",
+    "S3IngestRequest",
+    "SearchRequest",
     "SearchResponse",
     "SearchResult",
+    "SourceType",
     "Task",
+    "TaskStatus",
+    "UrlIngestRequest",
 ]

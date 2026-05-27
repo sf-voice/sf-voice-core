@@ -1,0 +1,145 @@
+---
+title: "Quickstart"
+description: "Index one media asset and run your first scoped search."
+icon: "rocket"
+---
+
+This guide gets from API key to first search result with the TypeScript SDK.
+
+## Install
+
+<CodeGroup>
+```sh pnpm
+pnpm add @sf-voice/media@latest
+```
+
+```sh npm
+npm install @sf-voice/media@latest
+```
+
+```sh bun
+bun install @sf-voice/media@latest
+```
+</CodeGroup>
+
+## 1. Create a client
+
+```ts
+import { SfVoiceMedia } from "@sf-voice/media";
+
+const client = new SfVoiceMedia({
+  baseUrl: "https://api.sf-voice.com",
+  apiKey: process.env.SF_VOICE_API_KEY!,
+});
+```
+
+## 2. Ingest an asset
+
+Use an `asset_id` from your own system. Use `asset_class` to group assets that
+should be searched together, such as all media for one customer.
+
+```ts
+const ingest = await client.ingest({
+  source: "url",
+  asset_id: "video_123",
+  asset_class: "customer_acme",
+  url: "https://example.com/recording.mp4",
+  media_type: "video",
+  types: ["video", "audio", "transcript"],
+  metadata: {
+    title: "product demo",
+    customer_id: "acme",
+  },
+});
+```
+
+The response includes a `task_id` for indexing.
+
+```json
+{
+  "asset_id": "video_123",
+  "task_id": "task_abc123",
+  "status": "pending"
+}
+```
+
+## 3. Wait for indexing
+
+```ts
+const task = await client.pollTask(ingest.task_id, {
+  intervalMs: 2_000,
+  timeoutMs: 120_000,
+});
+
+if (task.status === "failed") {
+  throw new Error(task.error ?? "ingest task failed");
+}
+```
+
+## 4. Search
+
+Search within the same `asset_class` so results stay scoped to the customer or
+group you intended.
+
+```ts
+const search = await client.search({
+  query: "where does the customer mention pricing?",
+  asset_class: "customer_acme",
+  types: ["transcript"],
+  threshold: 0.7,
+  limit: 10,
+});
+
+console.log(search.results);
+```
+
+## Full example
+
+```ts
+import { SfVoiceMedia, SfVoiceMediaError } from "@sf-voice/media";
+
+const client = new SfVoiceMedia({
+  baseUrl: "https://api.sf-voice.com",
+  apiKey: process.env.SF_VOICE_API_KEY!,
+});
+
+try {
+  const ingest = await client.ingest({
+    source: "url",
+    asset_id: "video_123",
+    asset_class: "customer_acme",
+    url: "https://example.com/recording.mp4",
+    media_type: "video",
+    types: ["video", "audio", "transcript"],
+  });
+
+  const task = await client.pollTask(ingest.task_id);
+
+  if (task.status === "failed") {
+    throw new Error(task.error ?? "ingest task failed");
+  }
+
+  const search = await client.search({
+    query: "pricing",
+    asset_class: "customer_acme",
+    types: ["transcript"],
+  });
+
+  console.log(search.results);
+} catch (error) {
+  if (error instanceof SfVoiceMediaError) {
+    console.error(error.code, error.status, error.message);
+  }
+  throw error;
+}
+```
+
+## Next steps
+
+<Card title="How it works" icon="workflow" href="/how-it-works">
+  Learn how ingest, indexing, task polling, and scoped search fit together.
+</Card>
+
+<Card title="TypeScript SDK" icon="code" href="/sdks/typescript">
+  See every input and output shape exposed by the SDK.
+</Card>

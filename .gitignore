@@ -82,6 +82,9 @@ debug.log
 ## rust
 target/
 
+## c++ cmake
+cpp/build/
+
 ## core stack — embedded duckdb store (created at runtime by the rust api)
 /data/
 .models/

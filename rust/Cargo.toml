@@ -1,6 +1,6 @@
 [package]
 name = "sf_voice_media"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Async Rust client for the San Francisco Voice Company API"
 license = "MIT"

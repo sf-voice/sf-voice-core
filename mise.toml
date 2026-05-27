@@ -137,17 +137,6 @@ echo "[ci:sdk:ts] build"
 pnpm --filter @sf-voice/media build
 """
 
-[tasks."ci:sdk:qi"]
-description = "sdk ci: qi (@sf-model/qi) — typecheck + build via bun"
-dir = "ts/qi"
-run = """
-set -e
-echo "[ci:sdk:qi] typecheck"
-bun run typecheck
-echo "[ci:sdk:qi] build"
-bun run build
-"""
-
 [tasks."ci:sdk:go"]
 description = "sdk ci: go — vet + build"
 dir = "go"
@@ -211,11 +200,10 @@ cmake -S cpp -B cpp/build \
 """
 
 [tasks."ci:sdk"]
-description = "sdk ci: all sdks — ts, qi, go, python, rust, java, kotlin, cpp"
+description = "sdk ci: all sdks — ts, go, python, rust, java, kotlin, cpp"
 run = """
 set -e
 mise run ci:sdk:ts
-mise run ci:sdk:qi
 mise run ci:sdk:go
 mise run ci:sdk:python
 mise run ci:sdk:rust
