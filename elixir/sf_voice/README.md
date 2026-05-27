@@ -2,6 +2,8 @@
 
 Elixir client for the sf-voice media API.
 
+Version: `0.1.1`
+
 Ingest audio or video from a URL or S3, let sf-voice index speech, visuals,
 and on-screen text, then search your entire media library with natural language.
 Results include millisecond timestamps so you can deep-link to the exact moment.
@@ -10,7 +12,7 @@ Results include millisecond timestamps so you can deep-link to the exact moment.
 
 ```elixir
 def deps do
-  [{:sf_voice, "~> 0.1"}]
+  [{:sf_voice, "~> 0.1.1"}]
 end
 ```
 
@@ -52,6 +54,11 @@ case SfVoiceMedia.search(client, %{query: "roadmap"}) do
     Logger.error("[#{code}] #{msg}")
 end
 ```
+
+## Examples
+
+There is no standalone Elixir SDK app example yet. This README is the primary
+usage example for the package.
 
 ## Configuration
 

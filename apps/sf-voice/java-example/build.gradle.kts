@@ -15,7 +15,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     // local sdk jar — run `gradle jar` from ../../../java first
-    implementation(files("../../../java/build/libs/sf-voice-media-0.1.0.jar"))
+    implementation(files("../../../java/build/libs/sf-voice-media-0.1.1.jar"))
     // jackson is provided by spring-boot-starter-web; jackson-databind pulled in by the sdk
     implementation("com.fasterxml.jackson.core:jackson-databind:2.17.1")
 }
