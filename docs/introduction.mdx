@@ -1,0 +1,76 @@
+---
+title: "Introduction"
+description: "What sf-voice media does and how it turns audio and video into searchable assets."
+icon: "sparkles"
+---
+
+sf-voice media is an API and SDK layer for making audio and video searchable.
+You send us media, keep your own asset ids, choose the surfaces you want indexed,
+and query the indexed media with natural language.
+
+<Columns cols={3}>
+  <Card title="Ingest media" icon="upload">
+    Submit video or audio from a URL, S3 key, or file upload.
+  </Card>
+  <Card title="Index useful surfaces" icon="layers">
+    Choose whether to index video, audio, transcript, or a combination of them.
+  </Card>
+  <Card title="Search with context" icon="search">
+    Search by customer, workspace, project, or explicit asset ids.
+  </Card>
+</Columns>
+
+## What you build with it
+
+sf-voice media is for product teams that need search and retrieval over media
+inside their own application.
+
+Common use cases:
+
+- Search customer calls by topic, objection, feature request, or defect.
+- Search product demos and support videos by what was said or shown.
+- Let each end customer search only their own uploaded media.
+- Build media review, compliance, QA, or knowledge-base workflows.
+
+## The core model
+
+Every asset starts with ids and scope that come from your system.
+
+| Concept | Meaning |
+| --- | --- |
+| `asset_id` | Your unique id for a media asset. Required on ingest. |
+| `asset_class` | A logical group for assets, such as a customer, workspace, project, or repository. |
+| `types` | The media surfaces to index or search: `video`, `audio`, and `transcript`. |
+| `metadata` | Optional flat key/value metadata for correlation and display. |
+
+<Note>
+  The public API uses sf-voice terms. Backend provider-specific ids and mappings are not part of the SDK contract.
+</Note>
+
+## Lifecycle
+
+<Steps>
+  <Step title="Submit media">
+    Send a URL, S3 key, or file upload with your `asset_id`.
+  </Step>
+
+  <Step title="Poll the indexing task">
+    The API returns a `task_id` immediately. Poll until the task becomes `ready`
+    or `failed`.
+  </Step>
+
+  <Step title="Search scoped assets">
+    Search by `asset_class`, by explicit `asset_ids`, or by `scope: "all"` when
+    global search is intentional.
+  </Step>
+</Steps>
+
+## Start here
+
+<Card title="Quickstart" icon="rocket" href="/quickstart">
+  Ingest one asset, wait for indexing, and run your first search.
+</Card>
+
+<Card title="TypeScript SDK" icon="code" href="/sdks/typescript">
+  Use `@sf-voice/media` from a TypeScript application.
+</Card>

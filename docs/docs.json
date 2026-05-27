@@ -1,6 +1,6 @@
 {
    "$schema": "https://mintlify.com/docs.json",
-   "name": "Mise",
+   "name": "sf-voice media",
    "theme": "luma",
    "colors": {
       "primary": "#040404",
@@ -30,38 +30,6 @@
                   "group": "SDKs",
                   "icon": "code",
                   "pages": ["sdks/typescript"]
-               },
-               {
-                  "group": "Integrations",
-                  "pages": [
-                     "integrations/overview",
-                     "integrations/livecart",
-                     "integrations/twilio",
-                     "integrations/telnyx",
-                     "integrations/pipecat",
-                     "integrations/datadog"
-                  ]
-               },
-               {
-                  "group": "Core Features",
-                  "pages": [
-                     "features/corpus-search",
-                     "features/acoustic-indexing",
-                     "features/call-replay",
-                     "features/defect-signatures"
-                  ]
-               },
-               {
-                  "group": "MCP Server",
-                  "pages": ["mcp/overview", "mcp/setup", "mcp/ai-debugging"]
-               },
-               {
-                  "group": "Reference",
-                  "pages": [
-                     "reference/query-syntax",
-                     "reference/acoustic-features",
-                     "reference/faq"
-                  ]
                }
             ]
          }

@@ -24,6 +24,10 @@ and transcript surfaces with your own customer-facing asset ids.
   The SDK exposes sf-voice terms only. Provider-specific mapping happens in the backend.
 </Note>
 
+<Card title="New to sf-voice media?" icon="sparkles" href="/introduction">
+  Start with the product overview before using the SDK reference.
+</Card>
+
 ## Install
 
 <CodeGroup>
@@ -67,6 +71,23 @@ const client = new SfVoiceMedia({
 | `types` | Optional media surfaces to index or search: `"video"`, `"audio"`, `"transcript"`. |
 | `metadata` | Optional flat key/value metadata. Values must be strings, numbers, or booleans. |
 | `threshold` | Optional minimum search score from `0.0` to `1.0`. Higher values return fewer, more confident results. |
+
+## Choosing `asset_class`
+
+Use `asset_class` for the boundary your product should search within by default.
+For most customer-facing products, that is the end customer, workspace, project,
+repository, or collection.
+
+Good `asset_class` examples:
+
+- `customer_acme`
+- `workspace_123`
+- `project_onboarding`
+- `repo_mobile_app`
+
+<Warning>
+  Do not rely on global search for customer-facing workflows unless every user is allowed to search every indexed asset.
+</Warning>
 
 ## End-to-end flow
 
@@ -115,6 +136,20 @@ const client = new SfVoiceMedia({
     ```
   </Step>
 </Steps>
+
+## Browser and server usage
+
+The SDK works anywhere the runtime provides `fetch`, `FormData`, and `Blob`.
+
+| Runtime | Recommended ingest source |
+| --- | --- |
+| Browser app | `source: "file"` for direct uploads from file inputs. |
+| Backend service | `source: "url"` or `source: "s3"` when media is already stored. |
+| Worker runtime | `source: "url"` or `source: "file"` depending on available request body APIs. |
+
+<Note>
+  For large files, prefer uploading media to your storage layer first and ingesting by URL or S3 key.
+</Note>
 
 ## Ingest
 
@@ -233,6 +268,14 @@ type Task = {
   Prefer `asset_class` or `asset_ids` for customer-facing search. Use `scope: "all"` only when you intentionally want to search every asset.
 </Warning>
 
+Search has three scoping modes:
+
+| Mode | Example | Use when |
+| --- | --- | --- |
+| `asset_class` | `{ asset_class: "customer_acme" }` | Searching one customer, workspace, project, or collection. |
+| `asset_ids` | `{ asset_ids: ["video_123"] }` | Searching a known set of assets. |
+| `scope: "all"` | `{ scope: "all" }` | Intentionally searching every indexed asset. |
+
 ### Input
 
 | Field | Required | Description |
@@ -314,6 +357,9 @@ type SearchResponse = {
   }
 }
 ```
+
+`start_ms` and `end_ms` are millisecond offsets into the source media. Use them
+to jump a player directly to the matching moment.
 
 ## Assets
 
