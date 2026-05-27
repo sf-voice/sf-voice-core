@@ -3,7 +3,7 @@ title: "Java"
 description: "sf-voice-media-java SDK reference for Java 17+: synchronous client for ingesting media assets, polling indexing tasks, and running scoped search."
 ---
 
-`sh.sfvoice:sf-voice-media-java` — synchronous Java client, builder pattern throughout, Java 17+.
+`sh.sf-voice:sf-voice-media-java` — synchronous Java client, builder pattern throughout, Java 17+.
 
 Use this SDK when a blocking client fits your service or batch job. Kotlin users should use the coroutine-native SDK.
 
@@ -12,19 +12,19 @@ Use this SDK when a blocking client fits your service or batch job. Kotlin users
 <CodeGroup>
 ```kotlin build.gradle.kts
 dependencies {
-    implementation("sh.sfvoice:sf-voice-media-java:0.1.1")
+    implementation("sh.sf-voice:sf-voice-media-java:0.1.1")
 }
 ```
 
 ```groovy build.gradle
 dependencies {
-    implementation 'sh.sfvoice:sf-voice-media-java:0.1.1'
+    implementation 'sh.sf-voice:sf-voice-media-java:0.1.1'
 }
 ```
 
 ```xml pom.xml
 <dependency>
-    <groupId>sh.sfvoice</groupId>
+    <groupId>sh.sf-voice</groupId>
     <artifactId>sf-voice-media-java</artifactId>
     <version>0.1.1</version>
 </dependency>
@@ -34,7 +34,7 @@ dependencies {
 ## Create a client
 
 ```java
-import sh.sfvoice.media.SfVoiceMediaClient;
+import sh.sf-voice.media.SfVoiceMediaClient;
 
 SfVoiceMediaClient client = new SfVoiceMediaClient(
     System.getenv("SF_VOICE_API_KEY"),
@@ -45,8 +45,8 @@ SfVoiceMediaClient client = new SfVoiceMediaClient(
 ## Ingest
 
 ```java
-import sh.sfvoice.media.models.IngestRequest;
-import sh.sfvoice.media.models.IngestResponse;
+import sh.sf-voice.media.models.IngestRequest;
+import sh.sf-voice.media.models.IngestResponse;
 
 IngestRequest req = IngestRequest.fromUrl("https://storage.example.com/calls/001.mp3")
     .assetId("call_001")
@@ -62,7 +62,7 @@ String taskId = resp.getTaskId();
 ## Poll until ready
 
 ```java
-import sh.sfvoice.media.models.Task;
+import sh.sf-voice.media.models.Task;
 
 Task task = client.pollTask(taskId, 2000, 120_000);
 
@@ -76,8 +76,8 @@ if ("failed".equals(task.getStatus())) {
 ## Search
 
 ```java
-import sh.sfvoice.media.models.SearchRequest;
-import sh.sfvoice.media.models.SearchResponse;
+import sh.sf-voice.media.models.SearchRequest;
+import sh.sf-voice.media.models.SearchResponse;
 
 SearchRequest req = SearchRequest.query("customer asks about pricing")
     .assetClass("customer_acme")
@@ -110,7 +110,7 @@ client.deleteAsset("call_001");
 ## Errors
 
 ```java
-import sh.sfvoice.media.SfVoiceMediaException;
+import sh.sf-voice.media.SfVoiceMediaException;
 
 try {
     client.search(req);

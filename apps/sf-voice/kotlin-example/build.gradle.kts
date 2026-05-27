@@ -4,7 +4,7 @@ plugins {
     application
 }
 
-group = "sh.sfvoice"
+group = "sh.sf-voice"
 version = "0.0.1"
 
 kotlin {
@@ -12,7 +12,7 @@ kotlin {
 }
 
 application {
-    mainClass.set("sh.sfvoice.demo.AppKt")
+    mainClass.set("sh.sf-voice.demo.AppKt")
 }
 
 dependencies {
