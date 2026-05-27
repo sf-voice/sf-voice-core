@@ -10,7 +10,9 @@ members = [
     "core/backend/migration",
     "rust",
 ]
-exclude = []
+exclude = [
+    "apps/ellie_ai/deps/ortex/native/ortex",
+]
 
 [workspace.package]
 edition = "2021"

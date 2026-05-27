@@ -4,24 +4,20 @@ defmodule EllieAi.Calls.SentimentTest do
   alias EllieAi.{Calls, Groups, Orgs, Settings}
   alias EllieAi.Calls.{Sentiment, TranscriptTurn}
   alias EllieAi.Repo
+  alias EllieAi.Test.ReqStub
 
   setup do
-    bypass = Bypass.open()
-    base = "http://localhost:#{bypass.port}"
-
-    # Sentiment goes through Medium.Chat → Providers.OpenAI.chat, which
-    # reads base_url from Application.get_env(:ellie_ai, EllieAi.Providers.OpenAI).
-    # the env key needs to match that lookup or bypass never fires.
-    prev_openai = Application.get_env(:ellie_ai, EllieAi.Providers.OpenAI, [])
-    Application.put_env(:ellie_ai, EllieAi.Providers.OpenAI, base_url: base)
-
     System.put_env("OPENAI_API_KEY", "test-key")
 
     prev_telnyx = Application.get_env(:ellie_ai, EllieAi.Telnyx.Client, [])
-    Application.put_env(:ellie_ai, EllieAi.Telnyx.Client, base_url: base, api_key: "test-key")
+
+    Application.put_env(
+      :ellie_ai,
+      EllieAi.Telnyx.Client,
+      Keyword.put(prev_telnyx, :api_key, "test-key")
+    )
 
     on_exit(fn ->
-      Application.put_env(:ellie_ai, EllieAi.Providers.OpenAI, prev_openai)
       Application.put_env(:ellie_ai, EllieAi.Telnyx.Client, prev_telnyx)
       System.delete_env("OPENAI_API_KEY")
     end)
@@ -42,19 +38,18 @@ defmodule EllieAi.Calls.SentimentTest do
     Settings.put(org.id, "sentiment_threshold", "0.3", value_type: "float")
 
     ccid = "ccid-sent-#{System.unique_integer([:positive])}"
-    {:ok, _} = Calls.start_call(org.id, ccid, %{"from" => "+14155550101", "to" => org.telnyx_phone_number})
 
-    %{bypass: bypass, org: org, ccid: ccid}
+    {:ok, _} =
+      Calls.start_call(org.id, ccid, %{"from" => "+14155550101", "to" => org.telnyx_phone_number})
+
+    %{org: org, ccid: ccid}
   end
 
-  test "scores a user turn and updates the turn + call EMA", %{bypass: bypass, org: org, ccid: ccid} do
-    Bypass.stub(bypass, "POST", "/v1/chat/completions", fn conn ->
-      conn
-      |> Plug.Conn.put_resp_content_type("application/json")
-      |> Plug.Conn.resp(
-        200,
-        ~s({"choices":[{"message":{"content":"{\\"score\\":0.85}"}}]})
-      )
+  test "scores a user turn and updates the turn + call EMA", %{org: org, ccid: ccid} do
+    Req.Test.stub(EllieAi.Providers.OpenAI, fn conn ->
+      ReqStub.json(conn, "POST", "/v1/chat/completions", 200, %{
+        "choices" => [%{"message" => %{"content" => ~s({"score":0.85})}}]
+      })
     end)
 
     {:ok, turn} = Calls.append_turn(ccid, "user", "Yeah, that's great, thanks!")

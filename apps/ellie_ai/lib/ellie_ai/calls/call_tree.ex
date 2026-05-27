@@ -34,11 +34,16 @@ defmodule EllieAi.Calls.CallTree do
 
     children = [
       {CallServer, %{ccid: ccid, payload: payload}},
-      {AudioBridge, %{ccid: ccid}},
+      {audio_bridge_module(), %{ccid: ccid}},
       {VadGate, %{ccid: ccid}},
       {Archivist, %{ccid: ccid}}
     ]
 
     Supervisor.init(children, strategy: :rest_for_one)
+  end
+
+  defp audio_bridge_module do
+    Application.get_env(:ellie_ai, __MODULE__, [])
+    |> Keyword.get(:audio_bridge, AudioBridge)
   end
 end

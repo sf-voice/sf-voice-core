@@ -3,12 +3,10 @@ defmodule EllieAi.Tools.ReservationToolsTest do
 
   alias EllieAi.{Calls, Groups, Orgs, Repo}
   alias EllieAi.Customers.CustomerSummary
+  alias EllieAi.Test.ReqStub
   alias EllieAi.Tools.{CancelReservation, CreateReservation, ModifyReservation, UpsertCustomer}
 
   setup do
-    bypass = Bypass.open()
-    base = "http://localhost:#{bypass.port}"
-
     {:ok, group} = Groups.upsert_by_slug("seasons", %{name: "Seasons"})
 
     {:ok, org} =
@@ -17,20 +15,20 @@ defmodule EllieAi.Tools.ReservationToolsTest do
         name: "Seasons SF",
         location: "San Francisco",
         time_zone: "America/Los_Angeles",
-        resto_base_url: base,
+        resto_base_url: "https://resto.test",
         resto_org_slug: "seasons-sf"
       })
 
     ccid = "test-ccid-#{System.unique_integer([:positive])}"
     {:ok, _} = Calls.start_call(org.id, ccid, %{"from" => "+14155550111", "to" => "+14155550112"})
 
-    %{bypass: bypass, org: org, ccid: ccid}
+    %{org: org, ccid: ccid}
   end
 
   # the new precondition requires a customer_summary row with a real
   # first_name on file — mirrors what CallServer.init's ensure_local +
   # a successful upsert_customer would produce on a real call. inserting
-  # directly avoids dragging Bypass into every test that just needs the
+  # directly avoids stubbing resto in every test that just needs the
   # gate satisfied.
   defp satisfy_preconditions(%{org: org}) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
@@ -84,13 +82,13 @@ defmodule EllieAi.Tools.ReservationToolsTest do
     end
 
     test "succeeds once the caller has a name on file", ctx do
-      %{bypass: bypass, org: org, ccid: ccid} = ctx
+      %{org: org, ccid: ccid} = ctx
       :ok = satisfy_preconditions(ctx)
 
-      Bypass.stub(bypass, "POST", "/api/orgs/seasons-sf/reservations", fn conn ->
-        conn
-        |> Plug.Conn.put_resp_content_type("application/json")
-        |> Plug.Conn.resp(201, ~s({"reservation":{"id":"r1","token":"tok1"}}))
+      Req.Test.stub(EllieAi.RestoClient, fn conn ->
+        ReqStub.json(conn, "POST", "/api/orgs/seasons-sf/reservations", 201, %{
+          "reservation" => %{"id" => "r1", "token" => "tok1"}
+        })
       end)
 
       assert {:ok, %{reservation: %{"id" => "r1", "token" => "tok1"}}} =
@@ -115,7 +113,7 @@ defmodule EllieAi.Tools.ReservationToolsTest do
     end
 
     test "happy path", ctx do
-      %{bypass: bypass, org: org, ccid: ccid} = ctx
+      %{org: org, ccid: ccid} = ctx
       :ok = satisfy_preconditions(ctx)
 
       # tool looks the reservation up via Memory by (party_size, starts_at).
@@ -128,10 +126,10 @@ defmodule EllieAi.Tools.ReservationToolsTest do
           reservations: [%{id: "r1", party_size: 2, starts_at: starts_at}]
         })
 
-      Bypass.stub(bypass, "PUT", "/api/orgs/seasons-sf/reservations/r1", fn conn ->
-        conn
-        |> Plug.Conn.put_resp_content_type("application/json")
-        |> Plug.Conn.resp(200, ~s({"reservation":{"id":"r1","starts_at":"#{new_starts_at}"}}))
+      Req.Test.stub(EllieAi.RestoClient, fn conn ->
+        ReqStub.json(conn, "PUT", "/api/orgs/seasons-sf/reservations/r1", 200, %{
+          "reservation" => %{"id" => "r1", "starts_at" => new_starts_at}
+        })
       end)
 
       assert {:ok, %{reservation: %{"id" => "r1"}}} =
@@ -156,7 +154,7 @@ defmodule EllieAi.Tools.ReservationToolsTest do
     end
 
     test "happy path", ctx do
-      %{bypass: bypass, org: org, ccid: ccid} = ctx
+      %{org: org, ccid: ccid} = ctx
       :ok = satisfy_preconditions(ctx)
 
       starts_at = "2026-06-01T19:00:00-07:00"
@@ -166,8 +164,8 @@ defmodule EllieAi.Tools.ReservationToolsTest do
           reservations: [%{id: "r1", party_size: 2, starts_at: starts_at}]
         })
 
-      Bypass.stub(bypass, "DELETE", "/api/orgs/seasons-sf/reservations/r1", fn conn ->
-        Plug.Conn.resp(conn, 204, "")
+      Req.Test.stub(EllieAi.RestoClient, fn conn ->
+        ReqStub.text(conn, "DELETE", "/api/orgs/seasons-sf/reservations/r1", 204, "")
       end)
 
       assert {:ok, %{cancelled: true, id: "r1"}} =

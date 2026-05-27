@@ -2,17 +2,16 @@ defmodule EllieAi.Tools.RequestHumanHandoffTest do
   use EllieAi.DataCase, async: false
 
   alias EllieAi.{Calls, Groups, Orgs, Settings}
+  alias EllieAi.Test.ReqStub
   alias EllieAi.Tools.RequestHumanHandoff
 
   setup do
-    bypass = Bypass.open()
-    base = "http://localhost:#{bypass.port}"
-
     prev_telnyx = Application.get_env(:ellie_ai, EllieAi.Telnyx.Client, [])
 
-    Application.put_env(:ellie_ai, EllieAi.Telnyx.Client,
-      base_url: base,
-      api_key: "test-key"
+    Application.put_env(
+      :ellie_ai,
+      EllieAi.Telnyx.Client,
+      Keyword.put(prev_telnyx, :api_key, "test-key")
     )
 
     System.put_env("TELNYX_CONNECTION_ID", "test-conn")
@@ -32,7 +31,7 @@ defmodule EllieAi.Tools.RequestHumanHandoffTest do
         name: "Seasons SF",
         location: "San Francisco",
         time_zone: "America/Los_Angeles",
-        resto_base_url: base,
+        resto_base_url: "https://resto.test",
         resto_org_slug: "seasons-sf",
         telnyx_phone_number: "+14155550199"
       })
@@ -40,9 +39,11 @@ defmodule EllieAi.Tools.RequestHumanHandoffTest do
     Settings.put(org.id, "staff_phone_e164", "+14155550100")
 
     ccid = "ccid-h-#{System.unique_integer([:positive])}"
-    {:ok, _} = Calls.start_call(org.id, ccid, %{"from" => "+14155550101", "to" => org.telnyx_phone_number})
 
-    %{bypass: bypass, org: org, ccid: ccid}
+    {:ok, _} =
+      Calls.start_call(org.id, ccid, %{"from" => "+14155550101", "to" => org.telnyx_phone_number})
+
+    %{org: org, ccid: ccid}
   end
 
   test "to_openai/1 shape" do
@@ -51,15 +52,15 @@ defmodule EllieAi.Tools.RequestHumanHandoffTest do
     assert defn.parameters.required == []
   end
 
-  test "dials staff and records dialing event", %{bypass: bypass, org: org, ccid: ccid} do
+  test "dials staff and records dialing event", %{org: org, ccid: ccid} do
     test_pid = self()
 
-    Bypass.stub(bypass, "POST", "/v2/calls", fn conn ->
+    Req.Test.stub(EllieAi.Telnyx.Client, fn conn ->
       send(test_pid, :dialed)
 
-      conn
-      |> Plug.Conn.put_resp_content_type("application/json")
-      |> Plug.Conn.resp(200, ~s({"data":{"call_control_id":"staff-leg-123"}}))
+      ReqStub.json(conn, "POST", "/v2/calls", 200, %{
+        "data" => %{"call_control_id" => "staff-leg-123"}
+      })
     end)
 
     assert {:ok, %{escalating: true}} =

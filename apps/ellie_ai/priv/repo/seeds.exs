@@ -133,7 +133,7 @@ seeded =
       nil ->
         {:ok, _} =
           Prompts.save_new_version(org.id, %{
-            "name" => "v0 echo demo",
+            "name" => "v1 echo",
             "body" => prompt_body
           })
 

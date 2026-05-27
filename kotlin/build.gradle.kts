@@ -1,0 +1,70 @@
+plugins {
+    kotlin("jvm") version "2.0.0"
+    kotlin("plugin.serialization") version "2.0.0"
+    `java-library`
+    `maven-publish`
+}
+
+group = "com.sfvoice"
+version = "0.1.0"
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation("io.ktor:ktor-client-core:3.0.0")
+    implementation("io.ktor:ktor-client-cio:3.0.0")
+    implementation("io.ktor:ktor-client-content-negotiation:3.0.0")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:3.0.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
+}
+
+kotlin {
+    jvmToolchain(17)
+}
+
+java {
+    withSourcesJar()
+    withJavadocJar()
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            artifactId = "sf-voice-media-kotlin"
+            from(components["java"])
+
+            pom {
+                name.set("sf-voice-media-kotlin")
+                description.set("Kotlin SDK for the sf-voice media API")
+                url.set("https://github.com/sf-voice/sf-voice-core")
+                licenses {
+                    license {
+                        name.set("MIT License")
+                        url.set("https://opensource.org/licenses/MIT")
+                    }
+                }
+                developers {
+                    developer {
+                        id.set("sf-voice")
+                        name.set("sf-voice")
+                    }
+                }
+                scm {
+                    connection.set("scm:git:https://github.com/sf-voice/sf-voice-core.git")
+                    developerConnection.set("scm:git:ssh://git@github.com:sf-voice/sf-voice-core.git")
+                    url.set("https://github.com/sf-voice/sf-voice-core")
+                }
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            name = "localRelease"
+            url = layout.buildDirectory.dir("release-repository").get().asFile.toURI()
+        }
+    }
+}

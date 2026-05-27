@@ -1,0 +1,65 @@
+name: publish cpp sdk
+
+on:
+   push:
+      tags:
+         - "cpp/v*"
+
+concurrency:
+   group: publish-cpp-sdk-${{ github.ref }}
+   cancel-in-progress: false
+
+jobs:
+   publish:
+      name: publish to conan remote
+      runs-on: ubuntu-latest
+      environment: sdk-conan
+      permissions:
+         contents: read
+      steps:
+         - uses: actions/checkout@v4
+
+         - name: setup python
+           uses: actions/setup-python@v5
+           with:
+              python-version: "3.12"
+
+         - name: install conan
+           run: python -m pip install --upgrade pip conan
+
+         - name: verify tag version
+           run: |
+              set -euo pipefail
+              TAG_VERSION="${GITHUB_REF_NAME#cpp/v}"
+              PACKAGE_VERSION="$(python - <<'PY'
+              import pathlib
+              import re
+
+              text = pathlib.Path("cpp/conanfile.py").read_text()
+              match = re.search(r'version\s*=\s*"([^"]+)"', text)
+              if not match:
+                  raise SystemExit("missing conanfile.py version")
+              print(match.group(1))
+              PY
+              )"
+              if [ "$TAG_VERSION" != "$PACKAGE_VERSION" ]; then
+                echo "tag version $TAG_VERSION does not match conanfile.py version $PACKAGE_VERSION"
+                exit 1
+              fi
+
+         - name: create package
+           run: |
+              conan profile detect --force
+              conan create cpp --build=missing
+
+         - name: publish
+           env:
+              CONAN_REMOTE_URL: ${{ secrets.CONAN_REMOTE_URL }}
+              CONAN_LOGIN_USERNAME: ${{ secrets.CONAN_LOGIN_USERNAME }}
+              CONAN_PASSWORD: ${{ secrets.CONAN_PASSWORD }}
+           run: |
+              set -euo pipefail
+              TAG_VERSION="${GITHUB_REF_NAME#cpp/v}"
+              conan remote add sf-voice "$CONAN_REMOTE_URL" --force
+              conan remote login sf-voice "$CONAN_LOGIN_USERNAME" -p "$CONAN_PASSWORD"
+              conan upload "sf_voice/$TAG_VERSION" --remote sf-voice --confirm
