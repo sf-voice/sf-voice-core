@@ -1,0 +1,125 @@
+---
+title: "Rust"
+description: "SDK Rust asynchrone pour l'API de recherche. Basé sur reqwest et tokio."
+---
+
+`sf_voice_media` — asynchrone, basé sur `reqwest`. Nécessite `tokio`.
+
+Utilisez ce SDK dans les services ou jobs Tokio où l'ingestion et le polling doivent faire partie du même runtime asynchrone.
+
+## Installation
+
+Ajoutez à `Cargo.toml` :
+
+```toml
+[dependencies]
+sf_voice_media = "0.1.1"
+tokio = { version = "1", features = ["full"] }
+```
+
+## Créer un client
+
+```rust
+use sf_voice_media::SfVoiceMedia;
+
+let client = SfVoiceMedia::new(
+    "https://api.sf-voice.com",
+    std::env::var("SF_VOICE_API_KEY").unwrap(),
+)?;
+```
+
+## Ingestion
+
+```rust
+use sf_voice_media::{SfVoiceMedia, IngestRequest, MediaType};
+
+let resp = client.ingest(
+    IngestRequest::from_url("https://storage.example.com/calls/001.mp3")
+        .asset_id("call_001")
+        .asset_class("customer_acme")
+        .media_type(MediaType::Audio)
+        .build(),
+).await?;
+
+let task_id = resp.task_id;
+```
+
+S3 :
+
+```rust
+use sf_voice_media::IngestRequest;
+
+let resp = client.ingest(
+    IngestRequest::from_s3("calls/customer_acme/001.mp3")
+        .asset_id("call_001")
+        .asset_class("customer_acme")
+        .media_type(MediaType::Audio)
+        .build(),
+).await?;
+```
+
+## Attendre l'indexation
+
+```rust
+use sf_voice_media::TaskStatus;
+
+let task = client.poll_task(&task_id, None).await?;
+
+match task.status {
+    TaskStatus::Ready => println!("indexed: {}", task.asset_id),
+    TaskStatus::Failed => eprintln!("failed: {:?}", task.error),
+    _ => unreachable!(),
+}
+```
+
+`poll_task` prend en option `PollOptions { interval_ms, timeout_ms }`. Valeurs par défaut : intervalle 1500 ms, timeout 120 s.
+
+## Recherche
+
+```rust
+use sf_voice_media::SearchRequest;
+
+let resp = client.search(
+    SearchRequest::new("customer asks about pricing")
+        .asset_class("customer_acme")
+        .threshold(0.7)
+        .limit(10)
+        .build(),
+).await?;
+
+for result in &resp.results {
+    println!("{} {}–{}ms ({:.2})", result.asset_id, result.start_ms, result.end_ms, result.score);
+}
+```
+
+## Assets
+
+```rust
+// liste
+let resp = client.list_assets(None).await?;
+
+// unitaire
+let asset = client.get_asset("call_001").await?;
+
+// supprimer
+client.delete_asset("call_001").await?;
+```
+
+## Erreurs
+
+```rust
+use sf_voice_media::SfVoiceMediaError;
+
+match client.search(req).await {
+    Ok(resp) => { /* utiliser resp */ }
+    Err(SfVoiceMediaError::Api { code, message, status }) => {
+        eprintln!("api error {status} [{code}]: {message}");
+    }
+    Err(SfVoiceMediaError::Http(e)) => {
+        eprintln!("transport error: {e}");
+    }
+    Err(SfVoiceMediaError::PollTimeout { task_id }) => {
+        eprintln!("timed out polling {task_id}");
+    }
+}
+```

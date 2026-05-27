@@ -1,0 +1,105 @@
+---
+title: "Kotlin"
+description: "SDK Kotlin pour l'API de recherche. Natif coroutines, basé sur Ktor."
+---
+
+`com.sfvoice:sf-voice-media-kotlin` — client Kotlin natif coroutines basé sur Ktor. Toutes les méthodes sont des fonctions `suspend`.
+
+Utilisez ce SDK dans les services Kotlin où l'annulation doit suivre la portée des coroutines.
+
+## Installation
+
+```kotlin
+// build.gradle.kts
+dependencies {
+    implementation("com.sfvoice:sf-voice-media-kotlin:0.1.1")
+}
+```
+
+## Créer un client
+
+```kotlin
+import com.sfvoice.media.SfVoiceMediaClient
+
+val client = SfVoiceMediaClient(
+    apiKey = System.getenv("SF_VOICE_API_KEY"),
+    baseUrl = "https://api.sf-voice.com"
+)
+```
+
+## Ingestion
+
+```kotlin
+import com.sfvoice.media.IngestRequest
+
+val resp = client.ingest(
+    IngestRequest(
+        source = "url",
+        assetId = "call_001",
+        assetClass = "customer_acme",
+        url = "https://storage.example.com/calls/001.mp3",
+        mediaType = "audio",
+        types = listOf("audio", "transcript")
+    )
+)
+val taskId = resp.taskId
+```
+
+## Attendre l'indexation
+
+```kotlin
+import com.sfvoice.media.SfVoiceMediaException
+
+val task = client.pollTask(taskId, intervalMs = 2_000, timeoutMs = 120_000)
+
+if (task.status == "failed") {
+    error("indexing failed: ${task.error}")
+}
+```
+
+`pollTask` lève `SfVoiceMediaException` en cas d'erreurs API ou de timeout.
+
+## Recherche
+
+```kotlin
+import com.sfvoice.media.SearchBody
+
+val resp = client.search(
+    SearchBody(
+        query = "customer asks about pricing",
+        assetClass = "customer_acme",
+        types = listOf("transcript"),
+        threshold = 0.7f,
+        limit = 10
+    )
+)
+
+resp.results.forEach { r ->
+    println("${r.assetId} ${r.startMs}–${r.endMs}ms (${r.score})")
+}
+```
+
+## Assets
+
+```kotlin
+// liste
+val resp = client.listAssets(page = 1, limit = 20)
+
+// unitaire
+val asset = client.getAsset("call_001")
+
+// supprimer
+client.deleteAsset("call_001")
+```
+
+## Erreurs
+
+```kotlin
+import com.sfvoice.media.SfVoiceMediaException
+
+try {
+    client.search(SearchBody(query = "...", assetClass = "customer_acme"))
+} catch (e: SfVoiceMediaException) {
+    println("${e.code} ${e.status}: ${e.message}")
+}
+```

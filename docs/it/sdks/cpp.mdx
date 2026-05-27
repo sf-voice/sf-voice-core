@@ -1,0 +1,129 @@
+---
+title: "C++"
+description: "SDK C++ per l'API di ricerca e ingestione. Header singolo, basato su std::future, C++17."
+---
+
+SDK C++17 a header singolo, costruito su [CPR](https://github.com/libcpr/cpr) e [nlohmann/json](https://github.com/nlohmann/json). Tutti i metodi restituiscono `std::future<Result<T>>`.
+
+Usa questo SDK quando vuoi mantenere il client HTTP in C++ e gestire i fallimenti tramite il tipo `Result<T>` invece che con le eccezioni.
+
+## Installazione
+
+### CMake (FetchContent)
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(
+  sf_voice
+  GIT_REPOSITORY https://github.com/sf-voice/sf-voice-core
+  GIT_TAG        v0.1.1
+  SOURCE_SUBDIR  cpp
+)
+FetchContent_MakeAvailable(sf_voice)
+
+target_link_libraries(your_target PRIVATE sf_voice)
+```
+
+### Manuale
+
+Copia `cpp/include/sf_voice/client.hpp` nel tuo progetto. Assicurati che CPR e nlohmann/json siano nel tuo include path.
+
+## Creare un client
+
+```cpp
+#include <sf_voice/client.hpp>
+
+sfvoice::SfVoiceMedia client(
+    "https://api.sf-voice.com",
+    std::getenv("SF_VOICE_API_KEY")
+);
+```
+
+## Ingestione
+
+```cpp
+sfvoice::IngestRequest req;
+req.source    = "url";
+req.asset_id  = "call_001";
+req.asset_class = "customer_acme";
+req.url       = "https://storage.example.com/calls/001.mp3";
+req.media_type = "audio";
+req.types     = {"audio", "transcript"};
+
+auto future = client.ingest(req);
+auto result = future.get();
+
+if (!result) {
+    std::cerr << "ingest failed: " << result.error().message << "\n";
+    return;
+}
+
+auto task_id = result.value().task_id;
+```
+
+## Attendere l'indicizzazione
+
+```cpp
+auto task_future = client.poll_task(task_id);
+auto task_result = task_future.get();
+
+if (!task_result) {
+    std::cerr << "polling failed: " << task_result.error().message << "\n";
+    return;
+}
+
+auto task = task_result.value();
+if (task.status == "failed") {
+    std::cerr << "indexing failed: " << task.error.value_or("unknown") << "\n";
+}
+```
+
+## Ricerca
+
+```cpp
+sfvoice::SearchRequest req;
+req.query       = "customer asks about pricing";
+req.asset_class = "customer_acme";
+req.types       = {"transcript"};
+req.threshold   = 0.7f;
+req.limit       = 10;
+
+auto future = client.search(req);
+auto result = future.get();
+
+if (result) {
+    for (const auto& r : result.value().results) {
+        std::cout << r.asset_id << " "
+                  << r.start_ms << "–" << r.end_ms << "ms "
+                  << "(" << r.score << ")\n";
+    }
+}
+```
+
+## Asset
+
+```cpp
+// elenco
+auto list = client.list_assets().get();
+
+// singolo
+auto asset = client.get_asset("call_001").get();
+
+// elimina
+auto del = client.delete_asset("call_001").get();
+```
+
+## Tipo Result
+
+`Result<T>` è una union etichettata:
+
+```cpp
+auto result = client.ingest(req).get();
+
+if (result) {
+    // successo: result.value() è la risposta
+} else {
+    // fallimento: result.error() è un SfVoiceError { code, message, status }
+    std::cerr << result.error().code << ": " << result.error().message << "\n";
+}
+```

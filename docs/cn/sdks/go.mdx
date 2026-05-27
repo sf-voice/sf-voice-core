@@ -1,0 +1,118 @@
+---
+title: "Go"
+description: "用于搜索引擎 API 的 Go SDK。具备 context 支持的惯用 Go 风格。"
+---
+
+包 `sfvoice` —— 每个请求接收一个 `context.Context`，因此取消和截止时间留在你的应用中。
+
+## 安装
+
+```sh
+go get github.com/sf-voice/sf-voice-media-go@v0.1.1
+```
+
+## 创建客户端
+
+```go
+import sfvoice "github.com/sf-voice/sf-voice-media-go"
+
+client := sfvoice.New(
+    "https://api.sf-voice.com",
+    os.Getenv("SF_VOICE_API_KEY"),
+)
+```
+
+自定义 `http.Client`：
+
+```go
+client := sfvoice.NewWithHTTPClient(baseURL, apiKey, &http.Client{
+    Timeout: 30 * time.Second,
+})
+```
+
+## 摄入
+
+```go
+resp, err := client.Ingest(ctx, &sfvoice.IngestRequest{
+    Source:     "url",
+    AssetID:    "call_001",
+    AssetClass: "customer_acme",
+    URL:        "https://storage.example.com/calls/001.mp3",
+    MediaType:  "audio",
+    Types:      []string{"audio", "transcript"},
+})
+if err != nil {
+    return err
+}
+taskID := resp.TaskID
+```
+
+## 等待索引完成
+
+```go
+task, err := client.PollTask(ctx, taskID, &sfvoice.PollOptions{
+    IntervalMs: 2000,
+    TimeoutMs:  120_000,
+})
+if err != nil {
+    return err // 超时则返回 *sfvoice.PollTimeoutError
+}
+
+if task.Status == sfvoice.TaskStatusFailed {
+    return fmt.Errorf("indexing failed: %s", task.Error)
+}
+```
+
+`PollOptions` 是可选的 —— 传 `nil` 以使用默认值（间隔 1500ms，超时 120s）。
+
+区分超时错误：
+
+```go
+var pollErr *sfvoice.PollTimeoutError
+if errors.As(err, &pollErr) {
+    log.Printf("timed out polling task %s", pollErr.TaskID)
+}
+```
+
+## 搜索
+
+```go
+resp, err := client.Search(ctx, &sfvoice.SearchRequest{
+    Query:      "customer asks about pricing",
+    AssetClass: "customer_acme",
+    Types:      []string{"transcript"},
+    Threshold:  0.7,
+    Limit:      10,
+})
+if err != nil {
+    return err
+}
+
+for _, r := range resp.Results {
+    fmt.Printf("%s %d–%dms (%.2f)\n", r.AssetID, r.StartMs, r.EndMs, r.Score)
+}
+```
+
+## 资产
+
+```go
+// 列表
+resp, err := client.ListAssets(ctx, &sfvoice.ListAssetsParams{Page: 1, Limit: 20})
+
+// 单个
+asset, err := client.GetAsset(ctx, "call_001")
+
+// 删除
+err = client.DeleteAsset(ctx, "call_001")
+```
+
+## 错误
+
+非 2xx API 响应会返回 `*sfvoice.Error`：
+
+```go
+var apiErr *sfvoice.Error
+if errors.As(err, &apiErr) {
+    log.Printf("api error %d [%s]: %s", apiErr.Status, apiErr.Code, apiErr.Message)
+}
+```

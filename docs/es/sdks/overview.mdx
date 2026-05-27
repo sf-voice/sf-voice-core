@@ -1,0 +1,63 @@
+---
+title: "Resumen de SDKs"
+description: "SDKs para la API de medios."
+---
+
+Los SDKs son open source en [github.com/sf-voice/sf-voice-core](https://github.com/sf-voice/sf-voice-core).
+
+Esta documentación cubre la versión `0.1.1` del SDK. Estamos iterando rápido, así que fije la versión del SDK y espere cambios incompatibles entre versiones hasta que la API se estabilice.
+
+Los SDKs cubren las operaciones principales: `ingest`, `getTask`, `pollTask`, `listAssets`, `getAsset`, `deleteAsset`, `search`. Los nombres de los métodos siguen la convención de nomenclatura de cada lenguaje.
+
+<CardGroup cols={2}>
+  <Card title="TypeScript" icon="square-js" href="/sdks/typescript">
+    `@sf-voice/media` — Node.js, Bun, Deno, navegador
+  </Card>
+  <Card title="Python" icon="python" href="/sdks/python">
+    `sf-voice-media` — clientes síncrono y asíncrono
+  </Card>
+  <Card title="Elixir" icon="code" href="/sdks/elixir">
+    `:sf_voice` — basado en `Req`, devuelve `{:ok, _}` o `{:error, _}`
+  </Card>
+  <Card title="Go" icon="code" href="/sdks/go">
+    `sfvoice` — Go idiomático con `context.Context`
+  </Card>
+  <Card title="Rust" icon="gear" href="/sdks/rust">
+    `sf_voice_media` — asíncrono con `tokio`, builder pattern
+  </Card>
+  <Card title="Java" icon="java" href="/sdks/java">
+    `com.sfvoice:sf-voice-media-java` — síncrono, Java 17+
+  </Card>
+  <Card title="Kotlin" icon="code" href="/sdks/kotlin">
+    `com.sfvoice:sf-voice-media-kotlin` — nativo en corrutinas con Ktor
+  </Card>
+  <Card title="C++" icon="code" href="/sdks/cpp">
+    cabecera única — basado en `std::future`, CPR + nlohmann
+  </Card>
+</CardGroup>
+
+## Autenticación
+
+Los SDKs envían su clave de API como cabecera de petición `X-API-Key`. Manténgala en una variable de entorno y evite incluirla en el control de versiones.
+
+## Gestión de errores
+
+Los SDKs usan tres categorías de errores:
+
+| Error | Cuándo se lanza |
+| --- | --- |
+| Error de API | El servidor devolvió una respuesta distinta de 2xx. Lleva `code`, `message` y `status`. |
+| Timeout de petición | Una petición HTTP individual superó el timeout configurado. |
+| Timeout de polling | `pollTask` se quedó sin tiempo antes de que la tarea alcanzara `ready` o `failed`. |
+
+Códigos de error de la API:
+
+| Código | Significado |
+| --- | --- |
+| `unauthorized` | API key no válida o ausente. |
+| `not_found` | El ID de asset o tarea no existe. |
+| `bucket_not_connected` | Se usó una fuente S3 antes de configurar el bucket. |
+| `s3_access_denied` | El SDK no puede leer la clave de S3 especificada. |
+| `unsupported_format` | El tipo de archivo no se admite para indexación. |
+| `file_too_large` | La carga supera el límite de tamaño. |
+| `rate_limited` | Demasiadas peticiones. Aplique back-off y reintente. |

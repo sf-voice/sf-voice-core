@@ -1,0 +1,120 @@
+---
+title: "Java"
+description: "SDK Java per l'API di ricerca. Java 17+."
+---
+
+`com.sfvoice:sf-voice-media-java` — client Java sincrono, builder pattern ovunque, Java 17+.
+
+Usa questo SDK quando un client bloccante si adatta al tuo servizio o job batch. Gli utenti Kotlin dovrebbero usare l'SDK nativo a coroutine.
+
+## Installazione
+
+<CodeGroup>
+```kotlin build.gradle.kts
+dependencies {
+    implementation("com.sfvoice:sf-voice-media-java:0.1.1")
+}
+```
+
+```groovy build.gradle
+dependencies {
+    implementation 'com.sfvoice:sf-voice-media-java:0.1.1'
+}
+```
+
+```xml pom.xml
+<dependency>
+    <groupId>com.sfvoice</groupId>
+    <artifactId>sf-voice-media-java</artifactId>
+    <version>0.1.1</version>
+</dependency>
+```
+</CodeGroup>
+
+## Creare un client
+
+```java
+import com.sfvoice.media.SfVoiceMediaClient;
+
+SfVoiceMediaClient client = new SfVoiceMediaClient(
+    System.getenv("SF_VOICE_API_KEY"),
+    "https://api.sf-voice.com"
+);
+```
+
+## Ingestione
+
+```java
+import com.sfvoice.media.models.IngestRequest;
+import com.sfvoice.media.models.IngestResponse;
+
+IngestRequest req = IngestRequest.fromUrl("https://storage.example.com/calls/001.mp3")
+    .assetId("call_001")
+    .assetClass("customer_acme")
+    .mediaType("audio")
+    .types(List.of("audio", "transcript"))
+    .build();
+
+IngestResponse resp = client.ingest(req);
+String taskId = resp.getTaskId();
+```
+
+## Attendere l'indicizzazione
+
+```java
+import com.sfvoice.media.models.Task;
+
+Task task = client.pollTask(taskId, 2000, 120_000);
+
+if ("failed".equals(task.getStatus())) {
+    throw new RuntimeException("indexing failed: " + task.getError());
+}
+```
+
+`pollTask(taskId, intervalMs, timeoutMs)` si blocca finché il task raggiunge `ready` o `failed`, o solleva un'eccezione se il timeout viene superato.
+
+## Ricerca
+
+```java
+import com.sfvoice.media.models.SearchRequest;
+import com.sfvoice.media.models.SearchResponse;
+
+SearchRequest req = SearchRequest.query("customer asks about pricing")
+    .assetClass("customer_acme")
+    .types(List.of("transcript"))
+    .threshold(0.7f)
+    .limit(10)
+    .build();
+
+SearchResponse resp = client.search(req);
+
+for (var result : resp.getResults()) {
+    System.out.printf("%s %d–%dms (%.2f)%n",
+        result.getAssetId(), result.getStartMs(), result.getEndMs(), result.getScore());
+}
+```
+
+## Asset
+
+```java
+// elenco
+var resp = client.listAssets(1, 20);
+
+// singolo
+var asset = client.getAsset("call_001");
+
+// elimina
+client.deleteAsset("call_001");
+```
+
+## Errori
+
+```java
+import com.sfvoice.media.SfVoiceMediaException;
+
+try {
+    client.search(req);
+} catch (SfVoiceMediaException e) {
+    System.err.println(e.getCode() + " " + e.getStatus() + ": " + e.getMessage());
+}
+```

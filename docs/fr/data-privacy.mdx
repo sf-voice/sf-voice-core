@@ -1,0 +1,54 @@
+---
+title: "Données et confidentialité"
+description: "Ce que nous stockons, combien de temps nous le conservons et où les données sont traitées."
+---
+
+## Ce que nous stockons
+
+Nous indexons vos enregistrements et conservons la représentation interrogeable : embeddings, transcriptions et métadonnées. Les fichiers sources transitent par le pipeline de traitement et ne sont pas conservés une fois l'indexation terminée.
+
+**Ce que nous stockons :**
+- Embeddings (la représentation indexée de vos médias)
+- Métadonnées d'asset (`asset_id`, `asset_class`, `types`, champs `metadata` personnalisés)
+- Enregistrements d'ingestion et horodatages
+
+**Ce que nous ne stockons pas :**
+- Les fichiers audio ou vidéo sources après traitement
+- Le contenu d'appel sous forme brute
+- Les données de requête au niveau transport après la fin du traitement
+
+## Traitement régional
+
+Les données sont traitées dans la région où votre compte est provisionné.
+
+| Région du client | Lieu de traitement |
+| --- | --- |
+| États-Unis | États-Unis |
+| Union européenne/Royaume-Uni | Europe |
+
+Les comptes UE et UK sont traités sur une infrastructure européenne.
+
+Si vous avez un besoin pour une région spécifique non listée ici, [contactez-nous](https://discord.sf-voice.sh).
+
+## Traitement des données pour l'UE et le UK
+
+Pour les clients UE et UK :
+
+- Les données sont traitées sur une infrastructure européenne.
+- Nous agissons en tant que sous-traitant. Vous restez le responsable du traitement pour toute donnée personnelle contenue dans vos enregistrements.
+- Vous pouvez supprimer les assets indexés via l'API. La suppression retire les représentations stockées — embeddings, transcriptions et métadonnées.
+- Des accords de traitement des données (DPA) sont disponibles sur demande.
+
+## Suppression des assets
+
+`DELETE /v1/assets/:id` supprime l'asset et ses représentations indexées. Le média sous-jacent n'est pas affecté car nous ne conservons pas le fichier source après traitement.
+
+Avec le SDK TypeScript :
+```ts
+await client.deleteAsset("call_001");
+```
+
+
+## Questions
+
+Contactez-nous sur [Discord](https://discord.sf-voice.sh) ou [Slack](https://slack.sf-voice.sh) pour toute question sur le traitement des données, demande de DPA ou documentation de sécurité.

@@ -1,74 +1,83 @@
 ---
 title: "简介"
-description: "sf-voice media 的功能,以及它如何将音频和视频转化为可搜索的资产。"
-icon: "sparkles"
+description: "面向语音 AI 产品的媒体搜索 API 和 SDK。"
 ---
 
-sf-voice media 是一个让音频和视频可被搜索的 API 与 SDK 层。
-你将媒体内容发送给我们,自行保留资产 ID,选择想要索引的内容维度,
-并用自然语言查询已索引的媒体。
+San Francisco Voice Company 为语音 AI 产品构建媒体搜索 API 和 SDK。
 
-<Columns cols={3}>
-  <Card title="摄取媒体" icon="upload">
-    通过 URL、S3 键或文件上传方式提交视频或音频。
-  </Card>
-  <Card title="索引有用的维度" icon="layers">
-    选择索引视频、音频、转录文本,或它们的组合。
-  </Card>
-  <Card title="按上下文搜索" icon="search">
-    按客户、工作区、项目或显式资产 ID 进行搜索。
-  </Card>
-</Columns>
+我们的第一个功能是面向媒体的搜索引擎。摄入音频或视频，使用自然语言进行搜索，并使用返回的时间戳跳回到录音中。你无需先构建自己的转写存储、嵌入向量管道或媒体搜索层。
 
-## 你可以用它构建什么
+<Warning>
+  本文档对应版本 `0.1.1`。我们迭代很快，请固定你的 SDK 版本，并预期在 API 稳定之前各版本间会出现破坏性变更。
+</Warning>
 
-sf-voice media 面向需要在自家应用中对媒体进行搜索和检索的产品团队。
+搜索是我们的起点。接下来是面向语音 AI 系统的基准测试和调试工具。
 
-常见用例:
+## 你可以构建什么
 
-- 按主题、异议、功能请求或缺陷在客户通话中进行搜索。
-- 按所说或所展示的内容,在产品演示和支持视频中进行搜索。
-- 让每位终端客户仅搜索其自身上传的媒体。
-- 构建媒体审核、合规、QA 或知识库工作流。
+- 按主题、异议或功能请求搜索客户通话。
+- 找到 AI 打断了通话者、说得太慢或自我重复的通话。
+- 将每个最终客户限定在他们自己的通话范围内。
+- 在你的通话归档之上构建合规审查、QA 工作流或知识库。
 
 ## 核心模型
 
-每个资产都从源自你系统的 ID 与范围开始。
+资产携带来自你自己系统的 ID 和范围。
 
-| 概念 | 含义 |
+| 字段 | 含义 |
 | --- | --- |
-| `asset_id` | 你为媒体资产指定的唯一 ID。摄取时必填。 |
-| `asset_class` | 资产的逻辑分组,例如客户、工作区、项目或代码仓库。 |
-| `types` | 要索引或搜索的媒体维度:`video`、`audio` 和 `transcript`。 |
-| `metadata` | 可选的扁平键/值元数据,用于关联和展示。 |
-
-<Note>
-  公共 API 使用 sf-voice 的术语。后端特定的提供方 ID 与映射不属于 SDK 合约的一部分。
-</Note>
+| `asset_id` | 录音在你系统中的 ID。必填。会在搜索结果中返回，便于回溯到你的系统。 |
+| `asset_class` | 一个逻辑分组 —— 一个客户、一个 workspace、一个项目。限制搜索范围，使结果不会跨越边界泄漏。 |
+| `types` | 要索引的内容：`audio`、`video`、`transcript`，或任意组合。 |
+| `metadata` | 用于关联和展示的扁平键/值对。 |
 
 ## 生命周期
 
 <Steps>
-  <Step title="提交媒体">
-    使用你的 `asset_id` 发送 URL、S3 键或文件上传。
+  <Step title="摄入">
+    携带你的 `asset_id` 发送 URL、S3 key 或文件上传。API 会立即返回一个 `task_id`。
   </Step>
-
-  <Step title="轮询索引任务">
-    API 会立即返回一个 `task_id`。持续轮询直到任务变为 `ready`
-    或 `failed`。
+  <Step title="索引">
+    轮询任务直到状态变为 `ready`。索引在后台运行。
   </Step>
-
-  <Step title="搜索范围内的资产">
-    按 `asset_class`、显式 `asset_ids`,或在确实需要全局搜索时使用 `scope: "all"` 进行搜索。
+  <Step title="搜索">
+    使用自然语言查询，并限定到某个 `asset_class` 或明确的 `asset_ids`。结果包含 `start_ms` 和 `end_ms`。
   </Step>
 </Steps>
 
-## 从这里开始
+## 数据与隐私
 
-<Card title="快速开始" icon="rocket" href="/cn/quickstart">
-  摄取一个资产,等待索引,并运行你的第一次搜索。
+我们对你的媒体建立索引，并保留可搜索的表示：嵌入向量、转写和元数据。源文件流经处理流水线，在索引完成后不会被保留。
+
+**你保留对媒体的所有权。我们仅存储用于搜索所需的索引数据。**
+
+区域化处理：
+- **美国客户** —— 在美国处理。
+- **欧盟和英国客户** —— 在欧洲处理。
+
+<Card title="数据与隐私" icon="shield" href="/data-privacy">
+  数据处理、保留、区域化处理和 DPA 详细信息。
 </Card>
 
-<Card title="TypeScript SDK" icon="code" href="/cn/sdks/typescript">
-  在 TypeScript 应用中使用 `@sf-voice/media`。
+## SDK
+
+八种 SDK，针对同一套媒体 API 提供各语言的客户端。
+
+<CardGroup cols={4}>
+  <Card title="TypeScript" icon="square-js" href="/sdks/typescript" />
+  <Card title="Python" icon="python" href="/sdks/python" />
+  <Card title="Elixir" icon="code" href="/sdks/elixir" />
+  <Card title="Go" icon="code" href="/sdks/go" />
+  <Card title="Rust" icon="gear" href="/sdks/rust" />
+  <Card title="Java" icon="java" href="/sdks/java" />
+  <Card title="Kotlin" icon="code" href="/sdks/kotlin" />
+  <Card title="C++" icon="code" href="/sdks/cpp" />
+</CardGroup>
+
+SDK 是开源的：[github.com/sf-voice/sf-voice-core](https://github.com/sf-voice/sf-voice-core)
+
+## 从这里开始
+
+<Card title="快速开始" icon="rocket" href="/quickstart">
+  摄入一条录音，等待索引完成，运行你的第一次搜索。
 </Card>

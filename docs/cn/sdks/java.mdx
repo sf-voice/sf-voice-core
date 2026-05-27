@@ -1,0 +1,120 @@
+---
+title: "Java"
+description: "用于搜索 API 的 Java SDK。Java 17+。"
+---
+
+`com.sfvoice:sf-voice-media-java` —— 同步 Java 客户端，全程构建者模式，Java 17+。
+
+当你的服务或批处理作业适合使用阻塞客户端时，使用此 SDK。Kotlin 用户应使用原生协程 SDK。
+
+## 安装
+
+<CodeGroup>
+```kotlin build.gradle.kts
+dependencies {
+    implementation("com.sfvoice:sf-voice-media-java:0.1.1")
+}
+```
+
+```groovy build.gradle
+dependencies {
+    implementation 'com.sfvoice:sf-voice-media-java:0.1.1'
+}
+```
+
+```xml pom.xml
+<dependency>
+    <groupId>com.sfvoice</groupId>
+    <artifactId>sf-voice-media-java</artifactId>
+    <version>0.1.1</version>
+</dependency>
+```
+</CodeGroup>
+
+## 创建客户端
+
+```java
+import com.sfvoice.media.SfVoiceMediaClient;
+
+SfVoiceMediaClient client = new SfVoiceMediaClient(
+    System.getenv("SF_VOICE_API_KEY"),
+    "https://api.sf-voice.com"
+);
+```
+
+## 摄入
+
+```java
+import com.sfvoice.media.models.IngestRequest;
+import com.sfvoice.media.models.IngestResponse;
+
+IngestRequest req = IngestRequest.fromUrl("https://storage.example.com/calls/001.mp3")
+    .assetId("call_001")
+    .assetClass("customer_acme")
+    .mediaType("audio")
+    .types(List.of("audio", "transcript"))
+    .build();
+
+IngestResponse resp = client.ingest(req);
+String taskId = resp.getTaskId();
+```
+
+## 等待索引完成
+
+```java
+import com.sfvoice.media.models.Task;
+
+Task task = client.pollTask(taskId, 2000, 120_000);
+
+if ("failed".equals(task.getStatus())) {
+    throw new RuntimeException("indexing failed: " + task.getError());
+}
+```
+
+`pollTask(taskId, intervalMs, timeoutMs)` 会阻塞，直到任务到达 `ready` 或 `failed`，或在超时时抛出异常。
+
+## 搜索
+
+```java
+import com.sfvoice.media.models.SearchRequest;
+import com.sfvoice.media.models.SearchResponse;
+
+SearchRequest req = SearchRequest.query("customer asks about pricing")
+    .assetClass("customer_acme")
+    .types(List.of("transcript"))
+    .threshold(0.7f)
+    .limit(10)
+    .build();
+
+SearchResponse resp = client.search(req);
+
+for (var result : resp.getResults()) {
+    System.out.printf("%s %d–%dms (%.2f)%n",
+        result.getAssetId(), result.getStartMs(), result.getEndMs(), result.getScore());
+}
+```
+
+## 资产
+
+```java
+// 列表
+var resp = client.listAssets(1, 20);
+
+// 单个
+var asset = client.getAsset("call_001");
+
+// 删除
+client.deleteAsset("call_001");
+```
+
+## 错误
+
+```java
+import com.sfvoice.media.SfVoiceMediaException;
+
+try {
+    client.search(req);
+} catch (SfVoiceMediaException e) {
+    System.err.println(e.getCode() + " " + e.getStatus() + ": " + e.getMessage());
+}
+```

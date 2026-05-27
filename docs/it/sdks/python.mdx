@@ -1,0 +1,148 @@
+---
+title: "Python"
+description: "SDK Python per l'API di ricerca. Client sincrono e asincrono, Python 3.9+."
+---
+
+`sf-voice-media` — basato su `httpx`. Client sincrono e asincrono con interfacce identiche.
+
+Usa il client sincrono per script e worker. Usa il client asincrono all'interno di FastAPI, Starlette o altri servizi asincroni.
+
+## Installazione
+
+```sh
+pip install sf-voice-media==0.1.1
+```
+
+Python 3.9+. Dipendenza: `httpx >= 0.27`.
+
+## Client sincrono
+
+```python
+from sf_voice import SfVoiceMedia
+
+client = SfVoiceMedia(
+    api_key="your_api_key",
+    base_url="https://api.sf-voice.com",
+)
+
+# usalo come context manager per chiudere automaticamente il pool di connessioni
+with SfVoiceMedia(api_key="...") as client:
+    ...
+```
+
+## Client asincrono
+
+```python
+from sf_voice import AsyncSfVoiceMedia
+import asyncio
+
+async def main():
+    async with AsyncSfVoiceMedia(api_key="...") as client:
+        ...
+
+asyncio.run(main())
+```
+
+Il client asincrono ha gli stessi nomi di metodo. Ogni metodo è una coroutine.
+
+## Ingestione
+
+```python
+# da un URL
+resp = client.ingest(
+    source="url",
+    asset_id="call_001",
+    asset_class="customer_acme",
+    url="https://storage.example.com/calls/001.mp3",
+    media_type="audio",
+    types=["audio", "transcript"],
+    metadata={"caller": "+14155550199"},
+)
+print(resp.task_id)
+
+# da un file
+with open("call.mp3", "rb") as f:
+    resp = client.ingest(
+        source="file",
+        asset_id="call_001",
+        asset_class="customer_acme",
+        file=f.read(),
+        filename="call.mp3",
+        content_type="audio/mpeg",
+        media_type="audio",
+        types=["audio", "transcript"],
+    )
+```
+
+## Attendere l'indicizzazione
+
+```python
+task = client.poll_task(
+    resp.task_id,
+    interval_s=2.0,
+    timeout_s=120.0,
+)
+
+if task.status == "failed":
+    raise RuntimeError(task.error or "indexing failed")
+```
+
+`poll_task` lancia `SfVoiceMediaPollTimeoutError` se il task non si completa entro `timeout_s`.
+
+## Ricerca
+
+```python
+result = client.search(
+    query="customer asks about pricing",
+    asset_class="customer_acme",
+    types=["transcript"],
+    threshold=0.7,
+    limit=10,
+)
+
+for r in result.results:
+    print(r.asset_id, r.start_ms, r.end_ms, r.score)
+```
+
+Cerca per asset specifici:
+
+```python
+result = client.search(
+    query="cancellation request",
+    asset_ids=["call_001", "call_002"],
+)
+```
+
+## Asset
+
+```python
+# elenco
+resp = client.list_assets(page=1, limit=20)
+for asset in resp.items:
+    print(asset.asset_id, asset.status)
+
+# singolo
+asset = client.get_asset("call_001")
+
+# elimina
+client.delete_asset("call_001")
+```
+
+## Errori
+
+```python
+from sf_voice import SfVoiceMedia, SfVoiceMediaError, SfVoiceMediaPollTimeoutError
+
+try:
+    task = client.poll_task(task_id, timeout_s=60.0)
+except SfVoiceMediaPollTimeoutError as e:
+    print(f"timed out waiting for {e.task_id}")
+except SfVoiceMediaError as e:
+    print(e.code, e.status, e.message)
+```
+
+| Eccezione | Quando |
+| --- | --- |
+| `SfVoiceMediaError` | Risposta API non-2xx. Porta `code`, `message`, `status`. |
+| `SfVoiceMediaRequestTimeoutError` | Richiesta HTTP scaduta. Porta `timeout_ms`. |
+| `SfVoiceMediaPollTimeoutError` | `poll_task` scaduto. Porta `task_id`, `timeout_ms`. |

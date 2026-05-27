@@ -47,27 +47,140 @@
       "thumbsRating": true
    },
    "navigation": {
-      "groups": [
+      "languages": [
          {
-            "group": "Get Started",
-            "pages": ["introduction", "quickstart", "how-it-works"]
+            "language": "en",
+            "groups": [
+               {
+                  "group": "Get Started",
+                  "pages": ["introduction", "quickstart", "how-it-works"]
+               },
+               {
+                  "group": "Platform",
+                  "pages": ["data-privacy"]
+               },
+               {
+                  "group": "SDKs",
+                  "pages": [
+                     "sdks/overview",
+                     "sdks/typescript",
+                     "sdks/python",
+                     "sdks/elixir",
+                     "sdks/java",
+                     "sdks/kotlin",
+                     "sdks/cpp",
+                     "sdks/rust",
+                     "sdks/go"
+                  ]
+               }
+            ]
          },
          {
-            "group": "Platform",
-            "pages": ["data-privacy"]
+            "language": "fr",
+            "groups": [
+               {
+                  "group": "Démarrer",
+                  "pages": ["fr/introduction", "fr/quickstart", "fr/how-it-works"]
+               },
+               {
+                  "group": "Plateforme",
+                  "pages": ["fr/data-privacy"]
+               },
+               {
+                  "group": "SDKs",
+                  "pages": [
+                     "fr/sdks/overview",
+                     "fr/sdks/typescript",
+                     "fr/sdks/python",
+                     "fr/sdks/elixir",
+                     "fr/sdks/java",
+                     "fr/sdks/kotlin",
+                     "fr/sdks/cpp",
+                     "fr/sdks/rust",
+                     "fr/sdks/go"
+                  ]
+               }
+            ]
          },
          {
-            "group": "SDKs",
-            "pages": [
-               "sdks/overview",
-               "sdks/typescript",
-               "sdks/python",
-               "sdks/elixir",
-               "sdks/java",
-               "sdks/kotlin",
-               "sdks/cpp",
-               "sdks/rust",
-               "sdks/go"
+            "language": "es",
+            "groups": [
+               {
+                  "group": "Empezar",
+                  "pages": ["es/introduction", "es/quickstart", "es/how-it-works"]
+               },
+               {
+                  "group": "Plataforma",
+                  "pages": ["es/data-privacy"]
+               },
+               {
+                  "group": "SDKs",
+                  "pages": [
+                     "es/sdks/overview",
+                     "es/sdks/typescript",
+                     "es/sdks/python",
+                     "es/sdks/elixir",
+                     "es/sdks/java",
+                     "es/sdks/kotlin",
+                     "es/sdks/cpp",
+                     "es/sdks/rust",
+                     "es/sdks/go"
+                  ]
+               }
+            ]
+         },
+         {
+            "language": "it",
+            "groups": [
+               {
+                  "group": "Inizia",
+                  "pages": ["it/introduction", "it/quickstart", "it/how-it-works"]
+               },
+               {
+                  "group": "Piattaforma",
+                  "pages": ["it/data-privacy"]
+               },
+               {
+                  "group": "SDK",
+                  "pages": [
+                     "it/sdks/overview",
+                     "it/sdks/typescript",
+                     "it/sdks/python",
+                     "it/sdks/elixir",
+                     "it/sdks/java",
+                     "it/sdks/kotlin",
+                     "it/sdks/cpp",
+                     "it/sdks/rust",
+                     "it/sdks/go"
+                  ]
+               }
+            ]
+         },
+         {
+            "language": "cn",
+            "groups": [
+               {
+                  "group": "开始使用",
+                  "pages": ["cn/introduction", "cn/quickstart", "cn/how-it-works"]
+               },
+               {
+                  "group": "平台",
+                  "pages": ["cn/data-privacy"]
+               },
+               {
+                  "group": "SDK",
+                  "pages": [
+                     "cn/sdks/overview",
+                     "cn/sdks/typescript",
+                     "cn/sdks/python",
+                     "cn/sdks/elixir",
+                     "cn/sdks/java",
+                     "cn/sdks/kotlin",
+                     "cn/sdks/cpp",
+                     "cn/sdks/rust",
+                     "cn/sdks/go"
+                  ]
+               }
             ]
          }
       ]

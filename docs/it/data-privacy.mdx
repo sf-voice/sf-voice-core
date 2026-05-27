@@ -1,0 +1,54 @@
+---
+title: "Dati e privacy"
+description: "Cosa conserviamo, per quanto tempo lo manteniamo e dove vengono elaborati i dati."
+---
+
+## Cosa conserviamo
+
+Indicizziamo le tue registrazioni e conserviamo la rappresentazione ricercabile: embedding, trascrizioni e metadati. I file sorgente transitano attraverso la pipeline di elaborazione e non vengono conservati al termine dell'indicizzazione.
+
+**Cosa conserviamo:**
+- Embedding (la rappresentazione indicizzata dei tuoi media)
+- Metadati dell'asset (`asset_id`, `asset_class`, `types`, campi `metadata` personalizzati)
+- Record di ingestione e timestamp
+
+**Cosa non conserviamo:**
+- File audio o video sorgente dopo l'elaborazione
+- Contenuto delle chiamate in forma grezza
+- Dati a livello di trasporto delle richieste al termine dell'elaborazione
+
+## Elaborazione regionale
+
+I dati vengono elaborati nella regione in cui è stato fornito il tuo account.
+
+| Regione del cliente | Luogo di elaborazione |
+| --- | --- |
+| Stati Uniti | Stati Uniti |
+| Unione Europea/Regno Unito | Europa |
+
+Gli account UE e UK vengono elaborati su infrastruttura europea.
+
+Se hai bisogno di una regione specifica non elencata qui, [contattaci](https://discord.sf-voice.sh).
+
+## Trattamento dei dati per UE e UK
+
+Per i clienti UE e UK:
+
+- I dati vengono elaborati su infrastruttura europea.
+- Agiamo come responsabile del trattamento. Tu rimani il titolare del trattamento per i dati personali contenuti nelle tue registrazioni.
+- Puoi eliminare gli asset indicizzati tramite l'API. L'eliminazione rimuove le rappresentazioni memorizzate — embedding, trascrizioni e metadati.
+- Gli accordi sul trattamento dei dati (DPA) sono disponibili su richiesta.
+
+## Eliminazione degli asset
+
+`DELETE /v1/assets/:id` rimuove l'asset e le sue rappresentazioni indicizzate. Il media sottostante non viene influenzato perché non conserviamo il file sorgente dopo l'elaborazione.
+
+Con l'SDK TypeScript:
+```ts
+await client.deleteAsset("call_001");
+```
+
+
+## Domande
+
+Contattaci su [Discord](https://discord.sf-voice.sh) o [Slack](https://slack.sf-voice.sh) per domande sul trattamento dei dati, richieste di DPA o documentazione di sicurezza.

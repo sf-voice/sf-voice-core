@@ -1,76 +1,83 @@
 ---
 title: "Introduction"
-description: "Ce que fait sf-voice media et comment il transforme l'audio et la vidéo en ressources consultables."
-icon: "sparkles"
+description: "APIs et SDKs de recherche multimédia pour les produits d'IA vocale."
 ---
 
-sf-voice media est une couche API et SDK qui rend l'audio et la vidéo consultables.
-Vous nous envoyez vos médias, conservez vos propres identifiants d'actifs, choisissez les surfaces que vous souhaitez indexer,
-et interrogez les médias indexés en langage naturel.
+San Francisco Voice Company développe des APIs et SDKs de recherche multimédia pour les produits d'IA vocale.
 
-<Columns cols={3}>
-  <Card title="Ingérer les médias" icon="upload">
-    Soumettez une vidéo ou un audio depuis une URL, une clé S3 ou un téléversement de fichier.
-  </Card>
-  <Card title="Indexer les surfaces utiles" icon="layers">
-    Choisissez d'indexer la vidéo, l'audio, la transcription, ou une combinaison de ces éléments.
-  </Card>
-  <Card title="Rechercher avec contexte" icon="search">
-    Recherchez par client, espace de travail, projet ou identifiants d'actifs explicites.
-  </Card>
-</Columns>
+Notre première fonctionnalité est un moteur de recherche pour les médias. Ingérez de l'audio ou de la vidéo, recherchez-le en langage naturel et utilisez les horodatages renvoyés pour revenir au point précis de l'enregistrement. Vous n'avez pas besoin de construire au préalable votre propre stockage de transcriptions, pipeline d'embeddings ou couche de recherche multimédia.
 
-## Ce que vous construisez avec
+<Warning>
+  Cette documentation couvre la version `0.1.1`. Nous itérons rapidement ; épinglez la version de votre SDK et attendez-vous à des changements incompatibles entre versions jusqu'à ce que l'API se stabilise.
+</Warning>
 
-sf-voice media s'adresse aux équipes produit qui ont besoin de recherche et de récupération de médias
-au sein de leur propre application.
+La recherche est notre point de départ. Viennent ensuite les outils de benchmarking et de débogage pour les systèmes d'IA vocale.
 
-Cas d'usage courants :
+## Ce que vous pouvez construire
 
-- Rechercher dans les appels clients par sujet, objection, demande de fonctionnalité ou défaut.
-- Rechercher dans les démos produit et les vidéos de support par ce qui a été dit ou montré.
-- Permettre à chaque client final de rechercher uniquement ses propres médias téléversés.
-- Construire des workflows de revue de médias, de conformité, de QA ou de base de connaissances.
+- Rechercher dans les appels clients par sujet, objection ou demande de fonctionnalité.
+- Trouver les appels où votre IA a interrompu l'appelant, a parlé trop lentement ou s'est répétée.
+- Limiter chaque client final à ses propres appels.
+- Construire des workflows de revue de conformité, des processus de QA ou des bases de connaissances sur votre archive d'appels.
 
-## Le modèle principal
+## Le modèle central
 
-Chaque actif commence avec des identifiants et une portée provenant de votre système.
+Les assets portent les identifiants et la portée issus de votre propre système.
 
-| Concept | Signification |
+| Champ | Description |
 | --- | --- |
-| `asset_id` | Votre identifiant unique pour un actif média. Obligatoire à l'ingestion. |
-| `asset_class` | Un groupe logique pour les actifs, tel qu'un client, un espace de travail, un projet ou un dépôt. |
-| `types` | Les surfaces médias à indexer ou rechercher : `video`, `audio` et `transcript`. |
-| `metadata` | Métadonnées clé/valeur plates optionnelles pour la corrélation et l'affichage. |
-
-<Note>
-  L'API publique utilise les termes sf-voice. Les identifiants et mappages spécifiques au backend ne font pas partie du contrat du SDK.
-</Note>
+| `asset_id` | Votre identifiant pour l'enregistrement. Obligatoire. Renvoyé dans les résultats de recherche pour vous permettre de faire le lien avec votre système. |
+| `asset_class` | Un groupe logique — un client, un workspace, un projet. Limite la recherche pour que les résultats ne fuient pas au-delà des frontières. |
+| `types` | Ce qu'il faut indexer : `audio`, `video`, `transcript`, ou n'importe quelle combinaison. |
+| `metadata` | Paires clé/valeur plates pour la corrélation et l'affichage. |
 
 ## Cycle de vie
 
 <Steps>
-  <Step title="Soumettre le média">
-    Envoyez une URL, une clé S3 ou un téléversement de fichier avec votre `asset_id`.
+  <Step title="Ingérer">
+    Envoyez une URL, une clé S3 ou un fichier avec votre `asset_id`. L'API renvoie immédiatement un `task_id`.
   </Step>
-
-  <Step title="Interroger la tâche d'indexation">
-    L'API renvoie immédiatement un `task_id`. Interrogez jusqu'à ce que la tâche devienne `ready`
-    ou `failed`.
+  <Step title="Indexer">
+    Interrogez la tâche jusqu'à ce qu'elle atteigne `ready`. L'indexation s'exécute en arrière-plan.
   </Step>
-
-  <Step title="Rechercher dans les actifs cadrés">
-    Recherchez par `asset_class`, par `asset_ids` explicites, ou par `scope: "all"` lorsque
-    la recherche globale est intentionnelle.
+  <Step title="Rechercher">
+    Lancez une requête en langage naturel, limitée à une `asset_class` ou à des `asset_ids` explicites. Les résultats incluent `start_ms` et `end_ms`.
   </Step>
 </Steps>
 
-## Commencez ici
+## Données et confidentialité
 
-<Card title="Démarrage rapide" icon="rocket" href="/fr/quickstart">
-  Ingérez un actif, attendez l'indexation, et lancez votre première recherche.
+Nous indexons vos médias et conservons la représentation interrogeable : embeddings, transcriptions et métadonnées. Les fichiers sources transitent par le pipeline de traitement et ne sont pas conservés une fois l'indexation terminée.
+
+**Vous gardez la propriété de vos médias. Nous stockons les données indexées nécessaires à la recherche.**
+
+Traitement régional :
+- **Clients US** — traités aux États-Unis.
+- **Clients UE et UK** — traités en Europe.
+
+<Card title="Données et confidentialité" icon="shield" href="/data-privacy">
+  Gestion des données, rétention, traitement régional et détails sur les DPA.
 </Card>
 
-<Card title="SDK TypeScript" icon="code" href="/fr/sdks/typescript">
-  Utilisez `@sf-voice/media` depuis une application TypeScript.
+## SDKs
+
+Huit SDKs, avec des clients spécifiques à chaque langage pour la même API média.
+
+<CardGroup cols={4}>
+  <Card title="TypeScript" icon="square-js" href="/sdks/typescript" />
+  <Card title="Python" icon="python" href="/sdks/python" />
+  <Card title="Elixir" icon="code" href="/sdks/elixir" />
+  <Card title="Go" icon="code" href="/sdks/go" />
+  <Card title="Rust" icon="gear" href="/sdks/rust" />
+  <Card title="Java" icon="java" href="/sdks/java" />
+  <Card title="Kotlin" icon="code" href="/sdks/kotlin" />
+  <Card title="C++" icon="code" href="/sdks/cpp" />
+</CardGroup>
+
+Les SDKs sont open source : [github.com/sf-voice/sf-voice-core](https://github.com/sf-voice/sf-voice-core)
+
+## Commencez ici
+
+<Card title="Démarrage rapide" icon="rocket" href="/quickstart">
+  Ingérez un enregistrement, attendez l'indexation, lancez votre première recherche.
 </Card>

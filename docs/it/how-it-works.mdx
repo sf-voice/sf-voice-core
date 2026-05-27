@@ -1,111 +1,85 @@
 ---
-title: "Come funziona"
-description: "Il ciclo di vita di sf-voice media: ingestione, indicizzazione, polling e ricerca."
-icon: "workflow"
+title: "Concetti fondamentali"
+description: "Come indicizziamo i media e restituiamo risultati di ricerca con timestamp."
 ---
 
-sf-voice media ha un ciclo principale: invia un asset, attendi l'indicizzazione, quindi
-cerca nei contenuti indicizzati usando gli stessi ID e ambiti che la tua applicazione utilizza già.
+## Gli asset nascono nel tuo sistema
 
-```mermaid
-flowchart LR
-  A[Your app] --> B[Ingest media]
-  B --> C[Index video, audio, transcript]
-  C --> D[Task becomes ready]
-  D --> E[Search by asset_class or asset_ids]
-  E --> F[Timestamped results]
-```
-
-## 1. Gli asset nascono nel tuo sistema
-
-Ogni richiesta di ingestione include il tuo `asset_id`. Questo facilita il collegamento dell'API multimediale
-al tuo database, CRM, ticket di supporto, workspace cliente o modello a oggetti interno.
+Le richieste di ingestione portano il tuo `asset_id`, così i risultati di ricerca possono ricollegarsi al tuo database, CRM, ticket di supporto, piattaforma di osservabilità o registro chiamate senza traduzione di ID.
 
 ```ts
 await client.ingest({
   source: "url",
-  asset_id: "video_123",
+  asset_id: "call_8294",
   asset_class: "customer_acme",
-  url: "https://example.com/recording.mp4",
+  url: "https://storage.example.com/calls/8294.mp3",
 });
 ```
 
-## 2. Le classi di asset definiscono l'ambito di ricerca
+## Le asset class definiscono l'ambito della ricerca
 
-`asset_class` è la primitiva pubblica di raggruppamento. Usala per il confine che conta
-di più per il tuo prodotto.
-
-Buoni esempi:
+`asset_class` è il modo in cui tracci il confine di ciò che viene cercato insieme. Per la maggior parte dei prodotti, corrisponde all'entità in cui ragionano i tuoi clienti:
 
 - un cliente finale
 - un workspace
 - un progetto
-- un repository
-- una raccolta di chiamate di supporto
+- una coda di supporto
 
 <Warning>
-  Se costruisci una ricerca rivolta ai clienti, preferisci `asset_class` o `asset_ids` espliciti.
-  La ricerca globale dovrebbe essere una scelta di prodotto esplicita.
+  Se stai costruendo ricerca rivolta ai clienti, limita per `asset_class` o `asset_ids` espliciti. La ricerca globale (`scope: "all"`) attraversa tutti i tuoi asset indicizzati.
 </Warning>
 
-## 3. I types scelgono le superfici ricercabili
+## Tipi di superfici di indicizzazione
 
-`types` controlla quali superfici indicizzi o cerchi.
+`types` controlla cosa viene indicizzato e cercato.
 
 | Tipo | Usalo quando |
 | --- | --- |
-| `video` | Il contenuto visivo è importante. |
-| `audio` | Suono, parlanti o indizi acustici sono importanti. |
-| `transcript` | Le parole pronunciate e il recupero testuale sono importanti. |
+| `audio` | Identità del parlante, eventi acustici, pattern a livello sonoro. |
+| `video` | Contenuto a schermo, contesto visivo, registrazioni dello schermo. |
+| `transcript` | Parole pronunciate, recupero per argomento, ricerca semantica sui dialoghi. |
 
-Puoi combinare i tipi:
-
-```ts
-types: ["video", "audio", "transcript"]
-```
-
-## 4. L'indicizzazione è asincrona
-
-L'ingestione restituisce rapidamente un `task_id`. L'asset diventa ricercabile dopo che il task
-raggiunge lo stato `ready`.
+La maggior parte dei casi d'uso di IA vocale vuole tutti e tre:
 
 ```ts
-const ingest = await client.ingest(request);
-const task = await client.pollTask(ingest.task_id);
+types: ["audio", "video", "transcript"]
 ```
 
-Il polling del task restituisce l'ID dell'asset, la classe dell'asset, i tipi indicizzati, lo stato ed eventuali
-errori se l'indicizzazione fallisce.
+## L'indicizzazione è asincrona
 
-## 5. La ricerca restituisce corrispondenze con timestamp
+L'ingestione restituisce immediatamente un `task_id`. L'indicizzazione vera e propria avviene in background. Esegui il polling fino a `ready` o `failed`.
 
-I risultati di ricerca includono `start_ms` ed `end_ms` così la tua UI può saltare direttamente
-al momento corrispondente.
+```ts
+const { task_id } = await client.ingest(request);
+const task = await client.pollTask(task_id);
+
+if (task.status === "failed") {
+  throw new Error(task.error ?? "indexing failed");
+}
+```
+
+Stati del task: `pending` → `indexing` → `ready` (o `failed`).
+
+## La ricerca restituisce corrispondenze con timestamp
+
+I risultati includono `start_ms` e `end_ms`: offset in millisecondi nella registrazione sorgente.
 
 ```json
 {
-  "asset_id": "video_123",
-  "score": 0.84,
+  "asset_id": "call_8294",
+  "score": 0.87,
   "start_ms": 42000,
   "end_ms": 58000,
   "match_type": "transcript"
 }
 ```
 
-Usa `threshold` per controllare la rigidità. Valori più alti restituiscono meno corrispondenze,
-ma più affidabili.
+`threshold` controlla quanto deve essere stringente la corrispondenza. Il valore predefinito è `0.5`. Aumentalo per ottenere meno risultati, ma con maggiore confidenza.
 
-## 6. I dettagli del provider backend restano nascosti
+## I tuoi dati restano tuoi
 
-L'SDK espone solo i concetti di sf-voice:
+L'API restituisce: `asset_id`, `asset_class`, `types`, punteggi e timestamp. Gli ID dei fornitori, le chiavi di indice e i dettagli della pipeline restano dietro l'API.
 
-- `asset_id`
-- `asset_class`
-- `types`
-- `threshold`
-
-Gli indici, gli ID e le mappature dei tipi del provider sono gestiti dal backend.
-
-<Card title="SDK TypeScript" icon="code" href="/it/sdks/typescript">
-  Vedi il riferimento API TypeScript completo.
+<Card title="SDK TypeScript" icon="square-js" href="/sdks/typescript">
+  Input, output e tipi di errore per il client TypeScript.
 </Card>
