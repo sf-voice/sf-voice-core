@@ -1,0 +1,33 @@
+name: publish go sdk
+
+on:
+   push:
+      tags:
+         - "go/v*"
+
+concurrency:
+   group: publish-go-sdk-${{ github.ref }}
+   cancel-in-progress: false
+
+jobs:
+   verify:
+      name: verify go module tag
+      runs-on: ubuntu-latest
+      permissions:
+         contents: read
+      steps:
+         - uses: actions/checkout@v4
+
+         - name: setup go
+           uses: actions/setup-go@v5
+           with:
+              go-version: "1.21"
+              cache-dependency-path: go/go.mod
+
+         - name: vet
+           working-directory: go
+           run: go vet ./...
+
+         - name: test
+           working-directory: go
+           run: go test ./...

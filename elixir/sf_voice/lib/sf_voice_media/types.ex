@@ -3,7 +3,12 @@ defmodule SfVoiceMedia.Types do
   typespecs for all request and response shapes in the sf-voice media API.
 
   these are documentation-only types — Elixir maps are used at runtime.
-  all keys are atoms (the HTTP layer atomises string keys via `Req`'s JSON decode).
+
+  - **keys** are always atoms in both directions. req decodes JSON with
+    `keys: :atoms`; the SDK stringifies outgoing atom keys before encoding.
+  - **enum values** (status, media_type, source, match_type) are atoms in
+    request maps (e.g. `%{source: :url}`) but arrive as strings in response
+    maps (e.g. `%{status: "ready"}`), because JSON values are not converted.
   """
 
   # ── shared ───────────────────────────────────────────────────────────────────
@@ -39,9 +44,9 @@ defmodule SfVoiceMedia.Types do
   @typedoc "a single asset stored in the library"
   @type asset :: %{
           id: String.t(),
-          media_type: media_type(),
-          source_type: source(),
-          status: task_status(),
+          media_type: String.t(),       # "video" | "audio"
+          source_type: String.t(),      # "url" | "s3"
+          status: String.t(),           # "pending" | "indexing" | "ready" | "failed"
           metadata: map() | nil,
           duration_ms: non_neg_integer() | nil,
           created_at: String.t(),
@@ -68,7 +73,7 @@ defmodule SfVoiceMedia.Types do
   @type ingest_response :: %{
           asset_id: String.t(),
           task_id: String.t(),
-          status: :pending
+          status: String.t()            # "pending"
         }
 
   # ── tasks ────────────────────────────────────────────────────────────────────
@@ -77,7 +82,7 @@ defmodule SfVoiceMedia.Types do
   @type task :: %{
           task_id: String.t(),
           asset_id: String.t(),
-          status: task_status(),
+          status: String.t(),           # "pending" | "indexing" | "ready" | "failed"
           error: String.t() | nil,
           created_at: String.t(),
           completed_at: String.t() | nil
@@ -115,7 +120,7 @@ defmodule SfVoiceMedia.Types do
           score: float(),
           start_ms: non_neg_integer(),
           end_ms: non_neg_integer(),
-          match_type: match_type(),
+          match_type: String.t(),       # "visual" | "conversation" | "text_in_video"
           thumbnail_url: String.t() | nil
         }
 
@@ -128,7 +133,7 @@ defmodule SfVoiceMedia.Types do
   # ── poll_task opts ───────────────────────────────────────────────────────────
 
   @typedoc """
-  options for `SfVoiceMedia.poll_task/3`.
+  options for `SfVoiceMedia.poll_task!/3`.
 
   - `:interval_ms` — milliseconds between polls (default 1_500)
   - `:timeout_ms`  — max total wait time in ms before raising (default 120_000)

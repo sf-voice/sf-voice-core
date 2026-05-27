@@ -3,6 +3,7 @@ package example
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -19,13 +20,11 @@ type IngestResult struct {
 	Err     error
 }
 
-// IngestAll ingests all URLs concurrently (up to concurrency at a time),
 // IngestAll concurrently ingests the provided URLs and returns their per-URL results.
 // If concurrency is less than 1 it is treated as 1.
-// The returned slice has the same length and order as the input urls; each element
-// is the corresponding IngestResult, which contains asset/task identifiers, elapsed
-// time for successful ingestions, or an error observed for that URL.
-func IngestAll(ctx context.Context, client *sfvoice.Client, urls []string, concurrency int) []IngestResult {
+// metadata is attached to every IngestRequest for tagging and later filtering; pass nil to omit.
+// The returned slice has the same length and order as urls.
+func IngestAll(ctx context.Context, client *sfvoice.Client, urls []string, concurrency int, metadata map[string]string) []IngestResult {
 	if concurrency < 1 {
 		concurrency = 1
 	}
@@ -41,7 +40,7 @@ func IngestAll(ctx context.Context, client *sfvoice.Client, urls []string, concu
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			results[idx] = ingestOne(ctx, client, u)
+			results[idx] = ingestOne(ctx, client, u, metadata)
 		}(i, url)
 	}
 
@@ -49,18 +48,24 @@ func IngestAll(ctx context.Context, client *sfvoice.Client, urls []string, concu
 	return results
 }
 
-// ingestOne ingests a single URL using the provided client and polls the created task until it completes or a 5-minute timeout elapses.
-// It returns an IngestResult containing the URL, AssetID, TaskID, and Elapsed duration on success.
-// If ingestion fails, the returned IngestResult contains Err wrapping the ingest error.
-// If polling fails or the task reports failure, the returned IngestResult contains Err describing the poll error or the task failure.
-func ingestOne(ctx context.Context, client *sfvoice.Client, url string) IngestResult {
+// ingestOne ingests a single URL and polls until the task reaches a terminal state
+// or the 5-minute timeout elapses.
+func ingestOne(ctx context.Context, client *sfvoice.Client, url string, metadata map[string]string) IngestResult {
 	t0 := time.Now()
 
+	// URL ingestion — for S3 use: sfvoice.IngestRequest{Source: "s3", S3Key: "bucket/key.mp4"}
 	resp, err := client.Ingest(ctx, sfvoice.IngestRequest{
-		Source: "url",
-		URL:    url,
+		Source:   "url",
+		URL:      url,
+		Metadata: metadata,
 	})
 	if err != nil {
+		// typed check: *sfvoice.Error carries a machine-readable Code and HTTP Status,
+		// which is distinct from a transport-level failure (DNS, timeout, etc.)
+		var apiErr *sfvoice.Error
+		if errors.As(err, &apiErr) {
+			return IngestResult{URL: url, Err: fmt.Errorf("ingest [%s]: %s", apiErr.Code, apiErr.Message)}
+		}
 		return IngestResult{URL: url, Err: fmt.Errorf("ingest: %w", err)}
 	}
 
@@ -69,6 +74,15 @@ func ingestOne(ctx context.Context, client *sfvoice.Client, url string) IngestRe
 
 	task, err := client.PollTask(pollCtx, resp.TaskID, 1500, 300_000)
 	if err != nil {
+		// *sfvoice.PollTimeoutError means the asset is still indexing — not a hard failure.
+		// the asset_id is valid and the task will eventually complete.
+		var timeoutErr *sfvoice.PollTimeoutError
+		if errors.As(err, &timeoutErr) {
+			return IngestResult{
+				URL: url, AssetID: resp.AssetID, TaskID: resp.TaskID,
+				Err: fmt.Errorf("task %s still indexing after %dms", timeoutErr.TaskID, timeoutErr.TimeoutMs),
+			}
+		}
 		return IngestResult{URL: url, AssetID: resp.AssetID, TaskID: resp.TaskID, Err: fmt.Errorf("poll: %w", err)}
 	}
 	if task.Status == sfvoice.TaskStatusFailed {

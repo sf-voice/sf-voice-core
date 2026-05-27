@@ -5,7 +5,7 @@
 //! ## quick start
 //!
 //! ```no_run
-//! use sf_voice::{SfVoiceMedia, types::IngestRequest};
+//! use sf_voice_media::{SfVoiceMedia, types::IngestRequest};
 //! use std::time::Duration;
 //!
 //! #[tokio::main]

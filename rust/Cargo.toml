@@ -1,10 +1,10 @@
 [package]
-name = "sf_model"
+name = "sf_voice_media"
 version = "0.1.0"
 edition = "2021"
 description = "Async Rust client for the San Francisco Voice Company API"
 license = "MIT"
-repository = "https://github.com/sf-voice/sf-voice-core/rust"
+repository = "https://github.com/sf-voice/sf-voice-core"
 keywords = ["media", "video", "audio", "api", "client"]
 categories = ["api-bindings", "multimedia"]
 

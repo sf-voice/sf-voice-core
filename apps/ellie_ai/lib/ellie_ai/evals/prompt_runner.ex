@@ -3,6 +3,7 @@ defmodule EllieAi.Evals.PromptRunner do
 
   """
 
+  alias EllieAi.HttpClient
   alias EllieAi.Prompts.Defaults
 
   require Logger
@@ -127,12 +128,15 @@ defmodule EllieAi.Evals.PromptRunner do
   defp clamp(s), do: s
 
   defp post(path, body) do
-    case Req.post("#{base_url()}#{path}",
-           json: body,
-           auth: {:bearer, openai_key()},
-           receive_timeout: 30_000,
-           retry: :transient,
-           max_retries: 2
+    case Req.post(
+           "#{base_url()}#{path}",
+           HttpClient.request_options(__MODULE__,
+             json: body,
+             auth: {:bearer, openai_key()},
+             receive_timeout: 30_000,
+             retry: :transient,
+             max_retries: 2
+           )
          ) do
       {:ok, %{status: 200, body: decoded}} -> {:ok, decoded}
       {:ok, %{status: status, body: decoded}} -> {:error, {:http, status, decoded}}

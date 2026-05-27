@@ -7,8 +7,10 @@ group = 'com.sfvoice'
 version = '0.1.0'
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+    withSourcesJar()
+    withJavadocJar()
 }
 
 repositories {
@@ -22,8 +24,38 @@ dependencies {
 publishing {
     publications {
         maven(MavenPublication) {
-            artifactId = 'sf-voice-media'
+            artifactId = 'sf-voice-media-java'
             from components.java
+
+            pom {
+                name = 'sf-voice-media-java'
+                description = 'Java SDK for the sf-voice media API'
+                url = 'https://github.com/sf-voice/sf-voice-core'
+                licenses {
+                    license {
+                        name = 'MIT License'
+                        url = 'https://opensource.org/licenses/MIT'
+                    }
+                }
+                developers {
+                    developer {
+                        id = 'sf-voice'
+                        name = 'sf-voice'
+                    }
+                }
+                scm {
+                    connection = 'scm:git:https://github.com/sf-voice/sf-voice-core.git'
+                    developerConnection = 'scm:git:ssh://git@github.com:sf-voice/sf-voice-core.git'
+                    url = 'https://github.com/sf-voice/sf-voice-core'
+                }
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            name = 'localRelease'
+            url = layout.buildDirectory.dir('release-repository').get().asFile.toURI()
         }
     }
 }

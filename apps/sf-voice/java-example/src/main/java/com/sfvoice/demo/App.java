@@ -11,7 +11,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * status, and run semantic searches — all via standard HTTP endpoints.
  *
  * Run:
- *   SF_VOICE_API_KEY=... ./gradlew :java-demo:bootRun
+     *   SF_VOICE_API_KEY=... gradle :java-example:bootRun
  */
 @SpringBootApplication
 public class App {

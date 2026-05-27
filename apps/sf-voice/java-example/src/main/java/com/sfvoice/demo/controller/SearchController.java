@@ -5,10 +5,10 @@ import com.sfvoice.media.SfVoiceMediaException;
 import com.sfvoice.media.models.AssetListResponse;
 import com.sfvoice.media.models.SearchRequest;
 import com.sfvoice.media.models.SearchResponse;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -27,34 +27,21 @@ public class SearchController {
      * Handle POST /search requests: validate the request body, construct a SearchRequest,
      * invoke the media client, and return the search results.
      *
-     * Expected request body keys:
-     * - "query" (String) — required; the search query.
-     * - "types" (List<String>) — optional; asset types to filter by.
-     * - "asset_ids" (List<String>) — optional; specific asset IDs to restrict the search.
-     *
-     * @param body the parsed JSON request body containing the keys described above
-     * @return 200 OK with the SearchResponse on success; 400 Bad Request with
-     *         {"error":"query is required"} when "query" is missing or blank; the HTTP
-     *         status from SfVoiceMediaException with body {"error":{"code":..., "message":...}}
-     *         when that exception is thrown; 500 Internal Server Error with
-     *         {"error": "<message>"} for other unexpected errors
+     * @param dto the deserialized and validated request body
+     * @return 200 OK with the SearchResponse on success; 400 Bad Request when validation
+     *         fails (e.g. query is blank); the HTTP status from SfVoiceMediaException with
+     *         body {"error":{"code":..., "message":...}} when that exception is thrown;
+     *         500 Internal Server Error with {"error": "<message>"} for other unexpected errors
      */
     @PostMapping("/search")
-    public ResponseEntity<?> search(@RequestBody Map<String, Object> body) {
-        String query = (String) body.get("query");
-        if (query == null || query.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "query is required"));
-        }
-
+    public ResponseEntity<?> search(@Valid @RequestBody SearchRequestDto dto) {
         try {
-            @SuppressWarnings("unchecked")
-            List<String> types = (List<String>) body.get("types");
-            @SuppressWarnings("unchecked")
-            List<String> assetIds = (List<String>) body.get("asset_ids");
-
-            SearchRequest.Builder builder = SearchRequest.query(query);
-            if (types != null)    builder.types(types);
-            if (assetIds != null) builder.assetIds(assetIds);
+            SearchRequest.Builder builder = SearchRequest.query(dto.getQuery());
+            if (dto.getTypes() != null)    builder.types(dto.getTypes());
+            if (dto.getAssetIds() != null) builder.assetIds(dto.getAssetIds());
+            if (dto.getThreshold() != null) builder.threshold(dto.getThreshold());
+            if (dto.getPage() != null)      builder.page(dto.getPage());
+            if (dto.getLimit() != null)     builder.limit(dto.getLimit());
 
             SearchResponse resp = client.search(builder.build());
             return ResponseEntity.ok(resp);

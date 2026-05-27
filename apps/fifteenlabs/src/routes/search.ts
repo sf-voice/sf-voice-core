@@ -22,6 +22,8 @@ export async function searchRoutes(app: FastifyInstance) {
       types?: SearchMatchType[];
       asset_ids?: string[];
       threshold?: number;
+      page?: number;
+      limit?: number;
     };
   }>(
     "/search",
@@ -32,9 +34,17 @@ export async function searchRoutes(app: FastifyInstance) {
           required: ["query"],
           properties: {
             query: { type: "string" },
-            types: { type: "array", items: { type: "string" } },
+            types: {
+              type: "array",
+              items: {
+                type: "string",
+                enum: ["visual", "conversation", "text_in_video"],
+              },
+            },
             asset_ids: { type: "array", items: { type: "string" } },
             threshold: { type: "number", minimum: 0, maximum: 1 },
+            page: { type: "integer", minimum: 1 },
+            limit: { type: "integer", minimum: 1 },
           },
         },
       },
@@ -48,6 +58,17 @@ export async function searchRoutes(app: FastifyInstance) {
   // list all assets
   app.get<{ Querystring: { page?: number; limit?: number } }>(
     "/assets",
+    {
+      schema: {
+        querystring: {
+          type: "object",
+          properties: {
+            page: { type: "integer", minimum: 1 },
+            limit: { type: "integer", minimum: 1 },
+          },
+        },
+      },
+    },
     async (req, reply) => {
       const resp = await client.listAssets({
         page: req.query.page,

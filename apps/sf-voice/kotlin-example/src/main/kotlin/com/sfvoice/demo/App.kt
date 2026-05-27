@@ -17,7 +17,7 @@ import io.ktor.server.routing.*
  * throughout. Shows how a Kotlin-first platform would integrate the SDK.
  *
  * Run:
- *   SF_VOICE_API_KEY=... ./gradlew :kotlin-demo:run
+ *   SF_VOICE_API_KEY=... gradle :kotlin-example:run
  */
 /**
  * Starts the Ktor Netty server for the sf-voice media SDK demo and registers HTTP routes.

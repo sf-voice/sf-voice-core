@@ -281,17 +281,15 @@
         if (!query) return;
 
         $("search-btn").disabled = true;
-        $("results").innerHTML = "";
+        $("results").replaceChildren();
 
         try {
           const { results } = await post("/search", { query });
-          if (results.length === 0) {
-            $("results").innerHTML = `<div class="empty">no results</div>`;
-          } else {
-            $("results").innerHTML = results.map(renderResult).join("");
-          }
+          $("results").replaceChildren(
+            ...(results.length === 0 ? [empty("no results")] : results.map(renderResult))
+          );
         } catch (err) {
-          $("results").innerHTML = `<div class="empty" style="color:var(--red)">${err.message}</div>`;
+          $("results").replaceChildren(empty(err.message, "error"));
         } finally {
           $("search-btn").disabled = false;
         }
@@ -301,16 +299,27 @@
         const start = msToTime(r.start_ms);
         const end   = msToTime(r.end_ms);
         const score = (r.score * 100).toFixed(0) + "%";
-        const type  = r.match_type.replace("_", " ");
-        return `
-          <div class="result-item">
-            <div class="score">${score}</div>
-            <div>
-              <div>${start} – ${end}</div>
-              <div class="asset-id">${r.asset_id}</div>
-            </div>
-            <span class="match-type ${r.match_type}">${type}</span>
-          </div>`;
+        const item = document.createElement("div");
+        item.className = "result-item";
+
+        const scoreEl = document.createElement("div");
+        scoreEl.className = "score";
+        scoreEl.textContent = score;
+
+        const body = document.createElement("div");
+        const time = document.createElement("div");
+        time.textContent = `${start} – ${end}`;
+        const asset = document.createElement("div");
+        asset.className = "asset-id";
+        asset.textContent = r.asset_id;
+        body.append(time, asset);
+
+        const type = document.createElement("span");
+        type.className = `match-type ${matchTypeClass(r.match_type)}`;
+        type.textContent = String(r.match_type ?? "").replaceAll("_", " ");
+
+        item.append(scoreEl, body, type);
+        return item;
       }
 
       // ── library ─────────────────────────────────────────────────────────
@@ -321,22 +330,34 @@
           const { items } = await get("/assets");
           const list = $("assets-list");
           if (items.length === 0) {
-            list.innerHTML = `<div class="empty">no assets yet</div>`;
+            list.replaceChildren(empty("no assets yet"));
           } else {
-            list.innerHTML = items.map(renderAsset).join("");
+            list.replaceChildren(...items.map(renderAsset));
           }
-        } catch {}
+        } catch (err) {
+          $("assets-list").replaceChildren(empty(err.message, "error"));
+        }
       }
 
       function renderAsset(a) {
         const title = a.metadata?.title ?? a.id;
         const dur   = a.duration_ms ? ` · ${msToTime(a.duration_ms)}` : "";
-        return `
-          <div class="asset-row">
-            <div class="dot ${a.status}"></div>
-            <span style="flex:1">${title}</span>
-            <span class="asset-id">${a.status}${dur}</span>
-          </div>`;
+        const row = document.createElement("div");
+        row.className = "asset-row";
+
+        const dot = document.createElement("div");
+        dot.className = `dot ${assetStatusClass(a.status)}`;
+
+        const name = document.createElement("span");
+        name.style.flex = "1";
+        name.textContent = title;
+
+        const meta = document.createElement("span");
+        meta.className = "asset-id";
+        meta.textContent = `${a.status}${dur}`;
+
+        row.append(dot, name, meta);
+        return row;
       }
 
       // ── helpers ──────────────────────────────────────────────────────────
@@ -370,6 +391,22 @@
         const m   = Math.floor(s / 60);
         const sec = s % 60;
         return `${m}:${String(sec).padStart(2, "0")}`;
+      }
+
+      function empty(text, kind = "") {
+        const el = document.createElement("div");
+        el.className = "empty";
+        if (kind === "error") el.style.color = "var(--red)";
+        el.textContent = text;
+        return el;
+      }
+
+      function assetStatusClass(status) {
+        return ["ready", "pending", "indexing", "failed"].includes(status) ? status : "";
+      }
+
+      function matchTypeClass(matchType) {
+        return ["visual", "conversation", "text_in_video"].includes(matchType) ? matchType : "";
       }
 
       function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }

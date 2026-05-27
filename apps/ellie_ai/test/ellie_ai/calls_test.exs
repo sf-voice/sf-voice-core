@@ -10,9 +10,8 @@ defmodule EllieAi.CallsTest do
   # uses sandbox shared mode so the spawned CallTree (running in a
   # different process) sees the org row this test inserts.
   #
-  # AudioBridge returns :ignore in test env (no OPENAI_API_KEY), so the
-  # supervisor spins up CallServer + VadGate alone — sufficient for the
-  # spawn/lookup/shutdown checks here.
+  # AudioBridge is swapped for a local stub in test, which keeps these
+  # supervision checks from opening an OpenAI websocket.
 
   setup do
     pid = Ecto.Adapters.SQL.Sandbox.start_owner!(EllieAi.Repo, shared: true)
@@ -206,7 +205,10 @@ defmodule EllieAi.CallsTest do
 
     test "list_tool_calls returns rows in insertion order for the given call", %{call: call} do
       {:ok, a} = Calls.start_tool_call(call.id, %{type: "before", tool_name: "a", arguments: %{}})
-      {:ok, b} = Calls.start_tool_call(call.id, %{type: "midflight", tool_name: "b", arguments: %{}})
+
+      {:ok, b} =
+        Calls.start_tool_call(call.id, %{type: "midflight", tool_name: "b", arguments: %{}})
+
       {:ok, c} = Calls.start_tool_call(call.id, %{type: "after", tool_name: "c", arguments: %{}})
 
       ids = Calls.list_tool_calls(call.id) |> Enum.map(& &1.id)

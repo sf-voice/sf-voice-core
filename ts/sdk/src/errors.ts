@@ -20,6 +20,17 @@ export class SfVoiceMediaError extends Error {
 }
 
 /**
+ * thrown by `request` when a fetch stalls past the client-level timeout.
+ */
+export class SfVoiceMediaRequestTimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`request timed out after ${timeoutMs}ms`);
+    this.name = "SfVoiceMediaRequestTimeoutError";
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
+/**
  * thrown by `pollTask` when the timeout expires before the task
  * reaches a terminal state.
  */
