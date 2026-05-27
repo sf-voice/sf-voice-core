@@ -1,36 +1,73 @@
 {
    "$schema": "https://mintlify.com/docs.json",
-   "name": "sf-voice media",
-   "theme": "luma",
+   "name": "San Francisco Voice Company",
+   "theme": "linden",
    "colors": {
-      "primary": "#040404",
-      "light": "#ffffff"
+      "primary": "#5E6AD2",
+      "light": "#8b93e8",
+      "dark": "#4f5bd5"
+   },
+   "background": {
+      "color": {
+         "dark": "#0a0a0b"
+      },
+      "decoration": "grid"
+   },
+   "fonts": {
+      "heading": {
+         "family": "Geist",
+         "weight": 600
+      },
+      "body": {
+         "family": "Geist"
+      }
+   },
+   "search": {
+      "prompt": "Search docs..."
    },
    "logo": {
-      "light": "https://media.brand.dev/9457ad5f-5721-4f8f-9a21-5c2e046625f6.svg",
-      "dark": "https://media.brand.dev/9457ad5f-5721-4f8f-9a21-5c2e046625f6.svg"
+      "light": "/logos/light-logo.png",
+      "dark": "/logos/dark-logo.png"
    },
-   "favicon": "https://media.brand.dev/70dde274-e5b7-4cf0-9624-03f883390baf.png",
+   "favicon": "/logos/light-logo.png",
    "navbar": {
       "primary": {
          "type": "github",
          "href": "https://github.com/sf-voice/sf-voice-core"
       }
    },
+   "footer": {
+      "socials": {
+         "github": "https://github.com/sf-voice/sf-voice-core",
+         "discord": "https://discord.sf-voice.sh",
+         "linkedin": "https://www.linkedin.com/company/sf-model/"
+      }
+   },
+   "feedback": {
+      "thumbsRating": true
+   },
    "navigation": {
-      "tabs": [
+      "groups": [
          {
-            "tab": "Documentation",
-            "groups": [
-               {
-                  "group": "Get Started",
-                  "pages": ["introduction", "quickstart", "how-it-works"]
-               },
-               {
-                  "group": "SDKs",
-                  "icon": "code",
-                  "pages": ["sdks/typescript"]
-               }
+            "group": "Get Started",
+            "pages": ["introduction", "quickstart", "how-it-works"]
+         },
+         {
+            "group": "Platform",
+            "pages": ["data-privacy"]
+         },
+         {
+            "group": "SDKs",
+            "pages": [
+               "sdks/overview",
+               "sdks/typescript",
+               "sdks/python",
+               "sdks/elixir",
+               "sdks/java",
+               "sdks/kotlin",
+               "sdks/cpp",
+               "sdks/rust",
+               "sdks/go"
             ]
          }
       ]

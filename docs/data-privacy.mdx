@@ -1,0 +1,54 @@
+---
+title: "Data & Privacy"
+description: "What we stores, how long we keep it, and where data is processed."
+---
+
+## What we store
+
+We index your recordings and keep the searchable representation: embeddings, transcripts, and metadata. Source files pass through the processing pipeline and are not retained after indexing completes.
+
+**What we stores:**
+- Embeddings (the indexed representation of your media)
+- Asset metadata (`asset_id`, `asset_class`, `types`, custom `metadata` fields)
+- Ingestion records and timestamps
+
+**What we don't store:**
+- Source audio or video files after processing
+- Call content in raw form
+- Transport-level request data after processing completes
+
+## Regional processing
+
+Data is processed in the region where your account is provisioned.
+
+| Customer region | Processing location |
+| --- | --- |
+| United States | United States |
+| European Union/United Kingdom | Europe |
+
+EU and UK accounts are processed in European infrastructure.
+
+If you have a requirement for a specific region not listed here, [contact us](https://discord.sf-voice.sh).
+
+## EU and UK data handling
+
+For EU and UK customers:
+
+- Data is processed in European infrastructure.
+- We act as a data processor. You remain the data controller for any personal data in your recordings.
+- You can delete indexed assets through the API. Deletion removes stored representations — embeddings, transcripts, and metadata.
+- Data processing agreements (DPAs) are available on request.
+
+## Deleting assets
+
+`DELETE /v1/assets/:id` removes the asset and its indexed representations. The underlying media is not affected because we do not keep the source file after processing.
+
+Using the TypeScript SDK:
+```ts
+await client.deleteAsset("call_001");
+```
+
+
+## Questions
+
+Reach us on [Discord](https://discord.sf-voice.sh) or [Slack](https://slack.sf-voice.sh) for data handling questions, DPA requests, or security documentation.

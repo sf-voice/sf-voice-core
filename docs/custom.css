@@ -1,0 +1,153 @@
+/* ── navbar: true black ────────────────────────────────── */
+
+/*
+ * bg-background-dark uses #0a0a0b from docs.json — close to black but
+ * not the same as the logo mark. overriding to pure #000000.
+ */
+.dark header#navbar > .z-0 {
+   background-color: #000000 !important;
+}
+
+/* ── sidebar: item padding and hover box ───────────────── */
+
+/*
+ * increase vertical padding on each item so the sidebar breathes.
+ * mintlify defaults to py-1.5 (6px each side) — bumping to 8px.
+ */
+.sidebar-group a[href] {
+   border-radius: 6px;
+   margin-right: 6px;
+   padding-top: 8px !important;
+   padding-bottom: 8px !important;
+   transition: background 100ms ease;
+}
+
+/* hover: faint box */
+.sidebar-group a[href]:not([aria-current="page"]):hover {
+   background: rgba(0, 0, 0, 0.05);
+}
+
+/* focus-visible: same box with an offset ring */
+.sidebar-group a[href]:not([aria-current="page"]):focus-visible {
+   background: rgba(0, 0, 0, 0.05);
+   outline: 2px solid rgba(94, 106, 210, 0.5);
+   outline-offset: -2px;
+}
+
+/* active page: lighter tint — less heavy than before */
+.sidebar-group a[href][aria-current="page"] {
+   background: rgba(94, 106, 210, 0.08);
+}
+
+/* dark mode */
+.dark .sidebar-group a[href]:not([aria-current="page"]):hover {
+   background: rgba(255, 255, 255, 0.05);
+}
+
+.dark .sidebar-group a[href]:not([aria-current="page"]):focus-visible {
+   background: rgba(255, 255, 255, 0.05);
+   outline: 2px solid rgba(139, 147, 232, 0.4);
+   outline-offset: -2px;
+}
+
+.dark .sidebar-group a[href][aria-current="page"] {
+   background: rgba(94, 106, 210, 0.15);
+}
+
+/* ── sidebar: section dividers (Vercel style) ──────────── */
+
+/*
+ * every group after the first gets a top border — matches the thin
+ * horizontal lines vercel uses to separate nav sections.
+ */
+.sidebar-group + .sidebar-group {
+   margin-top: 20px;
+   padding-top: 20px;
+   border-top: 1px solid rgba(0, 0, 0, 0.07);
+}
+
+.dark .sidebar-group + .sidebar-group {
+   border-top-color: rgba(255, 255, 255, 0.07);
+}
+
+/*
+ * group headers ("Get Started", "Platform", "SDKs") — reduce the bottom
+ * gap so the header sits closer to its items.
+ */
+.sidebar-group-header {
+   margin-bottom: 6px !important;
+}
+
+/* ── sidebar: top breathing room ───────────────────────── */
+
+/*
+ * add space above the first sidebar item so the nav doesn't start
+ * immediately flush against the logo/header divider.
+ */
+.sidebar-group:first-child {
+   padding-top: 8px;
+}
+
+/* ── navbar: company name next to logo ────────────────── */
+
+/*
+ * mintlify renders the logo as an <img> inside an <a data-slot="context-menu-trigger">.
+ * the sr-only span has the name but is hidden. we add it visually via ::after
+ * so both logo mark and wordmark appear in the navbar without modifying the logo file.
+ */
+header#navbar a[data-slot="context-menu-trigger"] {
+   display: inline-flex !important;
+   align-items: center;
+   gap: 10px;
+}
+
+header#navbar a[data-slot="context-menu-trigger"]::after {
+   content: "San Francisco Voice Company";
+   font-size: 13px;
+   font-weight: 600;
+   letter-spacing: -0.02em;
+   white-space: nowrap;
+   color: #111111;
+}
+
+.dark header#navbar a[data-slot="context-menu-trigger"]::after {
+   color: #fafafa;
+}
+
+/* ── navbar: minimum height ───────────────────────────── */
+
+/*
+ * min(10vh, 80px) — scales with viewport up to 80px then holds.
+ */
+header#navbar div.relative > div[class*="lg:flex"] {
+   height: min(10vh, 80px) !important;
+}
+
+/* ── navbar: broader search bar ───────────────────────── */
+
+/*
+ * always show as a full input bar instead of collapsing to a 36px icon.
+ */
+header#navbar #search-bar-entry {
+   width: 240px !important;
+   padding: 0 14px !important;
+   justify-content: space-between !important;
+}
+
+header#navbar #search-bar-entry .truncate.min-w-0 {
+   display: block !important;
+}
+
+header#navbar #search-bar-entry span.flex-none {
+   display: inline-flex !important;
+}
+
+/* ── content: narrower reading column ─────────────────── */
+
+/*
+ * mintlify defaults to max-w-[696px] for the content column.
+ * pulling the prose block in slightly for a tighter reading line.
+ */
+.mdx-content {
+   max-width: 620px;
+}

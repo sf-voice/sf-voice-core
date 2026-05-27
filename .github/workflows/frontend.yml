@@ -1,7 +1,7 @@
 name: frontend
 
-# fires when the frontend source, its workspace lock, or this workflow
-# changes. ellie / resto / api pipelines have their own filters.
+# prs and merge queue run checks. pushes to main deploy only so the merge
+# commit does not repeat work that the queue already validated.
 
 on:
    workflow_dispatch: {}
@@ -13,6 +13,8 @@ on:
          - "pnpm-workspace.yaml"
          - "infra/deploy/docker-compose.frontend.yml"
          - ".github/workflows/frontend.yml"
+   merge_group:
+      types: [checks_requested]
    push:
       branches: [main]
       paths:
@@ -30,6 +32,7 @@ concurrency:
 jobs:
    test:
       name: test
+      if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
       runs-on: ubuntu-latest
       steps:
          - uses: actions/checkout@v4
@@ -68,7 +71,6 @@ jobs:
 
    deploy:
       name: build + deploy
-      needs: test
       if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
       runs-on: ubuntu-latest
       permissions:

@@ -1,76 +1,83 @@
 ---
 title: "Introduction"
-description: "Overview of sf-voice media: ingest audio and video, index transcripts and visual surfaces, and search with your own asset ids and scopes."
-icon: "sparkles"
+description: "Media search APIs and SDKs for voice AI products."
 ---
 
-sf-voice media is an API and SDK layer for making audio and video searchable.
-You send us media, keep your own asset ids, choose the surfaces you want indexed,
-and query the indexed media with natural language.
+San Francisco Voice Company builds media search APIs and SDKs for voice AI products.
 
-<Columns cols={3}>
-  <Card title="Ingest media" icon="upload">
-    Submit video or audio from a URL, S3 key, or file upload.
-  </Card>
-  <Card title="Index useful surfaces" icon="layers">
-    Choose whether to index video, audio, transcript, or a combination of them.
-  </Card>
-  <Card title="Search with context" icon="search">
-    Search by customer, workspace, project, or explicit asset ids.
-  </Card>
-</Columns>
+Our first feature is a search engine for media. Ingest audio or video, search it with natural language, and use the returned timestamps to jump back into the recording. You do not need to build your own transcript store, embedding pipeline, or media search layer first.
 
-## What you build with it
+<Warning>
+  These docs cover version `0.1.1`. We are iterating quickly, so pin your SDK version and expect breaking changes between versions until the API settles.
+</Warning>
 
-sf-voice media is for product teams that need search and retrieval over media
-inside their own application.
+Search is where we start. Next up is benchmarking and debugging tooling for voice AI systems.
 
-Common use cases:
+## What you can build with it
 
-- Search customer calls by topic, objection, feature request, or defect.
-- Search product demos and support videos by what was said or shown.
-- Let each end customer search only their own uploaded media.
-- Build media review, compliance, QA, or knowledge-base workflows.
+- Search customer calls by topic, objection, or feature request.
+- Find calls where your AI interrupted the caller, spoke too slowly, or repeated itself.
+- Scope each end customer to their own calls.
+- Build compliance review, QA workflows, or knowledge bases on top of your call archive.
 
 ## The core model
 
-Every asset starts with ids and scope that come from your system.
+Assets carry IDs and scope from your own system.
 
-| Concept | Meaning |
+| Field | What it is |
 | --- | --- |
-| `asset_id` | Your unique id for a media asset. Required on ingest. |
-| `asset_class` | A logical group for assets, such as a customer, workspace, project, or repository. |
-| `types` | The media surfaces to index or search: `video`, `audio`, and `transcript`. |
-| `metadata` | Optional flat key/value metadata for correlation and display. |
-
-<Note>
-  The public API uses sf-voice terms. Backend provider-specific ids and mappings are not part of the SDK contract.
-</Note>
+| `asset_id` | Your ID for the recording. Required. Returned on search results so you can join back to your system. |
+| `asset_class` | A logical group — one customer, one workspace, one project. Scopes search so results don't leak across boundaries. |
+| `types` | What to index: `audio`, `video`, `transcript`, or any combination. |
+| `metadata` | Flat key/value pairs for correlation and display. |
 
 ## Lifecycle
 
 <Steps>
-  <Step title="Submit media">
-    Send a URL, S3 key, or file upload with your `asset_id`.
+  <Step title="Ingest">
+    Send a URL, S3 key, or file upload with your `asset_id`. The API returns a `task_id` immediately.
   </Step>
-
-  <Step title="Poll the indexing task">
-    The API returns a `task_id` immediately. Poll until the task becomes `ready`
-    or `failed`.
+  <Step title="Index">
+    Poll the task until it reaches `ready`. Indexing runs in the background.
   </Step>
-
-  <Step title="Search scoped assets">
-    Search by `asset_class`, by explicit `asset_ids`, or by `scope: "all"` when
-    global search is intentional.
+  <Step title="Search">
+    Query with natural language, scoped to an `asset_class` or explicit `asset_ids`. Results include `start_ms` and `end_ms`.
   </Step>
 </Steps>
+
+## Data and privacy
+
+We index your media and keep the searchable representation: embeddings, transcripts, and metadata. Source files pass through the processing pipeline and are not retained after indexing completes.
+
+**You keep ownership of your media. We store the indexed data needed for search.**
+
+Regional processing:
+- **US customers** — processed in the United States.
+- **EU and UK customers** — processed in Europe.
+
+<Card title="Data & Privacy" icon="shield" href="/data-privacy">
+  Data handling, retention, regional processing, and DPA details.
+</Card>
+
+## SDKs
+
+Eight SDKs, with language-specific clients for the same media API.
+
+<CardGroup cols={4}>
+  <Card title="TypeScript" icon="square-js" href="/sdks/typescript" />
+  <Card title="Python" icon="python" href="/sdks/python" />
+  <Card title="Elixir" icon="code" href="/sdks/elixir" />
+  <Card title="Go" icon="code" href="/sdks/go" />
+  <Card title="Rust" icon="gear" href="/sdks/rust" />
+  <Card title="Java" icon="java" href="/sdks/java" />
+  <Card title="Kotlin" icon="code" href="/sdks/kotlin" />
+  <Card title="C++" icon="code" href="/sdks/cpp" />
+</CardGroup>
+
+SDKs are open source: [github.com/sf-voice/sf-voice-core](https://github.com/sf-voice/sf-voice-core)
 
 ## Start here
 
 <Card title="Quickstart" icon="rocket" href="/quickstart">
-  Ingest one asset, wait for indexing, and run your first search.
-</Card>
-
-<Card title="TypeScript SDK" icon="code" href="/sdks/typescript">
-  Use `@sf-voice/media` from a TypeScript application.
+  Ingest one recording, wait for indexing, run your first search.
 </Card>
