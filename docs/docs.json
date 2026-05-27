@@ -65,10 +65,13 @@
                "sdks/elixir",
                "sdks/java",
                "sdks/kotlin",
-               "sdks/cpp",
                "sdks/rust",
                "sdks/go"
             ]
+         },
+         {
+            "group": "Examples",
+            "pages": ["sdks/cpp"]
          }
       ]
    }

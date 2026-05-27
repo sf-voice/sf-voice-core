@@ -1,22 +1,20 @@
 ---
-title: "C++"
-description: "C++ SDK for the search and ingestion API. Single header, std::future-based, C++17."
+title: "C++ example"
+description: "How to call the sf-voice media API from C++ using CPR and nlohmann/json."
 ---
 
-Single-header C++17 SDK built on [CPR](https://github.com/libcpr/cpr) and [nlohmann/json](https://github.com/nlohmann/json). All methods return `std::future<Result<T>>`.
+This is a usage example, not a published package. `cpp/` in the repo contains a single-header helper (`client.hpp`) that wraps CPR and nlohmann/json. Copy it into your project or pull it via CMake FetchContent — there is no package to install from a registry.
 
-Use this SDK when you want to keep the HTTP client in C++ and handle failures through the `Result<T>` type instead of exceptions.
+If you're building in C++, the API is straightforward HTTP with JSON. You can use any HTTP client you already have; the header is just a convenience wrapper.
 
-## Setup
-
-### CMake (FetchContent)
+## Pull into your CMake project
 
 ```cmake
 include(FetchContent)
 FetchContent_Declare(
   sf_voice
   GIT_REPOSITORY https://github.com/sf-voice/sf-voice-core
-  GIT_TAG        v0.1.1
+  GIT_TAG        main
   SOURCE_SUBDIR  cpp
 )
 FetchContent_MakeAvailable(sf_voice)
@@ -24,9 +22,7 @@ FetchContent_MakeAvailable(sf_voice)
 target_link_libraries(your_target PRIVATE sf_voice)
 ```
 
-### Manual
-
-Copy `cpp/include/sf_voice/client.hpp` into your project. Ensure CPR and nlohmann/json are on your include path.
+Or copy `cpp/include/sf_voice/client.hpp` directly. You need CPR and nlohmann/json on your include path either way.
 
 ## Create a client
 
@@ -43,18 +39,17 @@ sfvoice::SfVoiceMedia client(
 
 ```cpp
 sfvoice::IngestRequest req;
-req.source    = "url";
-req.asset_id  = "call_001";
+req.source      = "url";
+req.asset_id    = "call_001";
 req.asset_class = "customer_acme";
-req.url       = "https://storage.example.com/calls/001.mp3";
-req.media_type = "audio";
-req.types     = {"audio", "transcript"};
+req.url         = "https://storage.example.com/calls/001.mp3";
+req.media_type  = "audio";
+req.types       = {"audio", "transcript"};
 
-auto future = client.ingest(req);
-auto result = future.get();
+auto result = client.ingest(req).get();
 
 if (!result) {
-    std::cerr << "ingest failed: " << result.error().message << "\n";
+    std::cerr << result.error().message << "\n";
     return;
 }
 
@@ -64,17 +59,15 @@ auto task_id = result.value().task_id;
 ## Poll until ready
 
 ```cpp
-auto task_future = client.poll_task(task_id);
-auto task_result = task_future.get();
+auto task = client.poll_task(task_id).get();
 
-if (!task_result) {
-    std::cerr << "polling failed: " << task_result.error().message << "\n";
+if (!task) {
+    std::cerr << task.error().message << "\n";
     return;
 }
 
-auto task = task_result.value();
-if (task.status == "failed") {
-    std::cerr << "indexing failed: " << task.error.value_or("unknown") << "\n";
+if (task.value().status == "failed") {
+    std::cerr << "indexing failed\n";
 }
 ```
 
@@ -86,44 +79,25 @@ req.query       = "customer asks about pricing";
 req.asset_class = "customer_acme";
 req.types       = {"transcript"};
 req.threshold   = 0.7f;
-req.limit       = 10;
 
-auto future = client.search(req);
-auto result = future.get();
+auto result = client.search(req).get();
 
 if (result) {
     for (const auto& r : result.value().results) {
         std::cout << r.asset_id << " "
-                  << r.start_ms << "–" << r.end_ms << "ms "
-                  << "(" << r.score << ")\n";
+                  << r.start_ms << "–" << r.end_ms << "ms\n";
     }
 }
 ```
 
-## Assets
-
-```cpp
-// list
-auto list = client.list_assets().get();
-
-// get one
-auto asset = client.get_asset("call_001").get();
-
-// delete
-auto del = client.delete_asset("call_001").get();
-```
-
 ## Result type
 
-`Result<T>` is a tagged union:
+All methods return `std::future<Result<T>>`. `Result<T>` is a tagged union — check before use:
 
 ```cpp
-auto result = client.ingest(req).get();
-
 if (result) {
-    // success: result.value() is the response
+    // result.value() — the response
 } else {
-    // failure: result.error() is a SfVoiceError { code, message, status }
-    std::cerr << result.error().code << ": " << result.error().message << "\n";
+    // result.error().code, result.error().message, result.error().status
 }
 ```

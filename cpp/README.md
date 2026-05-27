@@ -1,93 +1,76 @@
-# sf_voice C++ SDK
+# sf-voice C++ example
 
-Header-only C++17 SDK for the sf-voice media API.
+Single-header C++17 helper for calling the sf-voice media API. Not a published package — copy it into your project or pull it in via CMake FetchContent.
 
-Version: `0.1.1`
+Depends on `nlohmann_json` and `cpr`.
 
-## Installation
-
-With Conan:
-
-```txt
-requires = "sf_voice/0.1.1"
-```
-
-With CMake from this repo:
+## Pull in via CMake
 
 ```cmake
-add_subdirectory(path/to/sf-voice-core/cpp sf_voice_build)
+include(FetchContent)
+FetchContent_Declare(
+  sf_voice
+  GIT_REPOSITORY https://github.com/sf-voice/sf-voice-core
+  GIT_TAG        main
+  SOURCE_SUBDIR  cpp
+)
+FetchContent_MakeAvailable(sf_voice)
+
 target_link_libraries(your_target PRIVATE sf_voice::sf_voice)
 ```
 
-The SDK depends on `nlohmann_json` and `cpr`. CMake can fetch missing
-dependencies with `SF_VOICE_FETCH_DEPS=ON`, or you can install them locally.
+Or copy `include/sf_voice/` directly into your project and link against CPR and nlohmann/json yourself.
 
-For local development in this repo:
+## Local build
 
 ```sh
 cmake -S . -B build -DSF_VOICE_FETCH_DEPS=ON -DSF_VOICE_INSTALL=OFF
 cmake --build build
 ```
 
-Use `SF_VOICE_INSTALL=OFF` when configuring directly with fetched dependencies.
-
 ## Usage
 
 ```cpp
 #include <cstdlib>
 #include <iostream>
-
 #include <sf_voice/sf_voice.hpp>
 
 int main() {
     sf_voice::SfVoiceMedia client(std::getenv("SF_VOICE_API_KEY"));
 
-    sf_voice::IngestRequest ingest_request;
-    ingest_request.url = "https://example.com/recording.mp4";
-    ingest_request.extra = {
-        {"media_type", "video"},
-        {"metadata", {{"title", "product demo"}}}
-    };
+    sf_voice::IngestRequest req;
+    req.url = "https://example.com/call.mp3";
+    req.extra = {{"media_type", "audio"}};
 
-    auto ingest = client.ingest(ingest_request).get();
+    auto ingest = client.ingest(req).get();
     if (!ingest.ok) {
         std::cerr << ingest.error.code << ": " << ingest.error.message << "\n";
         return 1;
     }
 
     auto task = client.poll_task(ingest.value.task_id).get();
-    if (!task.ok) {
-        std::cerr << task.error.code << ": " << task.error.message << "\n";
-        return 1;
-    }
+    if (!task.ok) { return 1; }
 
-    sf_voice::SearchRequest search_request;
-    search_request.query = "product launch";
-    search_request.type = sf_voice::SearchType::Conversation;
+    sf_voice::SearchRequest search_req;
+    search_req.query = "customer asks about pricing";
 
-    auto search = client.search(search_request).get();
-    if (!search.ok) {
-        std::cerr << search.error.code << ": " << search.error.message << "\n";
-        return 1;
-    }
-
-    std::cout << search.value.results.size() << "\n";
+    auto search = client.search(search_req).get();
+    std::cout << search.value.results.size() << " results\n";
 }
 ```
 
-## API
+## Methods
 
-The client exposes async methods that return `std::future<Result<T>>`:
+All methods return `std::future<Result<T>>`. Call `.get()` to block for the result.
 
-- `ingest(request)` - submit URL or S3 media for indexing.
-- `get_task(task_id)` - fetch task state.
-- `poll_task(task_id, interval, timeout)` - wait until a task is terminal.
-- `list_assets(request)` - list indexed assets.
-- `get_asset(asset_id)` - fetch one asset.
-- `delete_asset(asset_id)` - soft-delete an asset.
-- `search(request)` - search indexed media with natural language.
+- `ingest(request)` — submit URL or S3 media for indexing
+- `get_task(task_id)` — fetch task state
+- `poll_task(task_id, interval, timeout)` — wait until ready or failed
+- `list_assets(request)` — list indexed assets
+- `get_asset(asset_id)` — fetch one asset
+- `delete_asset(asset_id)` — soft-delete an asset
+- `search(request)` — natural language search over indexed media
 
-## Examples
+## Example app
 
-- [`../apps/chips`](../apps/chips) - CMake CLI demo.
-
+[`../apps/chips`](../apps/chips) — CMake CLI demo using this helper.
