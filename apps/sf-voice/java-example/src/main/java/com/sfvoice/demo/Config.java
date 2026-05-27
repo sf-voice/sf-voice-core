@@ -1,6 +1,6 @@
-package com.sfvoice.demo;
+package sh.sfvoice.demo;
 
-import com.sfvoice.media.SfVoiceMediaClient;
+import sh.sfvoice.media.SfVoiceMediaClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 

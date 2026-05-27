@@ -1,9 +1,9 @@
-package com.sfvoice.demo.routes
+package sh.sfvoice.demo.routes
 
-import com.sfvoice.media.MediaType
-import com.sfvoice.media.SfVoiceMediaClient
-import com.sfvoice.media.SfVoiceMediaException
-import com.sfvoice.media.IngestRequest
+import sh.sfvoice.media.MediaType
+import sh.sfvoice.media.SfVoiceMediaClient
+import sh.sfvoice.media.SfVoiceMediaException
+import sh.sfvoice.media.IngestRequest
 import io.ktor.http.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*

@@ -35,7 +35,7 @@ artifact.
 | Python | [`sf-voice-media`](python) | `pip install sf-voice-media==0.1.1` |
 | Go | [`github.com/sf-voice/sf-voice-media-go`](go) | `go get github.com/sf-voice/sf-voice-media-go@v0.1.1` |
 | Rust | [`sf_voice_media`](rust) | `cargo add sf_voice_media@0.1.1` |
-| Java | [`java/`](java) | build the local jar with `(cd java && gradle jar)`, then depend on `com.sfvoice:sf-voice-media-java:0.1.1` |
+| Java | [`java/`](java) | build the local jar with `(cd java && gradle jar)`, then depend on `sf.sfvoice:sf-voice-media-java:0.1.1` |
 | Kotlin | [`kotlin/`](kotlin) | build the local jar with `(cd kotlin && gradle jar)`, then depend on `com.sfvoice:sf-voice-media-kotlin:0.1.1` |
 | Elixir | [`elixir/sf_voice`](elixir/sf_voice) | add `{:sf_voice, "~> 0.1.1"}` to `deps` |
 

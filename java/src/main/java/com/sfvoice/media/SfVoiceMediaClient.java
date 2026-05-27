@@ -1,8 +1,8 @@
-package com.sfvoice.media;
+package sh.sfvoice.media;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sfvoice.media.models.*;
+import sh.sfvoice.media.models.*;
 
 import java.io.IOException;
 import java.net.URI;

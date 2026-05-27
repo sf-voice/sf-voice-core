@@ -4,7 +4,7 @@ plugins {
     id("io.spring.dependency-management") version "1.1.5"
 }
 
-group = "com.sfvoice"
+group = "sf.sfvoice"
 version = "0.0.1"
 
 java {
