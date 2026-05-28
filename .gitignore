@@ -87,8 +87,8 @@ cpp/build/
 
 ## core stack — embedded duckdb store (created at runtime by the rust api)
 /data/
-.models/
-models/
+/.models/
+/models/
 
 ## python — covers infra/deploy/smoke-vad.py byte-compile output and any
 ## one-off scripts elsewhere. core/inference/.gitignore handles its own
