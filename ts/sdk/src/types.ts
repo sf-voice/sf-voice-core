@@ -1,27 +1,45 @@
 /**
- * all public types for the @sf-voice/media SDK.
- * mirrors the shapes returned by the sf-voice media API.
+ * public types for the @sf-voice/media SDK. mirrors the wire shapes
+ * the v1 API returns after the documents/project rewrite.
+ *
+ * vocabulary:
+ *   document — a single ingested asset (audio or video). previously
+ *              called "asset" / "video" interchangeably; we've collapsed
+ *              to the canonical name now that the backend table is
+ *              `documents`.
+ *   project  — required workspace grouping under an org. slugs are
+ *              human handles like "sf-voice-f30b0c/marketing-clips".
+ *   job      — async work unit tracking an ingest. previously "task".
  */
 
 // ─── shared ──────────────────────────────────────────────────────────────────
 
-export type MediaType = "video" | "audio";
-export type SourceType = "url" | "s3" | "file";
-export type TaskStatus = "pending" | "indexing" | "ready" | "failed";
-export type MediaSearchType = "video" | "audio" | "transcript";
+export type MediaKind = "video" | "audio";
+export type SourceKind = "url" | "s3";
+export type JobStatus =
+  | "queued"
+  | "running"
+  | "done"
+  | "failed"
+  | "cancelled";
+export type DocumentStatus =
+  | "queued"
+  | "downloading"
+  | "extracting"
+  | "uploading"
+  | "ready"
+  | "failed";
 
-export type MediaMetadata = Record<string, string | number | boolean>;
-export type IngestFile = Blob | ArrayBuffer | Uint8Array;
+export type Metadata = Record<string, string | number | boolean>;
 
-/** a single asset in the library */
-export type Asset = {
-  asset_id: string;
-  asset_class?: string;
-  media_type: MediaType;
-  source_type: SourceType;
-  types: MediaSearchType[];
-  status: TaskStatus;
-  metadata?: MediaMetadata;
+// ─── document ────────────────────────────────────────────────────────────────
+
+export type Document = {
+  id: string;
+  media_kind: MediaKind;
+  source_kind: SourceKind;
+  source_url?: string;
+  status: DocumentStatus;
   duration_ms?: number;
   created_at: string;
   updated_at: string;
@@ -39,13 +57,12 @@ export type PageInfo = {
 // ─── ingest ──────────────────────────────────────────────────────────────────
 
 export type IngestBase = {
-  /** customer-provided unique id for correlating this asset */
-  asset_id: string;
-  /** logical group for this asset. the backend maps this to a provider index. */
-  asset_class?: string;
-  media_type?: MediaType;
-  metadata?: MediaMetadata;
-  types?: MediaSearchType[];
+  /** project slug under the authenticated org. required. */
+  project: string;
+  /** "video" or "audio". server detects from extension when omitted. */
+  media_kind?: MediaKind;
+  /** opaque caller metadata, persisted on the document. */
+  metadata?: Metadata;
 };
 
 export type IngestRequest = IngestBase &
@@ -58,69 +75,62 @@ export type IngestRequest = IngestBase &
         source: "s3";
         s3_key: string;
       }
-    | {
-        source: "file";
-        file: IngestFile;
-        filename: string;
-        content_type?: string;
-      }
   );
 
 export type IngestResponse = {
-  asset_id: string;
-  task_id: string;
-  status: "pending";
+  document_id: string;
+  job_id: string;
+  status: "queued";
 };
 
-// ─── tasks ───────────────────────────────────────────────────────────────────
+// ─── jobs (formerly "tasks") ─────────────────────────────────────────────────
 
-export type Task = {
-  task_id: string;
-  asset_id: string;
-  asset_class?: string;
-  types: MediaSearchType[];
-  status: TaskStatus;
+export type Job = {
+  job_id: string;
+  document_id?: string;
+  status: JobStatus;
   error?: string;
   created_at: string;
   completed_at?: string;
 };
 
-// ─── assets ──────────────────────────────────────────────────────────────────
+// ─── document listing ────────────────────────────────────────────────────────
 
-export type ListAssetsParams = {
+export type ListDocumentsParams = {
+  /** optional project slug filter. omit to list all documents in the org. */
+  project?: string;
   page?: number;
   /** max 50 */
   limit?: number;
 };
 
-export type AssetListResponse = {
-  items: Asset[];
+export type DocumentListResponse = {
+  items: Document[];
   page_info: PageInfo;
 };
 
 // ─── search ──────────────────────────────────────────────────────────────────
 
+export type SearchMatchType = "conversation";
+
 export type SearchRequest = {
   query: string;
-  types?: MediaSearchType[];
-  asset_ids?: string[];
-  asset_class?: string;
-  /** set this to "all" to intentionally search every asset. */
-  scope?: "all";
-  /** minimum match score from 0.0 to 1.0. higher values return fewer, more confident results. default 0.5. */
-  threshold?: number;
+  /** project slug under the authenticated org. required. */
+  project: string;
+  /** narrow to specific documents. */
+  document_ids?: string[];
   page?: number;
   /** max 50 */
   limit?: number;
 };
 
 export type SearchResult = {
-  asset_id: string;
+  document_id: string;
   score: number;
   start_ms: number;
   end_ms: number;
-  match_type: MediaSearchType;
-  thumbnail_url?: string;
+  text: string;
+  match_type: SearchMatchType;
 };
 
 export type SearchResponse = {
@@ -130,7 +140,7 @@ export type SearchResponse = {
 
 // ─── poll ────────────────────────────────────────────────────────────────────
 
-export type PollTaskOptions = {
+export type PollJobOptions = {
   /** how long to wait between polls, in ms. default 1500 */
   intervalMs?: number;
   /** max total wait time in ms. default 120_000 (2 min) */
@@ -139,7 +149,6 @@ export type PollTaskOptions = {
 
 // ─── error ───────────────────────────────────────────────────────────────────
 
-/** all known API error codes */
 export type ApiErrorCode =
   | "bucket_not_connected"
   | "s3_access_denied"
@@ -149,8 +158,11 @@ export type ApiErrorCode =
   | "provider_unavailable"
   | "unauthorized"
   | "not_found"
+  | "missing_field"
+  | "invalid_source"
+  | "invalid_media_type"
+  | "invalid_url"
   | "rate_limited"
-  // catch-all for future codes the server may return
   | (string & {});
 
 export type ApiErrorBody = {
