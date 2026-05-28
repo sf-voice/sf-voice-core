@@ -31,18 +31,16 @@ export class SfVoiceMediaRequestTimeoutError extends Error {
 }
 
 /**
- * thrown by `pollTask` when the timeout expires before the task
+ * thrown by `pollJob` when the timeout expires before the job
  * reaches a terminal state.
  */
 export class SfVoiceMediaPollTimeoutError extends Error {
-  readonly taskId: string;
+  readonly jobId: string;
 
-  constructor(taskId: string, timeoutMs: number) {
-    super(
-      `task ${taskId} did not complete within ${timeoutMs}ms`
-    );
+  constructor(jobId: string, timeoutMs: number) {
+    super(`job ${jobId} did not complete within ${timeoutMs}ms`);
     this.name = "SfVoiceMediaPollTimeoutError";
-    this.taskId = taskId;
+    this.jobId = jobId;
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }
