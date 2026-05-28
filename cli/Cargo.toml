@@ -1,0 +1,29 @@
+# standalone crate. intentionally NOT in the root cargo workspace —
+# the CLI pulls heavy deps (clap, tokio) the API crates don't need, and
+# keeping a separate target/ avoids dragging that into the API build
+# graph. depends on `sf_voice_media` via a path dep.
+[workspace]
+
+[package]
+name = "sf-voice"
+version = "0.1.0"
+edition = "2021"
+description = "CLI for the San Francisco Voice Company API"
+license = "MIT"
+repository = "https://github.com/sf-voice/sf-voice-core"
+keywords = ["cli", "media", "voice", "api"]
+
+[[bin]]
+name = "sf-voice"
+path = "src/main.rs"
+
+[dependencies]
+sf_voice_media = { path = "../rust" }
+clap = { version = "4", features = ["derive", "env"] }
+reqwest = { version = "0.12", features = ["json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+anyhow = "1"
+dirs = "5"
+toml = "0.8"
