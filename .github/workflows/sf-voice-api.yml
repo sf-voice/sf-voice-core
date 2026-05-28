@@ -53,16 +53,14 @@ jobs:
          - name: install build tools
            run: sudo apt-get update && sudo apt-get install -y build-essential cmake
 
-         - name: cache cargo registry + target
-           uses: actions/cache@v4
+         # rust-cache strips ~/.cargo/registry/src (re-extractable) and cleans
+         # target down to dependency artifacts only, so the cache stays small
+         # (~2gb vs the ~8gb a raw actions/cache of registry+target produced).
+         # keys on Cargo.lock + rustc automatically and prunes the old entry.
+         - name: cache cargo + target
+           uses: Swatinem/rust-cache@v2
            with:
-              path: |
-                 ~/.cargo/registry
-                 ~/.cargo/git
-                 target
-              key: cargo-api-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
-              restore-keys: |
-                 cargo-api-${{ runner.os }}-
+              cache-all-crates: false
 
          - name: cargo fmt
            run: cargo fmt --all -- --check
@@ -84,7 +82,10 @@ jobs:
               push: false
               tags: sf-voice-api:pr-check
               cache-from: type=gha,scope=sf-voice-api
-              cache-to: type=gha,mode=max,scope=sf-voice-api
+              # mode=min on the pr check: cache final-stage layers only, not the
+              # whole rust builder stage. keeps this off the 10gb gha cache budget
+              # the cargo cache also lives in. the deploy job keeps mode=max.
+              cache-to: type=gha,mode=min,scope=sf-voice-api
 
    deploy:
       name: build + deploy
