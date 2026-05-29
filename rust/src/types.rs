@@ -194,8 +194,7 @@ pub struct SearchRequest {
 }
 
 impl SearchRequest {
-    /// build a search request. `project` is required and must be set
-    /// via `.project()` before sending.
+    /// build a search request. `project` is required and is passed here.
     pub fn new(query: impl Into<String>, project: impl Into<String>) -> Self {
         Self {
             query: query.into(),
