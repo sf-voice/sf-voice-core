@@ -71,6 +71,10 @@
          {
             "group": "Examples",
             "pages": ["sdks/cpp"]
+         },
+         {
+            "group": "Changelog",
+            "pages": ["changelog"]
          }
       ]
    }
