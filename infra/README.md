@@ -12,9 +12,10 @@ operational glue — everything that runs the system but isn't application code.
   - `sudo bash infra/deploy/bootstrap.sh ...` — initial droplet bring-up
   - `sudo bash infra/deploy/bootstrap-ellie.sh ...` — ellie data dir + caddy chown
   - `sudo bash infra/deploy/bootstrap-mysql.sh ...` — mysql container + backup timer
+  - `sudo bash infra/deploy/bootstrap-redis.sh ...` — redis container
   - `sudo bash infra/deploy/bootstrap-api.sh ...` — sf-voice-api data dir
   - `sudo bash infra/deploy/bootstrap-frontend.sh ...` — frontend dir
-- `dev/` — local-only data layer (mysql + clickhouse) for
+- `dev/` — local-only data layer (mysql + qdrant + redis) for
   `mise run core:dev`. see `dev/README.md`. not deployed.
 - `clickhouse/` — clickhouse schemas / operator notes (placeholder).
 
@@ -55,6 +56,7 @@ the `environment:` block:
 - `DATABASE_PATH` — sqlite file location inside the container
 - `RESTO_BASE_URL` (ellie only) — `http://resto-demo:4000` over proxy_net
 - `VAD_WS_URL` (sf-voice-api only) — `ws://ellie-ai:4001/socket/vad` over proxy_net
+- `REDIS_URL` (sf-voice-api only) — `redis://redis:6379` over proxy_net
 
 ### adding a new secret
 
@@ -71,6 +73,31 @@ the `environment:` block:
 | `apps/ellie_ai/`             | elixir / phoenix | sqlite (`/data/ellie.db`)                    | 4001           | `ellie-ai.sf-voice.sh`       |
 | `core/backend/api/`          | rust             | duckdb embedded + mysql on-prem (via sqlx)   | 8080           | `api.sf-voice.sh`            |
 | `core/frontend/`             | static (rspack)  | —                                            | 3000           | `app.sf-voice.sh`            |
+
+Redis is deployed as a private support service on `proxy_net`. It has no
+public port; the API reaches it at `redis://redis:6379`.
+
+To install Redis on the droplet without pulling the repo first:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sf-voice/sf-voice-core/main/infra/deploy/bootstrap-redis.sh \
+  | sudo bash -s -- --raw
+```
+
+For a private raw fetch, pass the same token to the bootstrap script so it can
+download the compose file too:
+
+```bash
+curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
+  https://raw.githubusercontent.com/sf-voice/sf-voice-core/main/infra/deploy/bootstrap-redis.sh \
+  | sudo GITHUB_TOKEN="$GITHUB_TOKEN" bash -s -- --raw
+```
+
+If the repo is already present on the droplet:
+
+```bash
+sudo bash infra/deploy/bootstrap-redis.sh /path/to/sf-voice-core
+```
 
 caddy fronts the four public services on `*.sf-voice.sh`. cloudflare
 proxies the zone with origin cert pinned in
