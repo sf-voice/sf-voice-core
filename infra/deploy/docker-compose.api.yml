@@ -21,6 +21,7 @@ services:
       # vsn/token query string. not a secret so it lives here, not .env.
       VAD_WS_URL: ws://ellie-ai:4001/socket/vad
       QDRANT_URL: http://qdrant:6334
+      REDIS_URL: redis://redis:6379
       # DATABASE_URL (mysql) + INTERNAL_API_TOKEN are rendered into .env
       # by the workflow from GH secrets. INTERNAL_API_TOKEN is the bearer
       # the VAD client sends on join.

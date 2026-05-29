@@ -521,15 +521,16 @@ fi
 trap 'kill 0 2>/dev/null; pkill -P $$ 2>/dev/null; exit' EXIT INT TERM
 
 mkdir -p data
+export REDIS_URL="${REDIS_URL:-redis://127.0.0.1:${REDIS_PORT:-6379}}"
 
-echo "[core:dev] starting data layer (mysql + qdrant)..."
+echo "[core:dev] starting data layer (mysql + qdrant + redis)..."
 # --wait blocks until every service with a healthcheck is healthy (or
 # the timeout fires). much more reliable than polling `docker compose ps`
 # json, which has fragile schemas across compose versions. healthcheck
 # start_period in the compose file already gives cold-init enough room.
 if ! $COMPOSE up -d --wait --wait-timeout 180; then
   echo "[core:dev] data layer didn't come up — recent logs:" >&2
-  $COMPOSE logs --tail=40 mysql qdrant >&2 || true
+  $COMPOSE logs --tail=40 mysql qdrant redis >&2 || true
   exit 1
 fi
 echo "[core:dev] data layer healthy"
@@ -543,6 +544,7 @@ echo "  api     → http://localhost:8080   (api.sf-voice.sh)   curl /api/hello"
 echo "  mysql   → mysql://sf_voice:sf_voice@127.0.0.1:3306/sf_voice_dev"
 echo "  duckdb  → file: ./data/sf_voice.duckdb (open with: duckdb data/sf_voice.duckdb)"
 echo "  qdrant  → http://127.0.0.1:6333   (REST)  http://127.0.0.1:6334 (gRPC)"
+echo "  redis   → $REDIS_URL"
 echo ""
 
 # 4. app processes. each backgrounded with a sed prefix so logs interleave
@@ -554,14 +556,14 @@ wait
 """
 
 [tasks."db:start"]
-description = "start mysql dev container"
+description = "start dev data-layer containers"
 run = """
 mkdir -p data
 docker compose -f infra/dev/docker-compose.yml up -d
 """
 
 [tasks."db:stop"]
-description = "stop mysql dev container"
+description = "stop dev data-layer containers"
 run = "docker compose -f infra/dev/docker-compose.yml down"
 
 [tasks."db:nuke"]
@@ -583,5 +585,5 @@ echo "[db:reset] sf_voice_dev recreated; duckdb file cleared. next api boot will
 """
 
 [tasks."db:logs"]
-description = "tail mysql container logs"
+description = "tail dev data-layer logs"
 run = "docker compose -f infra/dev/docker-compose.yml logs -f"
