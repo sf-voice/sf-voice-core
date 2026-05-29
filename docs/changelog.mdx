@@ -1,0 +1,33 @@
+---
+title: "Changelog"
+description: "Product updates and changes to San Francisco Voice Company."
+---
+
+<Update label="May 29, 2026">
+
+## New features
+
+**Official SDKs across six languages.** Install and ship against our media API from your stack of choice. Each SDK covers the core lifecycle: `ingest`, `getTask`, `pollTask`, `listAssets`, `getAsset`, `deleteAsset`, and `search`.
+
+- [TypeScript](/sdks/typescript) — `@sf-voice/media` for Node.js, Bun, Deno, and the browser
+- [Elixir](/sdks/elixir) — `:sf_voice`, built on `Req`
+- [Go](/sdks/go) — `sfvoice`, idiomatic with `context.Context`
+- [Rust](/sdks/rust) — `sf_voice_media`, async on `tokio` with a builder pattern
+- [Java](/sdks/java) — `sh.sf-voice:sf-voice-media-java`, synchronous on Java 17+
+- [Kotlin](/sdks/kotlin) — `sh.sf-voice:sf-voice-media-kotlin`, coroutine-native with Ktor
+
+What this means for you: pick a language, pin version `0.1.1`, and start indexing and searching media without building your own transcript store or embedding pipeline.
+
+**C++ example.** No published package, but a [single-header helper](/sdks/cpp) you can drop into a C++ project to call the API directly.
+
+## Updates
+
+- **Elixir SDK** — fixed a compilation issue that prevented the package from building cleanly against the latest dependency set. Upgrade to pick up the fix.
+- **Java and Kotlin SDKs** — updated default API endpoints in example projects so the quickstart code runs against the right host out of the box.
+- **TypeScript SDK** — refreshed package metadata and exports so installs resolve correctly across Node.js, Bun, Deno, and bundlers.
+
+## Removed
+
+- **Python SDK** has been removed from the supported lineup. If you were evaluating Python, use the [TypeScript SDK](/sdks/typescript) or call the API directly until a replacement ships.
+
+</Update>
