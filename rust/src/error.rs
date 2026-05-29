@@ -34,11 +34,11 @@ pub enum SfVoiceMediaError {
     #[error("http error: {0}")]
     Http(#[from] reqwest::Error),
 
-    /// `poll_task` exhausted its timeout before the task reached a terminal state.
-    #[error("task {task_id} did not complete within the timeout")]
+    /// `poll_job` exhausted its timeout before the job reached a terminal state.
+    #[error("job {job_id} did not complete within the timeout")]
     PollTimeout {
-        /// the task ID that was being polled.
-        task_id: String,
+        /// the job ID that was being polled.
+        job_id: String,
     },
 }
 

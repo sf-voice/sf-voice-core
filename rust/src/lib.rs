@@ -13,14 +13,17 @@
 //!     let client = SfVoiceMedia::new("https://api.sf-voice.com", "your-api-key");
 //!
 //!     let ingest = client
-//!         .ingest(&IngestRequest::from_url("https://example.com/video.mp4"))
+//!         .ingest(
+//!             &IngestRequest::from_url("https://example.com/video.mp4")
+//!                 .project("my-project"),
+//!         )
 //!         .await?;
 //!
-//!     let task = client
-//!         .poll_task(ingest.task_id, Duration::from_secs(2), Duration::from_secs(120))
+//!     let job = client
+//!         .poll_job(ingest.job_id, Duration::from_secs(2), Duration::from_secs(120))
 //!         .await?;
 //!
-//!     println!("status: {:?}", task.status);
+//!     println!("status: {:?}", job.status);
 //!     Ok(())
 //! }
 //! ```
