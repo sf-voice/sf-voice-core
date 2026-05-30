@@ -85,15 +85,6 @@ curl -fsSL https://raw.githubusercontent.com/sf-voice/sf-voice-core/main/infra/d
   | sudo bash -s -- --raw
 ```
 
-For a private raw fetch, pass the same token to the bootstrap script so it can
-download the compose file too:
-
-```bash
-curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
-  https://raw.githubusercontent.com/sf-voice/sf-voice-core/main/infra/deploy/bootstrap-redis.sh \
-  | sudo GITHUB_TOKEN="$GITHUB_TOKEN" bash -s -- --raw
-```
-
 If the repo is already present on the droplet:
 
 ```bash
