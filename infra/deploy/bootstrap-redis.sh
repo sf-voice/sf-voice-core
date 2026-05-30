@@ -10,12 +10,13 @@
 #
 # what it does:
 #   - creates /srv/redis/data with correct ownership
+#   - generates redis credentials and writes /srv/redis/.env + users.acl
 #   - installs docker-compose.redis.yml at /srv/redis/docker-compose.yml
 #   - brings the stack up
 #
-# safe to re-run: data dir is preserved between runs.
-# redis runs with no auth by default because it is not exposed on a public
-# port. only containers on proxy_net can reach redis:6379.
+# safe to re-run: data dir and credentials are preserved between runs.
+# only containers on proxy_net can reach redis:6379, and clients still need
+# the generated ACL username/password.
 
 set -euo pipefail
 
@@ -43,7 +44,35 @@ mkdir -p /srv/redis/data
 chown -R 999:999 /srv/redis/data
 chown deploy:deploy /srv/redis
 
-# ── 2. compose file ──────────────────────────────────────────────────────
+# ── 2. credentials ───────────────────────────────────────────────────────
+if [[ -f /srv/redis/.env ]]; then
+  echo "==> /srv/redis/.env already exists — leaving credentials alone"
+else
+  echo "==> generating redis credentials"
+  redis_user="sf_voice"
+  redis_password="$(openssl rand -base64 32 | tr -d '\n=+/' | head -c 32)"
+  cat > /srv/redis/.env <<EOF
+REDIS_USER=$redis_user
+REDIS_PASSWORD=$redis_password
+REDIS_URL=redis://$redis_user:$redis_password@redis:6379
+EOF
+  chown deploy:deploy /srv/redis/.env
+  chmod 600 /srv/redis/.env
+fi
+
+set -a
+# shellcheck disable=SC1091
+. /srv/redis/.env
+set +a
+
+cat > /srv/redis/users.acl <<EOF
+user default off
+user $REDIS_USER on >$REDIS_PASSWORD ~* &* +@all
+EOF
+chown deploy:deploy /srv/redis/users.acl
+chmod 600 /srv/redis/users.acl
+
+# ── 3. compose file ──────────────────────────────────────────────────────
 echo "==> installing /srv/redis/docker-compose.yml"
 if [[ -n "$REPO_DIR" ]]; then
   if [[ ! -d "$REPO_DIR/infra/deploy" ]]; then
@@ -61,10 +90,10 @@ else
   rm -f "$tmp"
 fi
 
-# ── 3. proxy_net network (created by bootstrap.sh; ensure it exists) ─────
+# ── 4. proxy_net network (created by bootstrap.sh; ensure it exists) ─────
 docker network create proxy_net 2>/dev/null || true
 
-# ── 4. bring the stack up ────────────────────────────────────────────────
+# ── 5. bring the stack up ────────────────────────────────────────────────
 echo "==> starting redis"
 docker compose -f /srv/redis/docker-compose.yml up -d
 
@@ -72,4 +101,8 @@ echo
 echo "==> bootstrap-redis complete"
 echo "    container:  redis (on proxy_net)"
 echo "    data:       /srv/redis/data"
-echo "    url:        redis://redis:6379 (internal proxy_net only)"
+echo "    acl file:   /srv/redis/users.acl"
+echo "    env file:   /srv/redis/.env"
+echo
+echo "    add this as the GitHub secret REDIS_URL for sf-voice-api deploys:"
+echo "      $REDIS_URL"

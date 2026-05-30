@@ -18,10 +18,10 @@ services:
       # vsn/token query string. not a secret so it lives here, not .env.
       VAD_WS_URL: ws://ellie-ai:4001/socket/vad
       QDRANT_URL: http://qdrant:6334
-      REDIS_URL: redis://redis:6379
-      # DATABASE_URL (mysql) + INTERNAL_API_TOKEN are rendered into .env
-      # by the workflow from GH secrets. INTERNAL_API_TOKEN is the bearer
-      # the VAD client sends on join.
+      # DATABASE_URL (mysql), REDIS_URL, and INTERNAL_API_TOKEN are rendered
+      # into .env by the workflow from GH secrets. INTERNAL_API_TOKEN is the
+      # bearer the VAD client sends on join.
+      REDIS_URL: ${REDIS_URL}
       # ingest pipeline — all three required for bucket scan and youtube
       # ingest to work. TWELVELABS_API_KEY is secret; inject from GH secrets.
       INTERNAL_S3_BUCKET: ${INTERNAL_S3_BUCKET}

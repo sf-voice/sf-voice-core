@@ -40,6 +40,7 @@ on the next push**. update the GH secret and re-push to rotate.
 | `AWS_REGION`            | —          | ✓        | —            | —        | `AWS_REGION`               |
 | `S3_BUCKET_NAME`        | —          | ✓        | —            | —        | `S3_BUCKET_NAME`           |
 | `DATABASE_URL`          | —          | —        | ✓            | —        | `DATABASE_URL`             |
+| `REDIS_URL`             | —          | —        | ✓            | —        | `REDIS_URL`                |
 | `DROPLET_HOST`          | runner only — used to ssh to the droplet                            |
 | `DROPLET_SSH_KEY`       | runner only — private key for the deploy user                       |
 
@@ -56,7 +57,6 @@ the `environment:` block:
 - `DATABASE_PATH` — sqlite file location inside the container
 - `RESTO_BASE_URL` (ellie only) — `http://resto-demo:4000` over proxy_net
 - `VAD_WS_URL` (sf-voice-api only) — `ws://ellie-ai:4001/socket/vad` over proxy_net
-- `REDIS_URL` (sf-voice-api only) — `redis://redis:6379` over proxy_net
 
 ### adding a new secret
 
@@ -75,7 +75,8 @@ the `environment:` block:
 | `core/frontend/`             | static (rspack)  | —                                            | 3000           | `app.sf-voice.sh`            |
 
 Redis is deployed as a private support service on `proxy_net`. It has no
-public port; the API reaches it at `redis://redis:6379`.
+public port and still requires ACL credentials. `bootstrap-redis.sh`
+prints the `REDIS_URL` value to add as the GitHub secret for API deploys.
 
 To install Redis on the droplet without pulling the repo first:
 

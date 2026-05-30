@@ -140,12 +140,13 @@ jobs:
               GHCR_USER: ${{ github.actor }}
               GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               DATABASE_URL: ${{ secrets.DATABASE_URL }}
+              REDIS_URL: ${{ secrets.REDIS_URL }}
               INTERNAL_API_TOKEN: ${{ secrets.INTERNAL_API_TOKEN }}
            with:
               host: ${{ secrets.DROPLET_HOST }}
               username: deploy
               key: ${{ secrets.DROPLET_SSH_KEY }}
-              envs: GHCR_USER,GHCR_TOKEN,DATABASE_URL,INTERNAL_API_TOKEN
+              envs: GHCR_USER,GHCR_TOKEN,DATABASE_URL,REDIS_URL,INTERNAL_API_TOKEN
               script: |
                  cd /srv/sf-voice-api
 
@@ -158,6 +159,7 @@ jobs:
                  umask 077
                  {
                    printf 'DATABASE_URL=%s\n'       "$DATABASE_URL"
+                   printf 'REDIS_URL=%s\n'          "$REDIS_URL"
                    printf 'INTERNAL_API_TOKEN=%s\n' "$INTERNAL_API_TOKEN"
                  } > .env.new
                  mv .env.new .env
