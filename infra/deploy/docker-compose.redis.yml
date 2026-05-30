@@ -1,21 +1,30 @@
 # installed at /srv/redis/docker-compose.yml on the droplet by bootstrap-redis.sh.
 # no public port — only containers on proxy_net can reach redis:6379.
-# api reaches it via REDIS_URL=redis://redis:6379 in docker-compose.api.yml.
+# redis auth lives in /srv/redis/.env + /srv/redis/users.acl, both generated
+# by bootstrap-redis.sh.
 
 services:
   redis:
     image: redis:7.4-alpine
     container_name: redis
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    env_file:
+      - .env
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --aclfile
+      - /usr/local/etc/redis/users.acl
     volumes:
       - ./data:/data
+      - ./users.acl:/usr/local/etc/redis/users.acl:ro
     expose:
       - "6379"
     networks:
       - proxy_net
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli --user \"$${REDIS_USER}\" --pass \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 12
