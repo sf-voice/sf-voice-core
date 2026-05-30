@@ -3,9 +3,7 @@
 #
 # mysql backs the new rust api service. qdrant stores vectors. redis is
 # the local cache/queue dependency for api code that needs a shared
-# ephemeral store. duckdb (the analytical store) is an embedded library —
-# it lives as a `.duckdb` file at ./data/ and runs in-process inside the
-# rust binary, so it has nothing here.
+# ephemeral store.
 #
 # named volume so `docker compose down` preserves data; wipe with
 # `docker compose -f infra/dev/docker-compose.yml down -v`.
