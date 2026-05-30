@@ -12,9 +12,6 @@ services:
     env_file:
       - .env
     environment:
-      # duckdb file lives on the mounted volume so it survives container
-      # recreate. core/backend/api/src/main.rs reads DUCKDB_PATH.
-      DUCKDB_PATH: /data/sf_voice.duckdb
       RUST_LOG: ${RUST_LOG:-info}
       # ellie's VAD websocket — internal proxy_net hostname, no caddy
       # involvement. the rust vad::VadClient appends /websocket and the
@@ -30,8 +27,6 @@ services:
       INTERNAL_S3_BUCKET: ${INTERNAL_S3_BUCKET}
       INTERNAL_S3_REGION: ${INTERNAL_S3_REGION:-us-east-1}
       TWELVELABS_API_KEY: ${TWELVELABS_API_KEY}
-    volumes:
-      - ./data:/data
     expose:
       - "8080"
     networks:

@@ -5,8 +5,6 @@
 #
 # what it does:
 #   - creates /srv/sf-voice-api owned by the deploy user
-#   - creates /srv/sf-voice-api/data owned by uid 1001 (the apiuser inside
-#     the container — see core/backend/api/Dockerfile)
 #
 # what it does NOT do:
 #   - write /srv/sf-voice-api/.env. CI (.github/workflows/sf-voice-api.yml)
@@ -29,10 +27,6 @@ fi
 echo "==> ensuring /srv/sf-voice-api exists and is owned by deploy"
 mkdir -p /srv/sf-voice-api
 chown deploy:deploy /srv/sf-voice-api
-
-echo "==> ensuring /srv/sf-voice-api/data is writable by the container user"
-mkdir -p /srv/sf-voice-api/data
-chown -R 1001:1001 /srv/sf-voice-api/data
 
 echo
 echo "==> bootstrap-api complete"

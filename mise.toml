@@ -5,7 +5,6 @@ elixir = "1.18.4-otp-27"
 node = "22"
 pnpm = "9"
 rust = "stable"
-duckdb = "latest"
 "cargo:sea-orm-cli" = "2.0.0-rc.38"
 gradle = "8.13"
 
@@ -500,9 +499,6 @@ echo "[install] inference (placeholder — no python deps yet)"
 echo "[install] pull dev data-layer images"
 docker compose -f infra/dev/docker-compose.yml pull
 
-echo "[install] ensure duckdb data dir exists"
-mkdir -p data
-
 echo "[install] done."
 """
 
@@ -520,7 +516,6 @@ fi
 
 trap 'kill 0 2>/dev/null; pkill -P $$ 2>/dev/null; exit' EXIT INT TERM
 
-mkdir -p data
 export REDIS_URL="${REDIS_URL:-redis://127.0.0.1:${REDIS_PORT:-6379}}"
 
 echo "[core:dev] starting data layer (mysql + qdrant + redis)..."
@@ -542,7 +537,6 @@ echo "[core:dev] services:"
 echo "  web     → http://localhost:3000   (app.sf-voice.sh)"
 echo "  api     → http://localhost:8080   (api.sf-voice.sh)   curl /api/hello"
 echo "  mysql   → mysql://sf_voice:sf_voice@127.0.0.1:3306/sf_voice_dev"
-echo "  duckdb  → file: ./data/sf_voice.duckdb (open with: duckdb data/sf_voice.duckdb)"
 echo "  qdrant  → http://127.0.0.1:6333   (REST)  http://127.0.0.1:6334 (gRPC)"
 echo "  redis   → $REDIS_URL"
 echo ""
@@ -558,7 +552,6 @@ wait
 [tasks."db:start"]
 description = "start dev data-layer containers"
 run = """
-mkdir -p data
 docker compose -f infra/dev/docker-compose.yml up -d
 """
 
@@ -567,10 +560,9 @@ description = "stop dev data-layer containers"
 run = "docker compose -f infra/dev/docker-compose.yml down"
 
 [tasks."db:nuke"]
-description = "destructive: wipe mysql volume + duckdb"
+description = "destructive: wipe dev data-layer volumes"
 run = """
 docker compose -f infra/dev/docker-compose.yml down -v
-rm -f data/sf_voice.duckdb data/sf_voice.duckdb.wal
 """
 
 [tasks."db:reset"]
@@ -580,8 +572,7 @@ set -e
 docker compose -f infra/dev/docker-compose.yml exec -T mysql \
   mysql -usf_voice -psf_voice \
   -e "DROP DATABASE IF EXISTS sf_voice_dev; CREATE DATABASE sf_voice_dev;"
-rm -f data/sf_voice.duckdb data/sf_voice.duckdb.wal
-echo "[db:reset] sf_voice_dev recreated; duckdb file cleared. next api boot will rebuild schema."
+echo "[db:reset] sf_voice_dev recreated. next api boot will rebuild schema."
 """
 
 [tasks."db:logs"]

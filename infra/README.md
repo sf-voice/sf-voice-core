@@ -71,7 +71,7 @@ the `environment:` block:
 | ---------------------------- | ---------------- | -------------------------------------------- | -------------- | ---------------------------- |
 | `apps/resto_booking_app/`    | elixir / phoenix | sqlite (`/data/resto.db`)                    | 4000           | `resto-demo.sf-voice.sh`     |
 | `apps/ellie_ai/`             | elixir / phoenix | sqlite (`/data/ellie.db`)                    | 4001           | `ellie-ai.sf-voice.sh`       |
-| `core/backend/api/`          | rust             | duckdb embedded + mysql on-prem (via sqlx)   | 8080           | `api.sf-voice.sh`            |
+| `core/backend/api/`          | rust             | mysql on-prem + qdrant vectors               | 8080           | `api.sf-voice.sh`            |
 | `core/frontend/`             | static (rspack)  | —                                            | 3000           | `app.sf-voice.sh`            |
 
 Redis is deployed as a private support service on `proxy_net`. It has no
