@@ -29,10 +29,6 @@ RAW_BASE="${RAW_BASE:-https://raw.githubusercontent.com/sf-voice/sf-voice-core/m
 REPO_DIR="${1:-}"
 CURL_ARGS=(-fsSL)
 
-if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-  CURL_ARGS+=(-H "Authorization: Bearer $GITHUB_TOKEN")
-fi
-
 if [[ "$REPO_DIR" == "--raw" ]]; then
   REPO_DIR=""
 fi
