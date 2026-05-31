@@ -1,23 +1,26 @@
 name: caddy
 
-# fires when infra/deploy/Caddyfile changes (or this workflow itself).
-# syncs Caddyfile to the droplet and triggers a graceful reload — no
-# restart, no dropped connections. caddy picks up reverse_proxy/tls/route
-# changes from the new file in <1s.
-
 on:
   push:
     branches: [main]
     paths:
       - "infra/deploy/Caddyfile"
+      - "infra/deploy/compose.prod.yml"
+      - "infra/deploy/sfctl.sh"
+      - "infra/deploy/sfctl.d/**"
       - ".github/workflows/caddy.yml"
+      - ".github/workflows/deploy-console.yml"
   pull_request:
     paths:
       - "infra/deploy/Caddyfile"
+      - "infra/deploy/compose.prod.yml"
+      - "infra/deploy/sfctl.sh"
+      - "infra/deploy/sfctl.d/**"
       - ".github/workflows/caddy.yml"
+      - ".github/workflows/deploy-console.yml"
 
 concurrency:
-  group: caddy-sync
+  group: caddy-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -27,10 +30,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # cheap config-only validation: pull the same caddy image used in
-      # prod and run `caddy validate`. catches typos before they reach the
-      # droplet. stub certs are generated so caddy can satisfy the tls
-      # provisioning check without needing the real origin cert.
       - name: caddy validate
         run: |
           mkdir -p /tmp/certs
@@ -43,54 +42,13 @@ jobs:
             -v "/tmp/certs:/etc/caddy/certs:ro" \
             caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
 
-  sync:
-    name: sync to droplet
+  deploy:
+    name: deploy
     needs: validate
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: upload Caddyfile
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.DROPLET_HOST }}
-          username: deploy
-          key: ${{ secrets.DROPLET_SSH_KEY }}
-          source: "infra/deploy/Caddyfile"
-          target: "/srv/caddy/"
-          strip_components: 2
-
-      # graceful reload: caddy re-reads the config and swaps it without
-      # dropping in-flight connections. needs the caddy container running;
-      # if it isn't, fall back to compose up which is mostly equivalent
-      # for the very-first deploy.
-      - name: reload caddy
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.DROPLET_HOST }}
-          username: deploy
-          key: ${{ secrets.DROPLET_SSH_KEY }}
-          script: |
-            cd /srv/caddy
-            if docker compose ps --status running caddy | grep -q caddy; then
-              docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile
-            else
-              docker compose up -d
-            fi
-
-      - name: verify routes
-        run: |
-          # every host must return 2xx/3xx after a caddy reload. anything
-          # else (404, 502, 503, dns failure) means the route is broken
-          # — add the host to this list only when its upstream is live.
-          failed=0
-          for host in resto-demo.sf-voice.sh ellie-ai.sf-voice.sh; do
-            status=$(curl -s -o /dev/null -w '%{http_code}' "https://$host/" || echo "000")
-            echo "$host → HTTP $status"
-            if [[ ! "$status" =~ ^[23] ]]; then
-              echo "::error::$host returned $status — caddy not routing to its upstream. a hard 'docker compose restart caddy' bypasses the reload bug if reload silently no-op'd."
-              failed=1
-            fi
-          done
-          exit $failed
+    uses: ./.github/workflows/deploy-console.yml
+    with:
+      operation: deploy
+      service: caddy
+      tag: latest
+    secrets: inherit
