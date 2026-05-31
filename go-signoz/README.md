@@ -80,6 +80,26 @@ or at SigNoz's profiling ingest if your deployment exposes one.
 > that runs entirely on SigNoz's supported OTLP + alerting stack. Leave
 > `ProfilesEndpoint` empty to run metrics-only.
 
+## CI & releasing
+
+- **CI:** `.github/workflows/go-signoz.yml` runs on PRs and `main` pushes that
+  touch `go-signoz/**` — `gofmt` check, `go vet`, build, `go test -race`, and
+  windows/darwin cross-compiles.
+- **Release:** Go modules publish by **git tag**, not a registry upload. Tag the
+  commit `go-signoz/vX.Y.Z` and push it; `.github/workflows/publish-go-signoz-sdk.yml`
+  re-verifies (vet/test/build) and asks the Go proxy to index the version. You
+  can also run it manually via *workflow_dispatch* with a `version` input.
+
+  ```sh
+  git tag go-signoz/v0.1.0
+  git push origin go-signoz/v0.1.0
+  ```
+
+  > The proxy-index step is best-effort: `go get
+  > github.com/sf-voice/sf-voice-signoz-go@vX.Y.Z` only resolves once that module
+  > path is reachable at its own repo / vanity import (same setup as the sibling
+  > `go/` SDK). The monorepo `go-signoz/vX.Y.Z` tag is what the workflow gates.
+
 ## Platform support
 
 Process CPU sampling uses `getrusage(RUSAGE_SELF)` (Linux + macOS, `//go:build
