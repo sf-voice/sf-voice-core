@@ -1,0 +1,152 @@
+name: deploy console
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "deploy, rollback, restart, status, logs, or smoke"
+        required: true
+        default: status
+        type: choice
+        options: [deploy, rollback, restart, status, logs, smoke]
+      service:
+        description: "service to operate"
+        required: true
+        default: all
+        type: choice
+        options: [all, frontend, api, ellie, resto, caddy, mysql, qdrant, redis]
+      tag:
+        description: "image tag for deploy/rollback, e.g. sha-abc123"
+        required: false
+        type: string
+      log_lines:
+        description: "lines for logs operation"
+        required: false
+        default: "200"
+        type: string
+  workflow_call:
+    inputs:
+      operation:
+        required: true
+        type: string
+      service:
+        required: true
+        type: string
+      tag:
+        required: false
+        type: string
+      log_lines:
+        required: false
+        default: "200"
+        type: string
+
+concurrency:
+  # one droplet, one deploy at a time. a push touching shared infra fans
+  # out to all service workflows at once — serialize them here so they
+  # queue instead of racing on env/images.env and compose state.
+  group: deploy-console-droplet
+  cancel-in-progress: false
+
+jobs:
+  run:
+    name: ${{ inputs.operation || github.event.inputs.operation }} ${{ inputs.service || github.event.inputs.service }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    env:
+      OPERATION: ${{ inputs.operation || github.event.inputs.operation }}
+      SERVICE: ${{ inputs.service || github.event.inputs.service }}
+      IMAGE_TAG: ${{ inputs.tag || github.event.inputs.tag }}
+      LOG_LINES: ${{ inputs.log_lines || github.event.inputs.log_lines || '200' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: resolve tag
+        run: |
+          if [ -z "$IMAGE_TAG" ] && [ "$OPERATION" = "deploy" ]; then
+            echo "IMAGE_TAG=sha-${GITHUB_SHA}" >> "$GITHUB_ENV"
+          elif [ -z "$IMAGE_TAG" ] && [ "$OPERATION" = "rollback" ]; then
+            echo "::error::rollback requires an explicit tag"
+            exit 1
+          fi
+
+      - name: upload deploy assets
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: deploy
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          source: "infra/deploy/compose.prod.yml,infra/deploy/sfctl.sh,infra/deploy/sfctl.d/*.sh,infra/deploy/Caddyfile,infra/deploy/smoke-vad.py"
+          target: "/srv/sf-voice/incoming/"
+          strip_components: 2
+
+      - name: run console command
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          OPERATION: ${{ env.OPERATION }}
+          SERVICE: ${{ env.SERVICE }}
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+          LOG_LINES: ${{ env.LOG_LINES }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          INTERNAL_API_TOKEN: ${{ secrets.INTERNAL_API_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CLICKHOUSE_URL: ${{ secrets.CLICKHOUSE_URL }}
+          CLICKHOUSE_DATABASE: ${{ secrets.CLICKHOUSE_DATABASE }}
+          CLICKHOUSE_ACCESS_TOKEN: ${{ secrets.CLICKHOUSE_ACCESS_TOKEN }}
+          CLICKHOUSE_USER: ${{ secrets.CLICKHOUSE_USER }}
+          CLICKHOUSE_PASSWORD: ${{ secrets.CLICKHOUSE_PASSWORD }}
+          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+          QDRANT_COLLECTION: ${{ secrets.QDRANT_COLLECTION }}
+          DIARIZE_URL: ${{ secrets.DIARIZE_URL }}
+          DIARIZE_API_KEY: ${{ secrets.DIARIZE_API_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+          TWELVELABS_API_KEY: ${{ secrets.TWELVELABS_API_KEY }}
+          SF_VOICE_SECRETS_KEY: ${{ secrets.SF_VOICE_SECRETS_KEY }}
+          SF_VOICE_APP_URL: ${{ secrets.SF_VOICE_APP_URL }}
+          SF_VOICE_SKIP_AWS_VERIFY: ${{ secrets.SF_VOICE_SKIP_AWS_VERIFY }}
+          COOKIE_SECURE: "true"
+          SF_VOICE_AWS_PRINCIPAL: ${{ secrets.SF_VOICE_AWS_PRINCIPAL }}
+          SF_VOICE_CFN_TEMPLATE_URL: ${{ secrets.SF_VOICE_CFN_TEMPLATE_URL }}
+          SECRET_KEY_BASE: ${{ secrets.SECRET_KEY_BASE }}
+          TELNYX_API_KEY: ${{ secrets.TELNYX_API_KEY }}
+          TELNYX_PUBLIC_KEY: ${{ secrets.TELNYX_PUBLIC_KEY }}
+          PHONE_NUMBER: ${{ secrets.PHONE_NUMBER }}
+          STAFF_PHONE_E164: ${{ secrets.STAFF_PHONE_E164 }}
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: deploy
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          envs: OPERATION,SERVICE,IMAGE_TAG,LOG_LINES,GHCR_USER,GHCR_TOKEN,DATABASE_URL,REDIS_URL,INTERNAL_API_TOKEN,OPENAI_API_KEY,CLICKHOUSE_URL,CLICKHOUSE_DATABASE,CLICKHOUSE_ACCESS_TOKEN,CLICKHOUSE_USER,CLICKHOUSE_PASSWORD,QDRANT_API_KEY,QDRANT_COLLECTION,DIARIZE_URL,DIARIZE_API_KEY,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_REGION,S3_BUCKET_NAME,TWELVELABS_API_KEY,SF_VOICE_SECRETS_KEY,SF_VOICE_APP_URL,SF_VOICE_SKIP_AWS_VERIFY,COOKIE_SECURE,SF_VOICE_AWS_PRINCIPAL,SF_VOICE_CFN_TEMPLATE_URL,SECRET_KEY_BASE,TELNYX_API_KEY,TELNYX_PUBLIC_KEY,PHONE_NUMBER,STAFF_PHONE_E164
+          script: |
+            set -euo pipefail
+            cd /srv/sf-voice
+            install -m 644 incoming/compose.prod.yml compose.prod.yml
+            install -m 755 incoming/sfctl.sh bin/sfctl
+            mkdir -p bin/sfctl.d
+            cp -R incoming/sfctl.d/. bin/sfctl.d/
+            chmod 644 bin/sfctl.d/*.sh
+            install -m 644 incoming/Caddyfile caddy/Caddyfile
+            install -m 755 incoming/smoke-vad.py smoke-vad.py
+
+            case "$OPERATION" in
+              deploy|rollback)
+                bin/sfctl "$OPERATION" "$SERVICE" "$IMAGE_TAG"
+                ;;
+              logs)
+                bin/sfctl logs "$SERVICE" "$LOG_LINES"
+                ;;
+              restart|status|smoke)
+                bin/sfctl "$OPERATION" "$SERVICE"
+                ;;
+              *)
+                echo "::error::unknown operation $OPERATION"
+                exit 1
+                ;;
+            esac

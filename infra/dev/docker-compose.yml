@@ -1,9 +1,9 @@
 # local-only data layer for `mise run core:dev`. NOT used in production —
-# the prod stack lives in infra/deploy/docker-compose.*.yml.
+# the prod stack lives in infra/deploy/compose.prod.yml.
 #
-# mysql backs the new rust api service. duckdb (the analytical store) is
-# an embedded library — it lives as a `.duckdb` file at ./data/ and runs
-# in-process inside the rust binary, so it has nothing here.
+# mysql backs the new rust api service. qdrant stores vectors. redis is
+# the local cache/queue dependency for api code that needs a shared
+# ephemeral store.
 #
 # named volume so `docker compose down` preserves data; wipe with
 # `docker compose -f infra/dev/docker-compose.yml down -v`.
@@ -55,8 +55,25 @@ services:
       timeout: 3s
       retries: 12
 
+  redis:
+    image: redis:7.4-alpine
+    container_name: sf-voice-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
 volumes:
   mysql_data:
     name: sf-voice-mysql-data
   qdrant_data:
     name: sf-voice-qdrant-data
+  redis_data:
+    name: sf-voice-redis-data

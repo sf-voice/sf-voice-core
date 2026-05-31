@@ -1,0 +1,167 @@
+# canonical production stack for the droplet.
+#
+# run from /srv/sf-voice through bin/sfctl. the script exports env/images.env
+# before invoking compose so image tags stay data, not sed-mutated yaml.
+
+name: sf-voice
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./certs:/etc/caddy/certs:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - proxy_net
+
+  frontend:
+    image: ghcr.io/sf-voice/sf-voice-frontend:${FRONTEND_IMAGE_TAG:-latest}
+    container_name: frontend
+    restart: unless-stopped
+    expose:
+      - "3000"
+    networks:
+      - proxy_net
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  api:
+    image: ghcr.io/sf-voice/sf-voice-api:${API_IMAGE_TAG:-latest}
+    container_name: api
+    restart: unless-stopped
+    env_file:
+      - ./env/api.env
+    environment:
+      RUST_LOG: ${RUST_LOG:-info}
+      VAD_WS_URL: ws://ellie-ai:4001/socket/vad
+      QDRANT_URL: http://qdrant:6334
+    expose:
+      - "8080"
+    networks:
+      - proxy_net
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  ellie-ai:
+    image: ghcr.io/sf-voice/ellie-ai:${ELLIE_IMAGE_TAG:-latest}
+    container_name: ellie-ai
+    restart: unless-stopped
+    env_file:
+      - ./env/ellie.env
+    environment:
+      PHX_HOST: ellie-ai.sf-voice.sh
+      PHX_SERVER: "true"
+      PORT: "4001"
+      DATABASE_PATH: /data/ellie.db
+      RESTO_BASE_URL: http://resto-demo:4000
+    volumes:
+      - ./data/ellie:/data
+    expose:
+      - "4001"
+    networks:
+      - proxy_net
+
+  resto-demo:
+    image: ghcr.io/sf-voice/restaurant-booking-app:${RESTO_IMAGE_TAG:-latest}
+    container_name: resto-demo
+    restart: unless-stopped
+    env_file:
+      - ./env/resto.env
+    environment:
+      PHX_HOST: resto-demo.sf-voice.sh
+      PHX_SERVER: "true"
+      PORT: "4000"
+      DATABASE_PATH: /data/resto.db
+    volumes:
+      - ./data/resto:/data
+    expose:
+      - "4000"
+    networks:
+      - proxy_net
+
+  mysql:
+    image: mysql:8.4
+    container_name: mysql
+    restart: unless-stopped
+    env_file:
+      - ./env/mysql.env
+    command:
+      - "--innodb-buffer-pool-size=128M"
+      - "--performance-schema=OFF"
+      - "--max-connections=64"
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+    ports:
+      - "127.0.0.1:3306:3306"
+    expose:
+      - "3306"
+    networks:
+      - proxy_net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  qdrant:
+    image: qdrant/qdrant:v1.13.6
+    container_name: qdrant
+    restart: unless-stopped
+    volumes:
+      - ./data/qdrant:/qdrant/storage
+    expose:
+      - "6333"
+      - "6334"
+    networks:
+      - proxy_net
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/6333 && printf \"GET /readyz HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n\" >&3 && grep -q 200 <&3'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: redis
+    restart: unless-stopped
+    env_file:
+      - ./env/redis.env
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --aclfile
+      - /usr/local/etc/redis/users.acl
+    volumes:
+      - ./data/redis:/data
+      - ./env/redis.users.acl:/usr/local/etc/redis/users.acl:ro
+    expose:
+      - "6379"
+    networks:
+      - proxy_net
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --user \"$${REDIS_USER}\" --pass \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  proxy_net:
+    external: true
