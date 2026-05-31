@@ -128,16 +128,26 @@ jobs:
           script: |
             set -euo pipefail
             asset_dir=/tmp/sf-voice-deploy-assets
-            sudo install -d -o deploy -g deploy /srv/sf-voice /srv/sf-voice/bin /srv/sf-voice/caddy /srv/sf-voice/certs
+
+            # deploy should be non-root after the droplet has been bootstrapped once.
+            if [ ! -d /srv/sf-voice ] || [ ! -w /srv/sf-voice ]; then
+              echo "::error::/srv/sf-voice is not writable by deploy. run sfctl bootstrap on the droplet with sudo/root access first."
+              exit 1
+            fi
+            if ! docker ps >/dev/null 2>&1; then
+              echo "::error::deploy cannot access docker. add deploy to the docker group on the droplet and start a new ssh session."
+              exit 1
+            fi
+
+            install -d /srv/sf-voice/bin /srv/sf-voice/caddy /srv/sf-voice/certs
             cd /srv/sf-voice
-            sudo install -m 644 -o deploy -g deploy "$asset_dir/compose.prod.yml" compose.prod.yml
-            sudo install -m 755 -o deploy -g deploy "$asset_dir/sfctl.sh" bin/sfctl
-            sudo install -d -o deploy -g deploy bin/sfctl.d
-            sudo cp -R "$asset_dir/sfctl.d/." bin/sfctl.d/
-            sudo chown deploy:deploy bin/sfctl.d/*.sh
-            sudo chmod 644 bin/sfctl.d/*.sh
-            sudo install -m 644 -o deploy -g deploy "$asset_dir/Caddyfile" caddy/Caddyfile
-            sudo install -m 755 -o deploy -g deploy "$asset_dir/smoke-vad.py" smoke-vad.py
+            install -m 644 "$asset_dir/compose.prod.yml" compose.prod.yml
+            install -m 755 "$asset_dir/sfctl.sh" bin/sfctl
+            install -d bin/sfctl.d
+            cp -R "$asset_dir/sfctl.d/." bin/sfctl.d/
+            chmod 644 bin/sfctl.d/*.sh
+            install -m 644 "$asset_dir/Caddyfile" caddy/Caddyfile
+            install -m 755 "$asset_dir/smoke-vad.py" smoke-vad.py
             rm -rf "$asset_dir"
 
             case "$OPERATION" in
