@@ -78,8 +78,9 @@ jobs:
           username: deploy
           key: ${{ secrets.DROPLET_SSH_KEY }}
           source: "infra/deploy/compose.prod.yml,infra/deploy/sfctl.sh,infra/deploy/sfctl.d/*.sh,infra/deploy/Caddyfile,infra/deploy/smoke-vad.py"
-          target: "/srv/sf-voice/incoming/"
+          target: "/tmp/sf-voice-deploy-assets/"
           strip_components: 2
+          rm: true
 
       - name: run console command
         uses: appleboy/ssh-action@v1.2.0
@@ -126,14 +127,18 @@ jobs:
           envs: OPERATION,SERVICE,IMAGE_TAG,LOG_LINES,GHCR_USER,GHCR_TOKEN,DATABASE_URL,REDIS_URL,INTERNAL_API_TOKEN,OPENAI_API_KEY,CLICKHOUSE_URL,CLICKHOUSE_DATABASE,CLICKHOUSE_ACCESS_TOKEN,CLICKHOUSE_USER,CLICKHOUSE_PASSWORD,QDRANT_API_KEY,QDRANT_COLLECTION,DIARIZE_URL,DIARIZE_API_KEY,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_REGION,S3_BUCKET_NAME,TWELVELABS_API_KEY,SF_VOICE_SECRETS_KEY,SF_VOICE_APP_URL,SF_VOICE_SKIP_AWS_VERIFY,COOKIE_SECURE,SF_VOICE_AWS_PRINCIPAL,SF_VOICE_CFN_TEMPLATE_URL,SECRET_KEY_BASE,TELNYX_API_KEY,TELNYX_PUBLIC_KEY,PHONE_NUMBER,STAFF_PHONE_E164
           script: |
             set -euo pipefail
+            asset_dir=/tmp/sf-voice-deploy-assets
+            sudo install -d -o deploy -g deploy /srv/sf-voice /srv/sf-voice/bin /srv/sf-voice/caddy /srv/sf-voice/certs
             cd /srv/sf-voice
-            install -m 644 incoming/compose.prod.yml compose.prod.yml
-            install -m 755 incoming/sfctl.sh bin/sfctl
-            mkdir -p bin/sfctl.d
-            cp -R incoming/sfctl.d/. bin/sfctl.d/
-            chmod 644 bin/sfctl.d/*.sh
-            install -m 644 incoming/Caddyfile caddy/Caddyfile
-            install -m 755 incoming/smoke-vad.py smoke-vad.py
+            sudo install -m 644 -o deploy -g deploy "$asset_dir/compose.prod.yml" compose.prod.yml
+            sudo install -m 755 -o deploy -g deploy "$asset_dir/sfctl.sh" bin/sfctl
+            sudo install -d -o deploy -g deploy bin/sfctl.d
+            sudo cp -R "$asset_dir/sfctl.d/." bin/sfctl.d/
+            sudo chown deploy:deploy bin/sfctl.d/*.sh
+            sudo chmod 644 bin/sfctl.d/*.sh
+            sudo install -m 644 -o deploy -g deploy "$asset_dir/Caddyfile" caddy/Caddyfile
+            sudo install -m 755 -o deploy -g deploy "$asset_dir/smoke-vad.py" smoke-vad.py
+            rm -rf "$asset_dir"
 
             case "$OPERATION" in
               deploy|rollback)
