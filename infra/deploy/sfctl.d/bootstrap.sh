@@ -41,7 +41,8 @@ install_asset() {
     return
   fi
   tmp="$(mktemp)"
-  curl -fsSL "$raw_url" -o "$tmp"
+  # bound the fetch so an unreachable host or stalled server can't hang bootstrap.
+  curl -fsSL --connect-timeout 10 --max-time 30 "$raw_url" -o "$tmp"
   install -m "$mode" "$tmp" "$target"
   rm -f "$tmp"
 }
