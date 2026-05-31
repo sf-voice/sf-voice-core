@@ -89,3 +89,19 @@ causes compiler syntax errors before the SDK can publish.
 
 **What was rejected:** using `sh.sf-voice.*` in Java/Kotlin package declarations
 or documentation imports.
+
+## [2026-05-31] — PR previews share a guarded staging data layer
+**What was decided:** Pull requests that touch the core app or deploy surface
+deploy temporary preview containers at `https://pr-<number>.sf-voice.sh`. Each
+PR has isolated frontend/API containers, but all previews share staging MySQL,
+Qdrant, Redis, and staging object-storage secrets. Shared staging migrations
+are gated by the `run-staging-migration` PR label or manual workflow dispatch
+and serialize behind a single `staging-db-migration` GitHub concurrency group.
+
+**Why:** previews need real integration data before production, but automatic
+shared-schema mutation on every PR open would let unrelated PRs break each
+other before review.
+
+**What was rejected:** automatically running every PR migration against the
+shared staging DB on open/sync, and fully isolated per-PR databases for this
+first version.
