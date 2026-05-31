@@ -1,0 +1,159 @@
+name: preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, closed]
+    paths:
+      - "core"
+      - "core/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "infra/deploy/**"
+      - ".github/workflows/preview.yml"
+      - ".github/workflows/deploy-console.yml"
+
+concurrency:
+  group: preview-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  PREVIEW_TAG: pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+
+jobs:
+  build-api:
+    name: build api preview image
+    if: github.event.action != 'closed' && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ secrets.GH_PAT }}
+
+      - name: set up buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+
+      - name: log in to ghcr
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: build and push api image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
+        with:
+          context: .
+          file: core/backend/api/Dockerfile
+          push: true
+          tags: ghcr.io/sf-voice/sf-voice-api:${{ env.PREVIEW_TAG }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.event.pull_request.head.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha,scope=sf-voice-api
+          cache-to: type=gha,mode=max,scope=sf-voice-api
+
+  build-frontend:
+    name: build frontend preview image
+    if: github.event.action != 'closed' && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ secrets.GH_PAT }}
+
+      - name: set up buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: log in to ghcr
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: core/frontend/Dockerfile
+          push: true
+          tags: ghcr.io/sf-voice/sf-voice-frontend:${{ env.PREVIEW_TAG }}
+          build-args: |
+            GIT_SHA=${{ github.event.pull_request.head.sha }}
+            IMAGE_TAG=${{ env.PREVIEW_TAG }}
+            BUILT_AT=${{ github.event.pull_request.updated_at }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.event.pull_request.head.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+  migration-check:
+    name: migration check
+    needs: build-api
+    if: github.event.action != 'closed' && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: sf_voice_root
+          MYSQL_DATABASE: sf_voice_check
+          MYSQL_USER: sf_voice
+          MYSQL_PASSWORD: sf_voice
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root -psf_voice_root --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+    steps:
+      - name: log in to ghcr
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: run migrations against disposable mysql
+        run: |
+          docker run --rm --network host \
+            -e DATABASE_URL=mysql://sf_voice:sf_voice@127.0.0.1:3306/sf_voice_check \
+            ghcr.io/sf-voice/sf-voice-api:${PREVIEW_TAG} \
+            /usr/local/bin/migrate up
+
+  deploy-preview:
+    name: deploy preview
+    needs: [build-api, build-frontend, migration-check]
+    if: github.event.action != 'closed' && github.event.pull_request.draft == false
+    uses: ./.github/workflows/deploy-console.yml
+    with:
+      operation: deploy-preview
+      service: preview
+      preview_pr: ${{ github.event.pull_request.number }}
+      frontend_tag: pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+      api_tag: pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+    secrets: inherit
+
+  cleanup-preview:
+    name: cleanup preview
+    if: github.event.action == 'closed'
+    uses: ./.github/workflows/deploy-console.yml
+    with:
+      operation: cleanup-preview
+      service: preview
+      preview_pr: ${{ github.event.pull_request.number }}
+    secrets: inherit

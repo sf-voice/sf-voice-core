@@ -72,6 +72,34 @@ app.sf-voice.sh {
 	}
 }
 
+*.sf-voice.sh {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
+	encode zstd gzip
+
+	@preview header_regexp preview Host ^pr-(?P<number>[0-9]+)\.sf-voice\.sh$
+
+	handle @preview {
+		handle /api/* {
+			reverse_proxy preview-pr-{re.preview.number}-api:8080 {
+				header_up X-Forwarded-Proto https
+			}
+		}
+
+		handle /healthz {
+			reverse_proxy preview-pr-{re.preview.number}-api:8080 {
+				header_up X-Forwarded-Proto https
+			}
+		}
+
+		handle {
+			reverse_proxy preview-pr-{re.preview.number}-frontend:3000 {
+				header_up X-Forwarded-Proto https
+			}
+		}
+	}
+
+	respond "no demo at this hostname" 404
+}
 
 # anything else hitting the droplet on 443 with a host we don't know about
 :443 {

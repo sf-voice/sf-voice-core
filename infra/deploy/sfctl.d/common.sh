@@ -5,6 +5,7 @@ ENV_DIR="$ROOT/env"
 DATA_DIR="$ROOT/data"
 STATE_DIR="$ROOT/state"
 BIN_DIR="$ROOT/bin"
+PREVIEW_DIR="$ROOT/previews"
 DEFAULT_LOG_LINES=200
 
 OLD_DIRS=(
@@ -31,6 +32,9 @@ usage:
   sfctl status [service|all]
   sfctl logs <service> [lines]
   sfctl smoke [service|all]
+  sfctl deploy-preview <pr-number> <frontend-tag> <api-tag>
+  sfctl cleanup-preview <pr-number>
+  sfctl migrate-staging <api-tag>
   sfctl cleanup --dry-run
   sfctl cleanup --archive [YYYYMMDD]
   sfctl cleanup --delete-archive YYYYMMDD
@@ -106,12 +110,16 @@ ensure_dirs() {
     "$BIN_DIR" \
     "$ENV_DIR" \
     "$STATE_DIR/inventory" \
+    "$PREVIEW_DIR" \
     "$ROOT/caddy" \
     "$ROOT/certs" \
     "$DATA_DIR/mysql" \
     "$DATA_DIR/mysql-backups" \
     "$DATA_DIR/qdrant" \
     "$DATA_DIR/redis" \
+    "$DATA_DIR/staging-mysql" \
+    "$DATA_DIR/staging-qdrant" \
+    "$DATA_DIR/staging-redis" \
     "$DATA_DIR/resto" \
     "$DATA_DIR/ellie"
 }
@@ -187,6 +195,93 @@ default_data_urls() {
       export DATABASE_URL
     fi
   fi
+}
+
+generate_staging_data_service_envs() {
+  mkdir -p "$ENV_DIR"
+  generate_staging_mysql_env
+  generate_staging_redis_env
+}
+
+generate_staging_mysql_env() {
+  [[ ! -f "$ENV_DIR/staging-mysql.env" ]] || return
+  local root_pw app_pw
+  root_pw="$(openssl rand -base64 32 | tr -d '\n=+/' | head -c 32)"
+  app_pw="$(openssl rand -base64 32 | tr -d '\n=+/' | head -c 32)"
+  cat > "$ENV_DIR/staging-mysql.env" <<EOF
+MYSQL_ROOT_PASSWORD=$root_pw
+MYSQL_DATABASE=sf_voice_staging
+MYSQL_USER=sf_voice_staging
+MYSQL_PASSWORD=$app_pw
+EOF
+  chmod 600 "$ENV_DIR/staging-mysql.env"
+  echo "sfctl: staging mysql credentials generated in $ENV_DIR/staging-mysql.env"
+}
+
+generate_staging_redis_env() {
+  if [[ ! -f "$ENV_DIR/staging-redis.env" ]]; then
+    local redis_pw
+    redis_pw="$(openssl rand -base64 32 | tr -d '\n=+/' | head -c 32)"
+    cat > "$ENV_DIR/staging-redis.env" <<EOF
+REDIS_USER=sf_voice_staging
+REDIS_PASSWORD=$redis_pw
+REDIS_URL=redis://sf_voice_staging:$redis_pw@staging-redis:6379
+EOF
+    chmod 600 "$ENV_DIR/staging-redis.env"
+    echo "sfctl: staging redis credentials generated in $ENV_DIR/staging-redis.env"
+  fi
+
+  # shellcheck disable=SC1091
+  . "$ENV_DIR/staging-redis.env"
+  cat > "$ENV_DIR/staging-redis.users.acl" <<EOF
+user default off
+user $REDIS_USER on >$REDIS_PASSWORD ~* &* +@all
+EOF
+  chmod 600 "$ENV_DIR/staging-redis.users.acl"
+}
+
+default_staging_data_urls() {
+  local user pass db
+  user="$(read_env_value "$ENV_DIR/staging-mysql.env" MYSQL_USER)"
+  pass="$(read_env_value "$ENV_DIR/staging-mysql.env" MYSQL_PASSWORD)"
+  db="$(read_env_value "$ENV_DIR/staging-mysql.env" MYSQL_DATABASE)"
+  if [[ -z "${DATABASE_URL:-}" && -n "$user" && -n "$pass" && -n "$db" ]]; then
+    DATABASE_URL="mysql://$user:$pass@staging-mysql:3306/$db"
+    export DATABASE_URL
+  fi
+
+  if [[ -z "${REDIS_URL:-}" ]]; then
+    REDIS_URL="$(read_env_value "$ENV_DIR/staging-redis.env" REDIS_URL)"
+    [[ -n "$REDIS_URL" ]] && export REDIS_URL
+  fi
+
+  if [[ -z "${QDRANT_COLLECTION:-}" ]]; then
+    QDRANT_COLLECTION=sf_voice_staging
+    export QDRANT_COLLECTION
+  fi
+
+  if [[ -z "${SF_VOICE_APP_URL:-}" ]]; then
+    SF_VOICE_APP_URL=https://staging.sf-voice.sh
+    export SF_VOICE_APP_URL
+  fi
+}
+
+write_staging_api_env() {
+  generate_staging_data_service_envs
+  default_staging_data_urls
+  write_env_file "$ENV_DIR/staging-api.env" \
+    DATABASE_URL REDIS_URL INTERNAL_API_TOKEN OPENAI_API_KEY \
+    CLICKHOUSE_URL CLICKHOUSE_DATABASE CLICKHOUSE_ACCESS_TOKEN \
+    CLICKHOUSE_USER CLICKHOUSE_PASSWORD QDRANT_API_KEY \
+    QDRANT_COLLECTION DIARIZE_URL DIARIZE_API_KEY \
+    AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_REGION S3_BUCKET_NAME \
+    TWELVELABS_API_KEY SF_VOICE_SECRETS_KEY SF_VOICE_APP_URL \
+    SF_VOICE_SKIP_AWS_VERIFY COOKIE_SECURE \
+    SF_VOICE_AWS_PRINCIPAL SF_VOICE_CFN_TEMPLATE_URL
+}
+
+validate_preview_pr() {
+  [[ "${1:-}" =~ ^[0-9]+$ ]] || die "preview pr number must be numeric"
 }
 
 write_service_env() {
