@@ -4,17 +4,17 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: "deploy, rollback, restart, status, logs, or smoke"
+        description: "deploy, rollback, restart, status, logs, smoke, deploy-preview, cleanup-preview, or migrate-staging"
         required: true
         default: status
         type: choice
-        options: [deploy, rollback, restart, status, logs, smoke]
+        options: [deploy, rollback, restart, status, logs, smoke, deploy-preview, cleanup-preview, migrate-staging]
       service:
         description: "service to operate"
         required: true
         default: all
         type: choice
-        options: [all, frontend, api, ellie, resto, caddy, mysql, qdrant, redis]
+        options: [all, frontend, api, ellie, resto, caddy, mysql, qdrant, redis, preview]
       tag:
         description: "image tag for deploy/rollback, e.g. sha-abc123"
         required: false
@@ -23,6 +23,18 @@ on:
         description: "lines for logs operation"
         required: false
         default: "200"
+        type: string
+      preview_pr:
+        description: "pull request number for preview operations"
+        required: false
+        type: string
+      frontend_tag:
+        description: "frontend image tag for deploy-preview"
+        required: false
+        type: string
+      api_tag:
+        description: "api image tag for preview and staging migration operations"
+        required: false
         type: string
   workflow_call:
     inputs:
@@ -38,6 +50,15 @@ on:
       log_lines:
         required: false
         default: "200"
+        type: string
+      preview_pr:
+        required: false
+        type: string
+      frontend_tag:
+        required: false
+        type: string
+      api_tag:
+        required: false
         type: string
 
 concurrency:
@@ -59,6 +80,9 @@ jobs:
       SERVICE: ${{ inputs.service || github.event.inputs.service }}
       IMAGE_TAG: ${{ inputs.tag || github.event.inputs.tag }}
       LOG_LINES: ${{ inputs.log_lines || github.event.inputs.log_lines || '200' }}
+      PREVIEW_PR: ${{ inputs.preview_pr || github.event.inputs.preview_pr }}
+      FRONTEND_TAG: ${{ inputs.frontend_tag || github.event.inputs.frontend_tag }}
+      API_TAG: ${{ inputs.api_tag || github.event.inputs.api_tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -89,6 +113,9 @@ jobs:
           SERVICE: ${{ env.SERVICE }}
           IMAGE_TAG: ${{ env.IMAGE_TAG }}
           LOG_LINES: ${{ env.LOG_LINES }}
+          PREVIEW_PR: ${{ env.PREVIEW_PR }}
+          FRONTEND_TAG: ${{ env.FRONTEND_TAG }}
+          API_TAG: ${{ env.API_TAG }}
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ github.token }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -120,11 +147,36 @@ jobs:
           TELNYX_PUBLIC_KEY: ${{ secrets.TELNYX_PUBLIC_KEY }}
           PHONE_NUMBER: ${{ secrets.PHONE_NUMBER }}
           STAFF_PHONE_E164: ${{ secrets.STAFF_PHONE_E164 }}
+          STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          STAGING_REDIS_URL: ${{ secrets.STAGING_REDIS_URL }}
+          STAGING_INTERNAL_API_TOKEN: ${{ secrets.STAGING_INTERNAL_API_TOKEN }}
+          STAGING_OPENAI_API_KEY: ${{ secrets.STAGING_OPENAI_API_KEY }}
+          STAGING_CLICKHOUSE_URL: ${{ secrets.STAGING_CLICKHOUSE_URL }}
+          STAGING_CLICKHOUSE_DATABASE: ${{ secrets.STAGING_CLICKHOUSE_DATABASE }}
+          STAGING_CLICKHOUSE_ACCESS_TOKEN: ${{ secrets.STAGING_CLICKHOUSE_ACCESS_TOKEN }}
+          STAGING_CLICKHOUSE_USER: ${{ secrets.STAGING_CLICKHOUSE_USER }}
+          STAGING_CLICKHOUSE_PASSWORD: ${{ secrets.STAGING_CLICKHOUSE_PASSWORD }}
+          STAGING_QDRANT_API_KEY: ${{ secrets.STAGING_QDRANT_API_KEY }}
+          STAGING_QDRANT_COLLECTION: ${{ secrets.STAGING_QDRANT_COLLECTION }}
+          STAGING_DIARIZE_URL: ${{ secrets.STAGING_DIARIZE_URL }}
+          STAGING_DIARIZE_API_KEY: ${{ secrets.STAGING_DIARIZE_API_KEY }}
+          STAGING_AWS_ACCESS_KEY_ID: ${{ secrets.STAGING_AWS_ACCESS_KEY_ID }}
+          STAGING_AWS_SECRET_ACCESS_KEY: ${{ secrets.STAGING_AWS_SECRET_ACCESS_KEY }}
+          STAGING_AWS_REGION: ${{ secrets.STAGING_AWS_REGION }}
+          STAGING_S3_BUCKET_NAME: ${{ secrets.STAGING_S3_BUCKET_NAME }}
+          STAGING_TWELVELABS_API_KEY: ${{ secrets.STAGING_TWELVELABS_API_KEY }}
+          STAGING_SF_VOICE_SECRETS_KEY: ${{ secrets.STAGING_SF_VOICE_SECRETS_KEY }}
+          STAGING_SF_VOICE_APP_URL: ${{ secrets.STAGING_SF_VOICE_APP_URL }}
+          STAGING_SF_VOICE_SKIP_AWS_VERIFY: ${{ secrets.STAGING_SF_VOICE_SKIP_AWS_VERIFY }}
+          STAGING_COOKIE_SECURE: ${{ secrets.STAGING_COOKIE_SECURE }}
+          STAGING_SF_VOICE_AWS_PRINCIPAL: ${{ secrets.STAGING_SF_VOICE_AWS_PRINCIPAL }}
+          STAGING_SF_VOICE_CFN_TEMPLATE_URL: ${{ secrets.STAGING_SF_VOICE_CFN_TEMPLATE_URL }}
+          STAGING_VAD_WS_URL: ${{ secrets.STAGING_VAD_WS_URL }}
         with:
           host: ${{ secrets.DROPLET_HOST }}
           username: deploy
           key: ${{ secrets.DROPLET_SSH_KEY }}
-          envs: OPERATION,SERVICE,IMAGE_TAG,LOG_LINES,GHCR_USER,GHCR_TOKEN,DATABASE_URL,REDIS_URL,INTERNAL_API_TOKEN,OPENAI_API_KEY,CLICKHOUSE_URL,CLICKHOUSE_DATABASE,CLICKHOUSE_ACCESS_TOKEN,CLICKHOUSE_USER,CLICKHOUSE_PASSWORD,QDRANT_API_KEY,QDRANT_COLLECTION,DIARIZE_URL,DIARIZE_API_KEY,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_REGION,S3_BUCKET_NAME,TWELVELABS_API_KEY,SF_VOICE_SECRETS_KEY,SF_VOICE_APP_URL,SF_VOICE_SKIP_AWS_VERIFY,COOKIE_SECURE,SF_VOICE_AWS_PRINCIPAL,SF_VOICE_CFN_TEMPLATE_URL,SECRET_KEY_BASE,TELNYX_API_KEY,TELNYX_PUBLIC_KEY,PHONE_NUMBER,STAFF_PHONE_E164
+          envs: OPERATION,SERVICE,IMAGE_TAG,LOG_LINES,PREVIEW_PR,FRONTEND_TAG,API_TAG,GHCR_USER,GHCR_TOKEN,DATABASE_URL,REDIS_URL,INTERNAL_API_TOKEN,OPENAI_API_KEY,CLICKHOUSE_URL,CLICKHOUSE_DATABASE,CLICKHOUSE_ACCESS_TOKEN,CLICKHOUSE_USER,CLICKHOUSE_PASSWORD,QDRANT_API_KEY,QDRANT_COLLECTION,DIARIZE_URL,DIARIZE_API_KEY,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_REGION,S3_BUCKET_NAME,TWELVELABS_API_KEY,SF_VOICE_SECRETS_KEY,SF_VOICE_APP_URL,SF_VOICE_SKIP_AWS_VERIFY,COOKIE_SECURE,SF_VOICE_AWS_PRINCIPAL,SF_VOICE_CFN_TEMPLATE_URL,SECRET_KEY_BASE,TELNYX_API_KEY,TELNYX_PUBLIC_KEY,PHONE_NUMBER,STAFF_PHONE_E164,STAGING_DATABASE_URL,STAGING_REDIS_URL,STAGING_INTERNAL_API_TOKEN,STAGING_OPENAI_API_KEY,STAGING_CLICKHOUSE_URL,STAGING_CLICKHOUSE_DATABASE,STAGING_CLICKHOUSE_ACCESS_TOKEN,STAGING_CLICKHOUSE_USER,STAGING_CLICKHOUSE_PASSWORD,STAGING_QDRANT_API_KEY,STAGING_QDRANT_COLLECTION,STAGING_DIARIZE_URL,STAGING_DIARIZE_API_KEY,STAGING_AWS_ACCESS_KEY_ID,STAGING_AWS_SECRET_ACCESS_KEY,STAGING_AWS_REGION,STAGING_S3_BUCKET_NAME,STAGING_TWELVELABS_API_KEY,STAGING_SF_VOICE_SECRETS_KEY,STAGING_SF_VOICE_APP_URL,STAGING_SF_VOICE_SKIP_AWS_VERIFY,STAGING_COOKIE_SECURE,STAGING_SF_VOICE_AWS_PRINCIPAL,STAGING_SF_VOICE_CFN_TEMPLATE_URL,STAGING_VAD_WS_URL
           script: |
             set -euo pipefail
             asset_dir=/tmp/sf-voice-deploy-assets
@@ -140,9 +192,46 @@ jobs:
             sudo install -m 755 -o deploy -g deploy "$asset_dir/smoke-vad.py" smoke-vad.py
             rm -rf "$asset_dir"
 
+            if [[ "$OPERATION" == "deploy-preview" || "$OPERATION" == "migrate-staging" ]]; then
+              export DATABASE_URL="${STAGING_DATABASE_URL:-}"
+              export REDIS_URL="${STAGING_REDIS_URL:-}"
+              export INTERNAL_API_TOKEN="${STAGING_INTERNAL_API_TOKEN:-}"
+              export OPENAI_API_KEY="${STAGING_OPENAI_API_KEY:-}"
+              export CLICKHOUSE_URL="${STAGING_CLICKHOUSE_URL:-}"
+              export CLICKHOUSE_DATABASE="${STAGING_CLICKHOUSE_DATABASE:-}"
+              export CLICKHOUSE_ACCESS_TOKEN="${STAGING_CLICKHOUSE_ACCESS_TOKEN:-}"
+              export CLICKHOUSE_USER="${STAGING_CLICKHOUSE_USER:-}"
+              export CLICKHOUSE_PASSWORD="${STAGING_CLICKHOUSE_PASSWORD:-}"
+              export QDRANT_API_KEY="${STAGING_QDRANT_API_KEY:-}"
+              export QDRANT_COLLECTION="${STAGING_QDRANT_COLLECTION:-}"
+              export DIARIZE_URL="${STAGING_DIARIZE_URL:-}"
+              export DIARIZE_API_KEY="${STAGING_DIARIZE_API_KEY:-}"
+              export AWS_ACCESS_KEY_ID="${STAGING_AWS_ACCESS_KEY_ID:-}"
+              export AWS_SECRET_ACCESS_KEY="${STAGING_AWS_SECRET_ACCESS_KEY:-}"
+              export AWS_REGION="${STAGING_AWS_REGION:-}"
+              export S3_BUCKET_NAME="${STAGING_S3_BUCKET_NAME:-}"
+              export TWELVELABS_API_KEY="${STAGING_TWELVELABS_API_KEY:-}"
+              export SF_VOICE_SECRETS_KEY="${STAGING_SF_VOICE_SECRETS_KEY:-}"
+              export SF_VOICE_APP_URL="${STAGING_SF_VOICE_APP_URL:-https://staging.sf-voice.sh}"
+              export SF_VOICE_SKIP_AWS_VERIFY="${STAGING_SF_VOICE_SKIP_AWS_VERIFY:-}"
+              export COOKIE_SECURE="${STAGING_COOKIE_SECURE:-true}"
+              export SF_VOICE_AWS_PRINCIPAL="${STAGING_SF_VOICE_AWS_PRINCIPAL:-}"
+              export SF_VOICE_CFN_TEMPLATE_URL="${STAGING_SF_VOICE_CFN_TEMPLATE_URL:-}"
+              export STAGING_VAD_WS_URL="${STAGING_VAD_WS_URL:-}"
+            fi
+
             case "$OPERATION" in
               deploy|rollback)
                 bin/sfctl "$OPERATION" "$SERVICE" "$IMAGE_TAG"
+                ;;
+              deploy-preview)
+                bin/sfctl deploy-preview "$PREVIEW_PR" "$FRONTEND_TAG" "$API_TAG"
+                ;;
+              cleanup-preview)
+                bin/sfctl cleanup-preview "$PREVIEW_PR"
+                ;;
+              migrate-staging)
+                bin/sfctl migrate-staging "$API_TAG"
                 ;;
               logs)
                 bin/sfctl logs "$SERVICE" "$LOG_LINES"

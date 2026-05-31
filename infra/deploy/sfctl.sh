@@ -45,6 +45,9 @@ main() {
     status) status_service "${1:-all}" ;;
     logs) logs_service "${1:-all}" "${2:-$DEFAULT_LOG_LINES}" ;;
     smoke) smoke "${1:-all}" ;;
+    deploy-preview) deploy_preview "${1:-}" "${2:-}" "${3:-}" ;;
+    cleanup-preview) cleanup_preview "${1:-}" ;;
+    migrate-staging) migrate_staging "${1:-}" ;;
     cleanup) cleanup "${1:---dry-run}" "${2:-}" ;;
     mysql-backup) mysql_backup ;;
     help|-h|--help|"") usage ;;

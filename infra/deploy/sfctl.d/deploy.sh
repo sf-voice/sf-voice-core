@@ -61,6 +61,94 @@ run_api_migrations_if_needed() {
     "$(image_ref api):$tag" /usr/local/bin/migrate up
 }
 
+migrate_staging() {
+  local api_tag="$1"
+  [[ -n "$api_tag" ]] || die "migrate-staging needs an api tag"
+  ensure_preview_runtime
+  login_ghcr
+  write_staging_api_env
+  docker pull "$(image_ref api):$api_tag"
+  docker run --rm --env-file "$ENV_DIR/staging-api.env" --network proxy_net \
+    -e QDRANT_URL=http://staging-qdrant:6334 \
+    "$(image_ref api):$api_tag" /usr/local/bin/migrate up
+  echo "sfctl: staging migrations passed for $api_tag"
+}
+
+deploy_preview() {
+  local pr="$1"
+  local frontend_tag="$2"
+  local api_tag="$3"
+  validate_preview_pr "$pr"
+  [[ -n "$frontend_tag" ]] || die "deploy-preview needs a frontend tag"
+  [[ -n "$api_tag" ]] || die "deploy-preview needs an api tag"
+
+  ensure_preview_runtime
+  login_ghcr
+  write_staging_api_env
+  docker pull "$(image_ref frontend):$frontend_tag"
+  docker pull "$(image_ref api):$api_tag"
+  recreate_preview_container "$pr" api "$api_tag"
+  recreate_preview_container "$pr" frontend "$frontend_tag"
+  docker image prune -f --filter "until=168h" >/dev/null 2>&1 || true
+  smoke_preview "$pr"
+}
+
+cleanup_preview() {
+  local pr="$1"
+  validate_preview_pr "$pr"
+  docker rm -f "preview-pr-$pr-api" "preview-pr-$pr-frontend" >/dev/null 2>&1 || true
+  rm -f "$PREVIEW_DIR/pr-$pr.env"
+  echo "sfctl: cleaned preview pr-$pr"
+}
+
+ensure_preview_runtime() {
+  ensure_dirs
+  docker network create proxy_net >/dev/null 2>&1 || true
+  generate_staging_data_service_envs
+  write_staging_api_env
+  compose up -d caddy staging-mysql staging-qdrant staging-redis
+}
+
+recreate_preview_container() {
+  local pr="$1"
+  local service="$2"
+  local tag="$3"
+  local container="preview-pr-$pr-$service"
+  docker rm -f "$container" >/dev/null 2>&1 || true
+
+  case "$service" in
+    api)
+      docker run -d \
+        --name "$container" \
+        --restart unless-stopped \
+        --env-file "$ENV_DIR/staging-api.env" \
+        --network proxy_net \
+        -e RUST_LOG="${RUST_LOG:-info}" \
+        -e VAD_WS_URL="${STAGING_VAD_WS_URL:-ws://127.0.0.1:1/socket/vad}" \
+        -e QDRANT_URL=http://staging-qdrant:6334 \
+        -e SF_VOICE_APP_URL="https://pr-$pr.sf-voice.sh" \
+        "$(image_ref api):$tag"
+      ;;
+    frontend)
+      docker run -d \
+        --name "$container" \
+        --restart unless-stopped \
+        --network proxy_net \
+        "$(image_ref frontend):$tag"
+      ;;
+    *)
+      die "unknown preview service: $service"
+      ;;
+  esac
+}
+
+smoke_preview() {
+  local pr="$1"
+  curl -fsS "https://pr-$pr.sf-voice.sh/healthz" >/dev/null
+  curl -fsS "https://pr-$pr.sf-voice.sh/" >/dev/null
+  echo "sfctl: preview ready at https://pr-$pr.sf-voice.sh"
+}
+
 seed_if_needed() {
   case "$1" in
     ellie) seed_ellie || true ;;

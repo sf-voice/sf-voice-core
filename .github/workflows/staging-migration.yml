@@ -1,0 +1,92 @@
+name: staging migration
+
+on:
+  pull_request:
+    types: [labeled]
+    paths:
+      - "core"
+      - "core/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "infra/deploy/**"
+      - ".github/workflows/staging-migration.yml"
+      - ".github/workflows/deploy-console.yml"
+  workflow_dispatch:
+    inputs:
+      api_tag:
+        description: "api image tag to run against shared staging, e.g. pr-123-<sha>"
+        required: true
+        type: string
+
+concurrency:
+  group: staging-db-migration
+  cancel-in-progress: false
+
+env:
+  PREVIEW_TAG: pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+
+jobs:
+  build-api:
+    name: build api image
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-staging-migration'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      api_tag: ${{ steps.tag.outputs.api_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          submodules: true
+          token: ${{ secrets.GH_PAT }}
+
+      - uses: actions/checkout@v4
+        if: github.event_name == 'workflow_dispatch'
+
+      - name: resolve api tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "api_tag=${{ github.event.inputs.api_tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "api_tag=${PREVIEW_TAG}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: set up buildx
+        if: github.event_name != 'workflow_dispatch'
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+
+      - name: log in to ghcr
+        if: github.event_name != 'workflow_dispatch'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: build and push api image
+        if: github.event_name != 'workflow_dispatch'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
+        with:
+          context: .
+          file: core/backend/api/Dockerfile
+          push: true
+          tags: ghcr.io/sf-voice/sf-voice-api:${{ steps.tag.outputs.api_tag }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.event.pull_request.head.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha,scope=sf-voice-api
+          cache-to: type=gha,mode=max,scope=sf-voice-api
+
+  migrate-staging:
+    name: migrate shared staging
+    needs: build-api
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-staging-migration'
+    uses: ./.github/workflows/deploy-console.yml
+    with:
+      operation: migrate-staging
+      service: api
+      api_tag: ${{ needs.build-api.outputs.api_tag }}
+    secrets: inherit

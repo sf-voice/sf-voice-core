@@ -158,6 +158,70 @@ services:
       timeout: 5s
       retries: 12
 
+  staging-mysql:
+    image: mysql:8.4
+    container_name: staging-mysql
+    restart: unless-stopped
+    env_file:
+      - ./env/staging-mysql.env
+    command:
+      - "--innodb-buffer-pool-size=128M"
+      - "--performance-schema=OFF"
+      - "--max-connections=64"
+    volumes:
+      - ./data/staging-mysql:/var/lib/mysql
+    expose:
+      - "3306"
+    networks:
+      - proxy_net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  staging-qdrant:
+    image: qdrant/qdrant:v1.13.6
+    container_name: staging-qdrant
+    restart: unless-stopped
+    volumes:
+      - ./data/staging-qdrant:/qdrant/storage
+    expose:
+      - "6333"
+      - "6334"
+    networks:
+      - proxy_net
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/6333 && printf \"GET /readyz HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n\" >&3 && grep -q 200 <&3'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  staging-redis:
+    image: redis:7.4-alpine
+    container_name: staging-redis
+    restart: unless-stopped
+    env_file:
+      - ./env/staging-redis.env
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --aclfile
+      - /usr/local/etc/redis/users.acl
+    volumes:
+      - ./data/staging-redis:/data
+      - ./env/staging-redis.users.acl:/usr/local/etc/redis/users.acl:ro
+    expose:
+      - "6379"
+    networks:
+      - proxy_net
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --user \"$${REDIS_USER}\" --pass \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
 volumes:
   caddy_data:
   caddy_config:
