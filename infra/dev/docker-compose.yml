@@ -1,5 +1,5 @@
 # local-only data layer for `mise run core:dev`. NOT used in production —
-# the prod stack lives in infra/deploy/docker-compose.*.yml.
+# the prod stack lives in infra/deploy/compose.prod.yml.
 #
 # mysql backs the new rust api service. qdrant stores vectors. redis is
 # the local cache/queue dependency for api code that needs a shared
