@@ -160,11 +160,41 @@ write_env_file() {
   rm -f "$tmp"
 }
 
+read_env_value() {
+  # read KEY=value from a simple env file without sourcing it, so values
+  # with shell metacharacters stay literal. prints the first match's value.
+  local file="$1" key="$2" line
+  [[ -f "$file" ]] || return 0
+  line="$(grep -m1 "^${key}=" "$file" 2>/dev/null)" || return 0
+  printf '%s' "${line#*=}"
+}
+
+default_data_urls() {
+  # api creds must match what bootstrap actually generated on the droplet.
+  # prefer an explicit secret; otherwise derive from the generated data
+  # service env files so a missing/typo'd github secret can't desync auth.
+  if [[ -z "${REDIS_URL:-}" ]]; then
+    REDIS_URL="$(read_env_value "$ENV_DIR/redis.env" REDIS_URL)"
+    [[ -n "$REDIS_URL" ]] && export REDIS_URL
+  fi
+  if [[ -z "${DATABASE_URL:-}" ]]; then
+    local user pass db
+    user="$(read_env_value "$ENV_DIR/mysql.env" MYSQL_USER)"
+    pass="$(read_env_value "$ENV_DIR/mysql.env" MYSQL_PASSWORD)"
+    db="$(read_env_value "$ENV_DIR/mysql.env" MYSQL_DATABASE)"
+    if [[ -n "$user" && -n "$pass" && -n "$db" ]]; then
+      DATABASE_URL="mysql://$user:$pass@mysql:3306/$db"
+      export DATABASE_URL
+    fi
+  fi
+}
+
 write_service_env() {
   local service="$1"
   mkdir -p "$ENV_DIR"
   case "$service" in
     api)
+      default_data_urls
       write_env_file "$ENV_DIR/api.env" \
         DATABASE_URL REDIS_URL INTERNAL_API_TOKEN OPENAI_API_KEY \
         CLICKHOUSE_URL CLICKHOUSE_DATABASE CLICKHOUSE_ACCESS_TOKEN \

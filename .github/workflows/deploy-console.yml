@@ -41,7 +41,10 @@ on:
         type: string
 
 concurrency:
-  group: deploy-console-${{ inputs.service || github.event.inputs.service }}
+  # one droplet, one deploy at a time. a push touching shared infra fans
+  # out to all service workflows at once — serialize them here so they
+  # queue instead of racing on env/images.env and compose state.
+  group: deploy-console-droplet
   cancel-in-progress: false
 
 jobs:
