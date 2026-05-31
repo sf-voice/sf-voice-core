@@ -47,6 +47,6 @@ root `.env` — `docker compose` reads it. override redis port with
 
 ## not here
 
-- prod compose stacks → `infra/deploy/docker-compose.*.yml`.
+- prod compose stack → `infra/deploy/compose.prod.yml`.
 - elixir apps' sqlite stores → live next to each app's `priv/`.
   unrelated to this dev stack.

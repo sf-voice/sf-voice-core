@@ -70,7 +70,7 @@ core/
   inference/           ─ Propriotary models
 infra/
   dev/                 ─ docker-compose for local MySQL
-  deploy/              ─ prod compose files, Caddyfile, bootstrap scripts
+  deploy/              ─ prod compose, Caddyfile, deploy console script
 ts/, python/, go/,
 rust/, java/,
 kotlin/, elixir/       ─ language SDKs for the sf-voice media API

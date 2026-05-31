@@ -1,110 +1,134 @@
 # infra
 
-operational glue — everything that runs the system but isn't application code.
+operational glue for the droplet and local data layer.
 
 ## layout
 
-- `deploy/` — droplet bootstrap, per-app deploy scripts, docker-compose
-  stacks, Caddy reverse-proxy config. used by the GitHub Actions
-  workflows in
-  `.github/workflows/{ellie-ai,resto-booking-app,sf-voice-api,frontend,vad,caddy}.yml`
-  and by one-time droplet provisioning:
-  - `sudo bash infra/deploy/bootstrap.sh ...` — initial droplet bring-up
-  - `sudo bash infra/deploy/bootstrap-ellie.sh ...` — ellie data dir + caddy chown
-  - `sudo bash infra/deploy/bootstrap-mysql.sh ...` — mysql container + backup timer
-  - `sudo bash infra/deploy/bootstrap-redis.sh ...` — redis container
-  - `sudo bash infra/deploy/bootstrap-api.sh ...` — sf-voice-api data dir
-  - `sudo bash infra/deploy/bootstrap-frontend.sh ...` — frontend dir
-- `dev/` — local-only data layer (mysql + qdrant + redis) for
-  `mise run core:dev`. see `dev/README.md`. not deployed.
-- `clickhouse/` — clickhouse schemas / operator notes (placeholder).
+- `deploy/compose.prod.yml` — the single production compose stack.
+- `deploy/sfctl.sh` — the single production control script. installed on the
+  droplet as `/srv/sf-voice/bin/sfctl`.
+- `deploy/Caddyfile` — the production reverse proxy config.
+- `deploy/smoke-vad.py` — deploy smoke for ellie's VAD websocket.
+- `dev/` — local-only mysql + qdrant + redis for `mise run core:dev`.
+
+production state lives under one root:
+
+```text
+/srv/sf-voice/
+  bin/sfctl
+  compose.prod.yml
+  caddy/Caddyfile
+  certs/origin.{pem,key}
+  data/{mysql,mysql-backups,qdrant,redis,resto,ellie}
+  env/{images,api,ellie,resto,mysql,redis}.env
+  state/inventory/
+```
+
+## deploy console
+
+GitHub Actions is the normal operator surface. Use the `deploy console`
+workflow for manual deploys, rollbacks, restarts, status, logs, and smoke
+checks. Pushes to `main` still deploy automatically through the app workflows,
+but they now call the same console workflow instead of duplicating ssh blocks.
+
+Manual examples from the GitHub UI:
+
+```text
+operation=status service=all
+operation=logs service=frontend log_lines=300
+operation=smoke service=all
+operation=rollback service=frontend tag=sha-<previous-sha>
+```
+
+On the droplet, the same operations are available directly:
+
+```bash
+/srv/sf-voice/bin/sfctl status all
+/srv/sf-voice/bin/sfctl logs frontend 300
+/srv/sf-voice/bin/sfctl smoke all
+/srv/sf-voice/bin/sfctl rollback frontend sha-<previous-sha>
+```
+
+## first migration
+
+Do not delete old `/srv/*` paths while migrating. The safe order is:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sf-voice/sf-voice-core/main/infra/deploy/sfctl.sh \
+  | sudo bash -s -- bootstrap
+sudo /srv/sf-voice/bin/sfctl inventory
+sudo /srv/sf-voice/bin/sfctl migrate-layout --dry-run
+sudo /srv/sf-voice/bin/sfctl migrate-layout --apply
+/srv/sf-voice/bin/sfctl deploy all latest
+/srv/sf-voice/bin/sfctl smoke all
+sudo /srv/sf-voice/bin/sfctl cleanup --dry-run
+sudo /srv/sf-voice/bin/sfctl cleanup --archive "$(date -u +%Y%m%d)"
+```
+
+`migrate-layout --apply` copies durable data and stops legacy compose stacks so
+container names are free for the unified stack. It does not delete old
+directories.
+
+After 24-72h of healthy deploys and backups, delete the archive explicitly:
+
+```bash
+sudo /srv/sf-voice/bin/sfctl cleanup --delete-archive YYYYMMDD
+```
+
+`cleanup --archive` renames old paths into `/srv/.archive-YYYYMMDD/*`; it does
+not remove data. `cleanup --delete-archive` is the only destructive cleanup
+path.
 
 ## secrets
 
-GitHub Actions repo secrets are the source of truth for every prod env
-var. each deploy workflow re-renders the matching `.env` file on the
-droplet from these secrets, so **manual edits on the droplet get wiped
-on the next push**. update the GH secret and re-push to rotate.
+GitHub repo secrets are the source of truth for app runtime env. The deploy
+console renders app env files on every deploy, so manual edits under
+`/srv/sf-voice/env/{api,ellie,resto}.env` are overwritten.
 
-| GH secret               | resto-demo | ellie-ai | sf-voice-api | frontend | maps to env var on droplet |
-| ----------------------- | :--------: | :------: | :----------: | :------: | -------------------------- |
-| `SECRET_KEY_BASE`       | ✓          | ✓        | —            | —        | `SECRET_KEY_BASE`          |
-| `INTERNAL_API_TOKEN`    | ✓          | ✓        | ✓ (vad ws)   | —        | `INTERNAL_API_TOKEN`       |
-| `OPENAI_API_KEY`        | —          | ✓        | —            | —        | `OPENAI_API_KEY`           |
-| `TELNYX_API_KEY`        | —          | ✓        | —            | —        | `TELNYX_API_KEY`           |
-| `TELNYX_PUBLIC_KEY`     | —          | ✓        | —            | —        | `TELNYX_PUBLIC_KEY`        |
-| `PHONE_NUMBER`          | —          | ✓        | —            | —        | `PHONE_NUMBER`             |
-| `STAFF_PHONE_E164`      | —          | ✓        | —            | —        | `STAFF_PHONE_E164`         |
-| `AWS_ACCESS_KEY_ID`     | —          | ✓        | —            | —        | `AWS_ACCESS_KEY_ID`        |
-| `AWS_SECRET_ACCESS_KEY` | —          | ✓        | —            | —        | `AWS_SECRET_ACCESS_KEY`    |
-| `AWS_REGION`            | —          | ✓        | —            | —        | `AWS_REGION`               |
-| `S3_BUCKET_NAME`        | —          | ✓        | —            | —        | `S3_BUCKET_NAME`           |
-| `DATABASE_URL`          | —          | —        | ✓            | —        | `DATABASE_URL`             |
-| `REDIS_URL`             | —          | —        | ✓            | —        | `REDIS_URL`                |
-| `DROPLET_HOST`          | runner only — used to ssh to the droplet                            |
-| `DROPLET_SSH_KEY`       | runner only — private key for the deploy user                       |
+Host-generated data-service credentials live on the VM:
 
-frontend has no `.env` at all — it's a sealed static build. the rust
-api uses `INTERNAL_API_TOKEN` only as the bearer it sends when joining
-ellie's VAD websocket (`/socket/vad`); ellie verifies the same token.
+- `/srv/sf-voice/env/mysql.env`
+- `/srv/sf-voice/env/redis.env`
+- `/srv/sf-voice/env/redis.users.acl`
 
-### what's *not* a secret (lives in compose, not `.env`)
+When MySQL or Redis credentials are generated, copy the printed app connection
+strings back to the GitHub secrets used by the API deploy.
 
-per-app `infra/deploy/docker-compose.*.yml` carries the static stuff in
-the `environment:` block:
+| GH secret | used by | maps to |
+| --- | --- | --- |
+| `SECRET_KEY_BASE` | resto, ellie | `SECRET_KEY_BASE` |
+| `INTERNAL_API_TOKEN` | resto, ellie, api | `INTERNAL_API_TOKEN` |
+| `OPENAI_API_KEY` | ellie, api | `OPENAI_API_KEY` |
+| `TELNYX_API_KEY` | ellie | `TELNYX_API_KEY` |
+| `TELNYX_PUBLIC_KEY` | ellie | `TELNYX_PUBLIC_KEY` |
+| `PHONE_NUMBER` | ellie | `PHONE_NUMBER` |
+| `STAFF_PHONE_E164` | ellie | `STAFF_PHONE_E164` |
+| `AWS_ACCESS_KEY_ID` | ellie, api | `AWS_ACCESS_KEY_ID` |
+| `AWS_SECRET_ACCESS_KEY` | ellie, api | `AWS_SECRET_ACCESS_KEY` |
+| `AWS_REGION` | ellie, api | `AWS_REGION` |
+| `S3_BUCKET_NAME` | ellie, api | `S3_BUCKET_NAME` |
+| `DATABASE_URL` | api | `DATABASE_URL` |
+| `REDIS_URL` | api | `REDIS_URL` |
+| `TWELVELABS_API_KEY` | api | `TWELVELABS_API_KEY` |
+| `SF_VOICE_SECRETS_KEY` | api | `SF_VOICE_SECRETS_KEY` |
+| `SF_VOICE_AWS_PRINCIPAL` | api | `SF_VOICE_AWS_PRINCIPAL` |
+| `SF_VOICE_CFN_TEMPLATE_URL` | api | `SF_VOICE_CFN_TEMPLATE_URL` |
+| `DROPLET_HOST` | runner | ssh host |
+| `DROPLET_SSH_KEY` | runner | ssh key for `deploy` |
 
-- `PHX_HOST`, `PHX_SERVER`, `PORT` — phoenix endpoint config
-- `DATABASE_PATH` — sqlite file location inside the container
-- `RESTO_BASE_URL` (ellie only) — `http://resto-demo:4000` over proxy_net
-- `VAD_WS_URL` (sf-voice-api only) — `ws://ellie-ai:4001/socket/vad` over proxy_net
+## runtime services
 
-### adding a new secret
+| service | image | data | public host |
+| --- | --- | --- | --- |
+| `frontend` | `ghcr.io/sf-voice/sf-voice-frontend` | none | `app.sf-voice.sh` |
+| `api` | `ghcr.io/sf-voice/sf-voice-api` | mysql + qdrant + redis | `app.sf-voice.sh/api/*` |
+| `ellie-ai` | `ghcr.io/sf-voice/ellie-ai` | sqlite in `data/ellie` | `ellie-ai.sf-voice.sh` |
+| `resto-demo` | `ghcr.io/sf-voice/restaurant-booking-app` | sqlite in `data/resto` | `resto-demo.sf-voice.sh` |
+| `mysql` | `mysql:8.4` | `data/mysql` | private docker network, loopback `3306` |
+| `qdrant` | `qdrant/qdrant:v1.13.6` | `data/qdrant` | private docker network |
+| `redis` | `redis:7.4-alpine` | `data/redis` | private docker network |
+| `caddy` | `caddy:2-alpine` | caddy volumes + certs | public `80/443` |
 
-1. add it as a GH repo secret.
-2. extend the matching workflow's `env:` block and `envs:` list.
-3. add a `printf` line to the `.env`-rendering script in that workflow.
-4. add the row to the table above.
-
-## the apps
-
-| dir                          | runtime          | datastore                                    | container port | public host                  |
-| ---------------------------- | ---------------- | -------------------------------------------- | -------------- | ---------------------------- |
-| `apps/resto_booking_app/`    | elixir / phoenix | sqlite (`/data/resto.db`)                    | 4000           | `resto-demo.sf-voice.sh`     |
-| `apps/ellie_ai/`             | elixir / phoenix | sqlite (`/data/ellie.db`)                    | 4001           | `ellie-ai.sf-voice.sh`       |
-| `core/backend/api/`          | rust             | mysql on-prem + qdrant vectors               | 8080           | `api.sf-voice.sh`            |
-| `core/frontend/`             | static (rspack)  | —                                            | 3000           | `app.sf-voice.sh`            |
-
-Redis is deployed as a private support service on `proxy_net`. It has no
-public port and still requires ACL credentials. `bootstrap-redis.sh`
-prints the `REDIS_URL` value to add as the GitHub secret for API deploys.
-
-To install Redis on the droplet without pulling the repo first:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/sf-voice/sf-voice-core/main/infra/deploy/bootstrap-redis.sh \
-  | sudo bash -s -- --raw
-```
-
-If the repo is already present on the droplet:
-
-```bash
-sudo bash infra/deploy/bootstrap-redis.sh /path/to/sf-voice-core
-```
-
-caddy fronts the four public services on `*.sf-voice.sh`. cloudflare
-proxies the zone with origin cert pinned in
-`/etc/caddy/certs/origin.{pem,key}`.
-
-VAD is **not a separate service.** ellie exposes a websocket at
-`/socket/vad` (mounted on the same `ellie-ai:4001` container) that
-consumers — the rust api today, anything else later — connect to over
-`proxy_net`. auth is bearer `INTERNAL_API_TOKEN` at connect. silero
-inference reuses the in-process `EllieAi.Calls.SileroVad` loaded once
-per VM into `:persistent_term` from `priv/silero_vad/silero_vad.onnx`.
-
-## not here
-
-- application code → `apps/` (elixir) and `core/` (web / api / inference).
-- secret *values* → GitHub Actions repo secrets; never commit.
-- production `.env` files → written on the droplet by CI; never live in
-  the repo.
+The frontend image writes `/version.json` at build time. `sfctl status
+frontend` compares that public version with the running Docker image label so
+we can prove the VM is serving the expected SHA.

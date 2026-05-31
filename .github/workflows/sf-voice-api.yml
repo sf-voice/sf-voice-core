@@ -1,8 +1,5 @@
 name: sf-voice-api
 
-# prs and merge queue run checks. pushes to main deploy only so the merge
-# commit does not repeat work that the queue already validated.
-
 on:
    workflow_dispatch: {}
    pull_request:
@@ -11,8 +8,11 @@ on:
          - "core/backend/**"
          - "Cargo.toml"
          - "Cargo.lock"
-         - "infra/deploy/docker-compose.api.yml"
+         - "infra/deploy/compose.prod.yml"
+         - "infra/deploy/sfctl.sh"
+         - "infra/deploy/sfctl.d/**"
          - ".github/workflows/sf-voice-api.yml"
+         - ".github/workflows/deploy-console.yml"
    merge_group:
       types: [checks_requested]
    push:
@@ -22,11 +22,14 @@ on:
          - "core/backend/**"
          - "Cargo.toml"
          - "Cargo.lock"
-         - "infra/deploy/docker-compose.api.yml"
+         - "infra/deploy/compose.prod.yml"
+         - "infra/deploy/sfctl.sh"
+         - "infra/deploy/sfctl.d/**"
          - ".github/workflows/sf-voice-api.yml"
+         - ".github/workflows/deploy-console.yml"
 
 concurrency:
-   group: deploy-api-${{ github.ref }}
+   group: api-${{ github.ref }}
    cancel-in-progress: false
 
 jobs:
@@ -37,10 +40,6 @@ jobs:
       steps:
          - uses: actions/checkout@v4
            with:
-              # core/ is a private submodule in a separate repo. GITHUB_TOKEN
-              # is scoped to sf-voice-core only — GH_PAT is a fine-grained PAT
-              # with Contents:Read on both sf-voice-core and core. checkout
-              # rewrites the ssh url to https and uses the token automatically.
               submodules: true
               token: ${{ secrets.GH_PAT }}
 
@@ -49,14 +48,9 @@ jobs:
            with:
               components: clippy, rustfmt
 
-         # native tls/storage deps need a real c++ toolchain even for `cargo check`.
          - name: install build tools
            run: sudo apt-get update && sudo apt-get install -y build-essential cmake
 
-         # rust-cache strips ~/.cargo/registry/src (re-extractable) and cleans
-         # target down to dependency artifacts only, so the cache stays small
-         # (~2gb vs the ~8gb a raw actions/cache of registry+target produced).
-         # keys on Cargo.lock + rustc automatically and prunes the old entry.
          - name: cache cargo + target
            uses: Swatinem/rust-cache@v2
            with:
@@ -82,13 +76,10 @@ jobs:
               push: false
               tags: sf-voice-api:pr-check
               cache-from: type=gha,scope=sf-voice-api
-              # mode=min on the pr check: cache final-stage layers only, not the
-              # whole rust builder stage. keeps this off the 10gb gha cache budget
-              # the cargo cache also lives in. the deploy job keeps mode=max.
               cache-to: type=gha,mode=min,scope=sf-voice-api
 
-   deploy:
-      name: build + deploy
+   build:
+      name: build image
       if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
       runs-on: ubuntu-latest
       permissions:
@@ -97,8 +88,6 @@ jobs:
       steps:
          - uses: actions/checkout@v4
            with:
-              # same as the test job — Dockerfile is at core/backend/api/Dockerfile
-              # so the submodule must be populated for the build context to work.
               submodules: true
               token: ${{ secrets.GH_PAT }}
 
@@ -121,85 +110,19 @@ jobs:
               tags: |
                  ghcr.io/sf-voice/sf-voice-api:latest
                  ghcr.io/sf-voice/sf-voice-api:sha-${{ github.sha }}
+              labels: |
+                 org.opencontainers.image.revision=${{ github.sha }}
+                 org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
               cache-from: type=gha,scope=sf-voice-api
               cache-to: type=gha,mode=max,scope=sf-voice-api
 
-         - name: upload deploy assets
-           uses: appleboy/scp-action@v0.1.7
-           with:
-              host: ${{ secrets.DROPLET_HOST }}
-              username: deploy
-              key: ${{ secrets.DROPLET_SSH_KEY }}
-              source: "infra/deploy/docker-compose.api.yml"
-              target: "/srv/sf-voice-api/"
-              strip_components: 2
-
-         - name: deploy via ssh
-           uses: appleboy/ssh-action@v1.2.0
-           env:
-              GHCR_USER: ${{ github.actor }}
-              GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              DATABASE_URL: ${{ secrets.DATABASE_URL }}
-              REDIS_URL: ${{ secrets.REDIS_URL }}
-              INTERNAL_API_TOKEN: ${{ secrets.INTERNAL_API_TOKEN }}
-           with:
-              host: ${{ secrets.DROPLET_HOST }}
-              username: deploy
-              key: ${{ secrets.DROPLET_SSH_KEY }}
-              envs: GHCR_USER,GHCR_TOKEN,DATABASE_URL,REDIS_URL,INTERNAL_API_TOKEN
-              script: |
-                 cd /srv/sf-voice-api
-
-                 # render .env atomically. printf %s prevents shell
-                 # expansion inside secret values.
-                 #
-                 # INTERNAL_API_TOKEN is the bearer the rust client sends
-                 # when joining ellie's VAD websocket — same value ellie
-                 # checks in EllieAiWeb.VadSocket.connect/3.
-                 umask 077
-                 {
-                   printf 'DATABASE_URL=%s\n'       "$DATABASE_URL"
-                   printf 'REDIS_URL=%s\n'          "$REDIS_URL"
-                   printf 'INTERNAL_API_TOKEN=%s\n' "$INTERNAL_API_TOKEN"
-                 } > .env.new
-                 mv .env.new .env
-
-                 # rename compose to what compose looks for by default
-                 mv -f docker-compose.api.yml docker-compose.yml
-
-                 # ghcr login + pull + recreate
-                 echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-
-                 sed -i.bak -E \
-                   "s|(image: ghcr\\.io/sf-voice/sf-voice-api:)[^[:space:]]+|\\1sha-${{ github.sha }}|" \
-                   docker-compose.yml
-                 rm -f docker-compose.yml.bak
-
-                 docker compose pull api
-
-                 # run pending migrations before restarting the service.
-                 # non-zero exit aborts the deploy so the old container keeps serving.
-                 docker run --rm \
-                   --env-file .env \
-                   --network proxy_net \
-                   "ghcr.io/sf-voice/sf-voice-api:sha-${{ github.sha }}" \
-                   /usr/local/bin/migrate up
-
-                 docker compose up -d --no-deps api
-
-                 # trim old images
-                 docker image prune -f --filter "until=168h" >/dev/null 2>&1 || true
-
-                 docker compose ps api
-
-         - name: smoke check
-           run: |
-              for i in $(seq 1 30); do
-                if curl -fsS https://app.sf-voice.sh/healthz >/dev/null; then
-                  echo "api is live"
-                  exit 0
-                fi
-                sleep 2
-              done
-              echo "smoke check failed — app.sf-voice.sh/healthz didn't respond within 60s"
-              exit 1
+   deploy:
+      name: deploy
+      needs: build
+      if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+      uses: ./.github/workflows/deploy-console.yml
+      with:
+         operation: deploy
+         service: api
+         tag: sha-${{ github.sha }}
+      secrets: inherit
