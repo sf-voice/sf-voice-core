@@ -37,6 +37,11 @@ jobs:
       name: test
       if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
       runs-on: ubuntu-latest
+      env:
+         CARGO_INCREMENTAL: 0          # incremental only bloats the CI cache
+         CARGO_PROFILE_DEV_DEBUG: 0    # no debuginfo -> faster codegen, smaller target/ cache
+         CARGO_PROFILE_TEST_DEBUG: 0   # use "line-tables-only" if you want test backtraces
+         CARGO_TERM_COLOR: always
       steps:
          - uses: actions/checkout@v4
            with:
@@ -60,10 +65,10 @@ jobs:
            run: cargo fmt --all -- --check
 
          - name: cargo clippy
-           run: cargo clippy --bin sf-voice-api -- -D warnings
+           run: cargo clippy -p sf-voice-api -p entities -p migration --all-targets -- -D warnings
 
-         - name: cargo test
-           run: cargo test --bin sf-voice-api
+         - name: cargo test (nextest)
+           run: cargo nextest run -p sf-voice-api -p entities -p migration
 
          - name: set up buildx
            uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
