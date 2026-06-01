@@ -1,8 +1,5 @@
 name: frontend
 
-# prs and merge queue run checks. pushes to main deploy only so the merge
-# commit does not repeat work that the queue already validated.
-
 on:
    workflow_dispatch: {}
    pull_request:
@@ -11,8 +8,11 @@ on:
          - "core/frontend/**"
          - "pnpm-lock.yaml"
          - "pnpm-workspace.yaml"
-         - "infra/deploy/docker-compose.frontend.yml"
+         - "infra/deploy/compose.prod.yml"
+         - "infra/deploy/sfctl.sh"
+         - "infra/deploy/sfctl.d/**"
          - ".github/workflows/frontend.yml"
+         - ".github/workflows/deploy-console.yml"
    merge_group:
       types: [checks_requested]
    push:
@@ -22,11 +22,14 @@ on:
          - "core/frontend/**"
          - "pnpm-lock.yaml"
          - "pnpm-workspace.yaml"
-         - "infra/deploy/docker-compose.frontend.yml"
+         - "infra/deploy/compose.prod.yml"
+         - "infra/deploy/sfctl.sh"
+         - "infra/deploy/sfctl.d/**"
          - ".github/workflows/frontend.yml"
+         - ".github/workflows/deploy-console.yml"
 
 concurrency:
-   group: deploy-frontend-${{ github.ref }}
+   group: frontend-${{ github.ref }}
    cancel-in-progress: false
 
 jobs:
@@ -37,10 +40,6 @@ jobs:
       steps:
          - uses: actions/checkout@v4
            with:
-              # core/ is a private submodule in a separate repo. GITHUB_TOKEN
-              # is scoped to sf-voice-core only — GH_PAT is a fine-grained PAT
-              # with Contents:Read on both sf-voice-core and core. checkout
-              # rewrites the ssh url to https and uses the token automatically.
               submodules: true
               token: ${{ secrets.GH_PAT }}
 
@@ -69,8 +68,8 @@ jobs:
          - name: build
            run: pnpm --filter @sf-voice/frontend build
 
-   deploy:
-      name: build + deploy
+   build:
+      name: build image
       if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
       runs-on: ubuntu-latest
       permissions:
@@ -79,8 +78,6 @@ jobs:
       steps:
          - uses: actions/checkout@v4
            with:
-              # same as the test job — Dockerfile is at core/frontend/Dockerfile
-              # so the submodule must be populated for the build context to work.
               submodules: true
               token: ${{ secrets.GH_PAT }}
 
@@ -103,53 +100,23 @@ jobs:
               tags: |
                  ghcr.io/sf-voice/sf-voice-frontend:latest
                  ghcr.io/sf-voice/sf-voice-frontend:sha-${{ github.sha }}
+              build-args: |
+                 GIT_SHA=${{ github.sha }}
+                 IMAGE_TAG=sha-${{ github.sha }}
+                 BUILT_AT=${{ github.event.head_commit.timestamp || github.sha }}
+              labels: |
+                 org.opencontainers.image.revision=${{ github.sha }}
+                 org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
               cache-from: type=gha,scope=frontend
               cache-to: type=gha,mode=max,scope=frontend
 
-         - name: upload deploy assets
-           uses: appleboy/scp-action@v0.1.7
-           with:
-              host: ${{ secrets.DROPLET_HOST }}
-              username: deploy
-              key: ${{ secrets.DROPLET_SSH_KEY }}
-              source: "infra/deploy/docker-compose.frontend.yml"
-              target: "/srv/frontend/"
-              strip_components: 2
-
-         - name: deploy via ssh
-           uses: appleboy/ssh-action@v1.2.0
-           env:
-              GHCR_USER: ${{ github.actor }}
-              GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-           with:
-              host: ${{ secrets.DROPLET_HOST }}
-              username: deploy
-              key: ${{ secrets.DROPLET_SSH_KEY }}
-              envs: GHCR_USER,GHCR_TOKEN
-              script: |
-                 cd /srv/frontend
-                 mv -f docker-compose.frontend.yml docker-compose.yml
-
-                 echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-
-                 sed -i.bak -E \
-                   "s|(image: ghcr\\.io/sf-voice/sf-voice-frontend:)[^[:space:]]+|\\1sha-${{ github.sha }}|" \
-                   docker-compose.yml
-                 rm -f docker-compose.yml.bak
-
-                 docker compose pull frontend
-                 docker compose up -d --no-deps frontend
-                 docker image prune -f --filter "until=168h" >/dev/null 2>&1 || true
-                 docker compose ps frontend
-
-         - name: smoke check
-           run: |
-              for i in $(seq 1 30); do
-                if curl -fsS https://app.sf-voice.sh/ >/dev/null; then
-                  echo "frontend is live"
-                  exit 0
-                fi
-                sleep 2
-              done
-              echo "smoke check failed — app.sf-voice.sh didn't respond within 60s"
-              exit 1
+   deploy:
+      name: deploy
+      needs: build
+      if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+      uses: ./.github/workflows/deploy-console.yml
+      with:
+         operation: deploy
+         service: frontend
+         tag: sha-${{ github.sha }}
+      secrets: inherit
