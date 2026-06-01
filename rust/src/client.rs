@@ -41,6 +41,7 @@ impl SfVoiceMedia {
 
         let http = Client::builder()
             .default_headers(default_headers)
+            .timeout(Duration::from_mins(3))
             .build()
             .expect("failed to build http client");
 
@@ -142,10 +143,7 @@ impl SfVoiceMedia {
     }
 
     /// fetch a single document by id.
-    pub async fn get_document(
-        &self,
-        id: impl Into<String>,
-    ) -> Result<Document, SfVoiceMediaError> {
+    pub async fn get_document(&self, id: impl Into<String>) -> Result<Document, SfVoiceMediaError> {
         let response = self
             .http
             .get(self.url(&format!("/v1/videos/{}", id.into())))

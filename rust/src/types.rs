@@ -1,7 +1,10 @@
 //! public types that mirror the v1 API wire shapes. serde uses
 //! snake_case throughout — same as the API — so no per-field renames.
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 // ─── enums ───────────────────────────────────────────────────────────────────
 
@@ -33,7 +36,10 @@ pub enum JobStatus {
 impl JobStatus {
     /// true when no further state change is expected.
     pub fn is_terminal(&self) -> bool {
-        matches!(self, JobStatus::Done | JobStatus::Failed | JobStatus::Cancelled)
+        matches!(
+            self,
+            JobStatus::Done | JobStatus::Failed | JobStatus::Cancelled
+        )
     }
 }
 
@@ -59,13 +65,7 @@ pub enum SearchMatchType {
 // ─── shared ──────────────────────────────────────────────────────────────────
 
 /// opaque caller metadata, persisted on the document at ingest time.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct Metadata {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub title: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tags: Option<Vec<String>>,
-}
+pub type Metadata = HashMap<String, Value>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PageInfo {

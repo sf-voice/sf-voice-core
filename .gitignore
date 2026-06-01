@@ -100,3 +100,8 @@ __pycache__/
 .bench/
 data/
 report.md
+
+## java and kotlin
+*/build/
+**/build/
+**/.gradle/

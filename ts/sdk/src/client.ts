@@ -172,18 +172,18 @@ export class SfVoiceMedia {
    }
 
    /** fetch a single document by id. */
-   async getDocument(documentId: string): Promise<Document> {
+   async getAsset(documentId: string): Promise<Document> {
       return this.request<Document>(
          "GET",
-         `/v1/videos/${encodeURIComponent(documentId)}`,
+         `/v1/assets/${encodeURIComponent(documentId)}`,
       );
    }
 
    /** delete a document. resolves void on success (HTTP 204). */
-   async deleteDocument(documentId: string): Promise<void> {
+   async deleteAsset(documentId: string): Promise<void> {
       return this.request<void>(
          "DELETE",
-         `/v1/videos/${encodeURIComponent(documentId)}`,
+         `/v1/assets/${encodeURIComponent(documentId)}`,
       );
    }
 
