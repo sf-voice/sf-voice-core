@@ -254,3 +254,7 @@ Naming clash check: when extracting, never reuse a name that already exists in t
 
 
 When in doubt about audience for the file you're editing, read the folder's `AGENTS.md`.
+
+### 24. Code comments
+
+When you change code, delete any comment that only records its history.
