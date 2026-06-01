@@ -55,7 +55,10 @@ prepare_image() {
 run_api_migrations_if_needed() {
   local service="$1"
   local tag="$2"
-  [[ "$service" == "api" ]] || return
+  # bare `return` propagates the previous command's exit code — when the [[ ]]
+  # test fails for non-api services it sets $? to 1, and set -e kills the whole
+  # deploy before compose up ever runs. always return 0 to short-circuit cleanly.
+  [[ "$service" == "api" ]] || return 0
   compose pull api
   docker run --rm --env-file "$ENV_DIR/api.env" --network proxy_net \
     "$(image_ref api):$tag" /usr/local/bin/migrate up
@@ -172,10 +175,26 @@ verify_frontend_version() {
   ensure_images_env
   # shellcheck disable=SC1091
   . "$ENV_DIR/images.env"
+
+  # only validate sha-tagged builds. `:latest` and other floating tags can't
+  # be cross-checked against a specific commit, so skip.
+  [[ "$FRONTEND_IMAGE_TAG" == sha-* ]] || return 0
+
   local tag_sha="${FRONTEND_IMAGE_TAG#sha-}"
-  local body
-  body="$(curl -fsS https://app.sf-voice.sh/version.json)"
-  if [[ "$FRONTEND_IMAGE_TAG" == sha-* && "$body" != *"\"sha\":\"$tag_sha\""* ]]; then
-    die "frontend version.json does not match $FRONTEND_IMAGE_TAG: $body"
+
+  # nginx (core/frontend/nginx.conf) emits X-App-Sha with the git sha baked
+  # in at image build time. read it from a HEAD so we don't pull the whole
+  # SPA payload. `tr` strips both whitespace and the trailing \r curl leaves
+  # on header values.
+  local served_sha
+  served_sha="$(curl -fsSI https://app.sf-voice.sh/ \
+    | awk -F': ' 'tolower($1)=="x-app-sha" {print $2; exit}' \
+    | tr -d '[:space:]')"
+
+  if [[ -z "$served_sha" ]]; then
+    die "frontend missing X-App-Sha header — image too old or nginx config broken"
+  fi
+  if [[ "$served_sha" != "$tag_sha" ]]; then
+    die "frontend X-App-Sha mismatch: expected $tag_sha, got $served_sha"
   fi
 }

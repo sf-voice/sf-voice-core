@@ -4,7 +4,7 @@ local-only data layer for the `core/` stack. **not used in production**.
 
 ## what's here
 
-- `docker-compose.yml` — mysql, qdrant, and redis on `127.0.0.1`.
+- `docker-compose.yml` — mysql, qdrant, clickhouse, and redis on `127.0.0.1`.
   named volumes keep data across `docker compose down`.
 
 ## the dev loop
@@ -16,7 +16,7 @@ mise run core:dev    # data layer + frontend + backend + inference
 
 `core:dev`:
 1. `docker compose -f infra/dev/docker-compose.yml up -d --wait` for mysql,
-   qdrant, and redis
+   qdrant, clickhouse, and redis
 2. spawns `pnpm dev` (frontend, :5173, → app.sf-voice.sh in prod),
    `cargo run -p sf-voice-api` (backend, :8080, → api.sf-voice.sh in prod),
    inference placeholder, with prefixed logs
@@ -38,12 +38,15 @@ unrelated to this dev stack.)
 | store    | location                                                            |
 | -------- | ------------------------------------------------------------------- |
 | mysql    | port 3306 — `sf_voice` / `sf_voice` / `sf_voice_dev` (root pw `sf_voice_root`) |
-| qdrant   | ports 6333 REST / 6334 gRPC — `http://127.0.0.1:6333`             |
+| qdrant   | port 6334 gRPC for the api — `http://127.0.0.1:6334`; port 6333 REST for manual checks |
+| clickhouse | port 8123 HTTP / 9000 native — `sf_voice` / `sf_voice` / `sf_voice_dev` |
 | redis    | port 6379 — `redis://127.0.0.1:6379`                              |
 
 override mysql values by setting `MYSQL_PORT`, `MYSQL_USER`, etc. in your
 root `.env` — `docker compose` reads it. override redis port with
-`REDIS_PORT`.
+`REDIS_PORT`. override clickhouse ports with `CLICKHOUSE_HTTP_PORT` and
+`CLICKHOUSE_NATIVE_PORT`; the api reads `CLICKHOUSE_URL` and
+`CLICKHOUSE_DATABASE`.
 
 ## not here
 

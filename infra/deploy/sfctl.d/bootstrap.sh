@@ -54,7 +54,9 @@ generate_data_service_envs() {
 }
 
 generate_mysql_env() {
-  [[ ! -f "$ENV_DIR/mysql.env" ]] || return
+  # if mysql.env already exists, skip generation. use `return 0` not bare
+  # `return` — bare return propagates $? from the [[ ]] test, which is 1 here.
+  [[ ! -f "$ENV_DIR/mysql.env" ]] || return 0
   local root_pw app_pw
   root_pw="$(openssl rand -base64 32 | tr -d '\n=+/' | head -c 32)"
   app_pw="$(openssl rand -base64 32 | tr -d '\n=+/' | head -c 32)"

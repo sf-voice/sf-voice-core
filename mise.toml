@@ -517,15 +517,18 @@ fi
 trap 'kill 0 2>/dev/null; pkill -P $$ 2>/dev/null; exit' EXIT INT TERM
 
 export REDIS_URL="${REDIS_URL:-redis://127.0.0.1:${REDIS_PORT:-6379}}"
+export QDRANT_URL="${QDRANT_URL:-http://127.0.0.1:6334}"
+export CLICKHOUSE_URL="${CLICKHOUSE_URL:-http://127.0.0.1:${CLICKHOUSE_HTTP_PORT:-8123}}"
+export CLICKHOUSE_DATABASE="${CLICKHOUSE_DATABASE:-sf_voice_dev}"
 
-echo "[core:dev] starting data layer (mysql + qdrant + redis)..."
+echo "[core:dev] starting data layer (mysql + qdrant + clickhouse + redis)..."
 # --wait blocks until every service with a healthcheck is healthy (or
 # the timeout fires). much more reliable than polling `docker compose ps`
 # json, which has fragile schemas across compose versions. healthcheck
 # start_period in the compose file already gives cold-init enough room.
 if ! $COMPOSE up -d --wait --wait-timeout 180; then
   echo "[core:dev] data layer didn't come up — recent logs:" >&2
-  $COMPOSE logs --tail=40 mysql qdrant redis >&2 || true
+  $COMPOSE logs --tail=40 mysql qdrant clickhouse redis >&2 || true
   exit 1
 fi
 echo "[core:dev] data layer healthy"
@@ -537,7 +540,8 @@ echo "[core:dev] services:"
 echo "  web     → http://localhost:3000   (app.sf-voice.sh)"
 echo "  api     → http://localhost:8080   (api.sf-voice.sh)   curl /api/hello"
 echo "  mysql   → mysql://sf_voice:sf_voice@127.0.0.1:3306/sf_voice_dev"
-echo "  qdrant  → http://127.0.0.1:6333   (REST)  http://127.0.0.1:6334 (gRPC)"
+echo "  qdrant  → $QDRANT_URL   (client)  http://127.0.0.1:6333 (REST)"
+echo "  ch      → $CLICKHOUSE_URL   database=$CLICKHOUSE_DATABASE"
 echo "  redis   → $REDIS_URL"
 echo ""
 
@@ -552,7 +556,7 @@ wait
 [tasks."db:start"]
 description = "start dev data-layer containers"
 run = """
-docker compose -f infra/dev/docker-compose.yml up -d
+docker compose -f infra/dev/docker-compose.yml up -d --wait --wait-timeout 180
 """
 
 [tasks."db:stop"]

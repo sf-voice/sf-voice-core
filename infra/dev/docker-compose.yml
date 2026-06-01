@@ -1,9 +1,9 @@
 # local-only data layer for `mise run core:dev`. NOT used in production —
 # the prod stack lives in infra/deploy/compose.prod.yml.
 #
-# mysql backs the new rust api service. qdrant stores vectors. redis is
-# the local cache/queue dependency for api code that needs a shared
-# ephemeral store.
+# mysql backs the new rust api service. qdrant stores vectors. clickhouse
+# stores analytics-shaped data. redis is the local cache/queue dependency
+# for api code that needs a shared ephemeral store.
 #
 # named volume so `docker compose down` preserves data; wipe with
 # `docker compose -f infra/dev/docker-compose.yml down -v`.
@@ -55,6 +55,30 @@ services:
       timeout: 3s
       retries: 12
 
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.1
+    container_name: sf-voice-clickhouse
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_DB: ${CLICKHOUSE_DATABASE:-sf_voice_dev}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-sf_voice}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-sf_voice}
+    ports:
+      - "127.0.0.1:${CLICKHOUSE_HTTP_PORT:-8123}:8123"
+      - "127.0.0.1:${CLICKHOUSE_NATIVE_PORT:-9000}:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --host 127.0.0.1 --user \"$${CLICKHOUSE_USER:-sf_voice}\" --password \"$${CLICKHOUSE_PASSWORD:-sf_voice}\" --query 'SELECT 1'"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+
   redis:
     image: redis:7.4-alpine
     container_name: sf-voice-redis
@@ -75,5 +99,7 @@ volumes:
     name: sf-voice-mysql-data
   qdrant_data:
     name: sf-voice-qdrant-data
+  clickhouse_data:
+    name: sf-voice-clickhouse-data
   redis_data:
     name: sf-voice-redis-data

@@ -124,9 +124,14 @@ jobs:
           host: ${{ secrets.DROPLET_HOST }}
           username: deploy
           key: ${{ secrets.DROPLET_SSH_KEY }}
+          # debug prints the ssh handshake + every byte of remote stdout/stderr.
+          # keep on — there's no cost, and silent deploy failures are unfixable.
+          debug: true
           envs: OPERATION,SERVICE,IMAGE_TAG,LOG_LINES,GHCR_USER,GHCR_TOKEN,DATABASE_URL,REDIS_URL,INTERNAL_API_TOKEN,OPENAI_API_KEY,CLICKHOUSE_URL,CLICKHOUSE_DATABASE,CLICKHOUSE_ACCESS_TOKEN,CLICKHOUSE_USER,CLICKHOUSE_PASSWORD,QDRANT_API_KEY,QDRANT_COLLECTION,DIARIZE_URL,DIARIZE_API_KEY,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_REGION,S3_BUCKET_NAME,TWELVELABS_API_KEY,SF_VOICE_SECRETS_KEY,SF_VOICE_APP_URL,SF_VOICE_SKIP_AWS_VERIFY,COOKIE_SECURE,SF_VOICE_AWS_PRINCIPAL,SF_VOICE_CFN_TEMPLATE_URL,SECRET_KEY_BASE,TELNYX_API_KEY,TELNYX_PUBLIC_KEY,PHONE_NUMBER,STAFF_PHONE_E164
           script: |
-            set -euo pipefail
+            # -x echoes each command before running it. essential for
+            # debugging silent sfctl failures from inside ssh-action.
+            set -euxo pipefail
             asset_dir=/tmp/sf-voice-deploy-assets
 
             # deploy should be non-root after the droplet has been bootstrapped once.
