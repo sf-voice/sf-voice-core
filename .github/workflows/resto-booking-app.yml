@@ -1,24 +1,26 @@
 name: resto-booking-app
 
-# only fires when this app's code, the shared infra/deploy/ infra, or this workflow
-# itself changes. ellie-ai's pipeline has its own filter so a change to one
-# app never rebuilds the other.
-
 on:
   pull_request:
     paths:
       - "apps/resto_booking_app/**"
-      - "infra/deploy/**"
+      - "infra/deploy/compose.prod.yml"
+      - "infra/deploy/sfctl.sh"
+      - "infra/deploy/sfctl.d/**"
       - ".github/workflows/resto-booking-app.yml"
+      - ".github/workflows/deploy-console.yml"
   push:
     branches: [main]
     paths:
       - "apps/resto_booking_app/**"
-      - "infra/deploy/**"
+      - "infra/deploy/compose.prod.yml"
+      - "infra/deploy/sfctl.sh"
+      - "infra/deploy/sfctl.d/**"
       - ".github/workflows/resto-booking-app.yml"
+      - ".github/workflows/deploy-console.yml"
 
 concurrency:
-  group: deploy-resto-${{ github.ref }}
+  group: resto-${{ github.ref }}
   cancel-in-progress: false
 
 env:
@@ -42,9 +44,6 @@ jobs:
           elixir-version: ${{ env.ELIXIR_VERSION }}
           otp-version: ${{ env.OTP_VERSION }}
 
-      # ecto_sqlite3 (via exqlite) ships a C nif that needs a real compiler.
-      # ubuntu-latest doesn't include build-essential in every image, so install
-      # it explicitly to keep the build deterministic.
       - name: install build tools for native nifs
         run: sudo apt-get update && sudo apt-get install -y build-essential
 
@@ -70,8 +69,8 @@ jobs:
       - name: run tests
         run: mix test
 
-  deploy:
-    name: build + deploy
+  build:
+    name: build image
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -91,9 +90,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # build context is the app dir, not the repo root — keeps the docker
-      # build context small and ensures the Dockerfile's relative COPY paths
-      # match what they were when the app lived at root.
       - name: build and push image
         uses: docker/build-push-action@v6
         with:
@@ -102,86 +98,19 @@ jobs:
           tags: |
             ghcr.io/sf-voice/restaurant-booking-app:latest
             ghcr.io/sf-voice/restaurant-booking-app:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
           cache-from: type=gha,scope=resto
           cache-to: type=gha,mode=max,scope=resto
 
-      # upload the deploy script + compose file to a path the deploy user
-      # owns, so future edits to either ship on the next push without
-      # having to ssh in and copy by hand.
-      - name: upload deploy assets
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.DROPLET_HOST }}
-          username: deploy
-          key: ${{ secrets.DROPLET_SSH_KEY }}
-          source: "infra/deploy/deploy-resto-demo.sh,infra/deploy/docker-compose.app.yml"
-          target: "/srv/resto-demo/"
-          strip_components: 2
-
-      # render /srv/resto-demo/.env from GH secrets, then run the deploy
-      # script. workflow is the source of truth for .env contents —
-      # manual edits on the droplet are overwritten on every push.
-      - name: deploy via ssh
-        uses: appleboy/ssh-action@v1.2.0
-        env:
-          GHCR_USER: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SECRET_KEY_BASE: ${{ secrets.SECRET_KEY_BASE }}
-          INTERNAL_API_TOKEN: ${{ secrets.INTERNAL_API_TOKEN }}
-        with:
-          host: ${{ secrets.DROPLET_HOST }}
-          username: deploy
-          key: ${{ secrets.DROPLET_SSH_KEY }}
-          envs: GHCR_USER,GHCR_TOKEN,SECRET_KEY_BASE,INTERNAL_API_TOKEN
-          script: |
-            cd /srv/resto-demo
-
-            # render .env atomically: write to .env.new, chmod via umask,
-            # then mv. printf %s prevents shell expansion inside secrets.
-            umask 077
-            {
-              printf 'SECRET_KEY_BASE=%s\n'    "$SECRET_KEY_BASE"
-              printf 'INTERNAL_API_TOKEN=%s\n' "$INTERNAL_API_TOKEN"
-            } > .env.new
-            mv .env.new .env
-
-            mv -f docker-compose.app.yml docker-compose.yml
-            chmod +x deploy-resto-demo.sh
-            ./deploy-resto-demo.sh sha-${{ github.sha }}
-
-      - name: smoke check (resto-demo, blocking)
-        run: |
-          for i in $(seq 1 30); do
-            if curl -fsS https://resto-demo.sf-voice.sh/api/menu >/dev/null; then
-              echo "resto-demo is live"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "smoke check failed — resto-demo.sf-voice.sh didn't respond within 60s"
-          exit 1
-
-      # non-blocking — app and api upstreams aren't deployed yet, so the
-      # Caddy routes 502 until those stacks land. once they do, flip the
-      # `|| true` off so regressions fail the build.
-      - name: smoke check (app, non-blocking)
-        if: always()
-        run: |
-          status=$(curl -s -o /dev/null -w '%{http_code}' https://app.sf-voice.sh/ || echo "000")
-          echo "app.sf-voice.sh → HTTP $status"
-          if [[ "$status" =~ ^[23] ]]; then
-            echo "app is live"
-          else
-            echo "::warning::app.sf-voice.sh not live yet (HTTP $status) — non-blocking"
-          fi
-
-      - name: smoke check (api, non-blocking)
-        if: always()
-        run: |
-          status=$(curl -s -o /dev/null -w '%{http_code}' https://api.sf-voice.sh/ || echo "000")
-          echo "api.sf-voice.sh → HTTP $status"
-          if [[ "$status" =~ ^[23] ]]; then
-            echo "api is live"
-          else
-            echo "::warning::api.sf-voice.sh not live yet (HTTP $status) — non-blocking"
-          fi
+  deploy:
+    name: deploy
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/deploy-console.yml
+    with:
+      operation: deploy
+      service: resto
+      tag: sha-${{ github.sha }}
+    secrets: inherit
