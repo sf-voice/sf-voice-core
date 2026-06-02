@@ -25,7 +25,7 @@ usage:
   sfctl inventory
   sfctl migrate-layout --dry-run
   sfctl migrate-layout --apply
-  sfctl deploy <frontend|api|ellie|resto|caddy|mysql|qdrant|redis|all> <tag>
+  sfctl deploy <frontend|api|ellie|resto|caddy|mysql|redis|all> <tag>
   sfctl rollback <frontend|api|ellie|resto> <tag>
   sfctl restart <service|all>
   sfctl status [service|all]
@@ -59,7 +59,6 @@ service_name() {
     resto) echo "resto-demo" ;;
     caddy) echo "caddy" ;;
     mysql) echo "mysql" ;;
-    qdrant) echo "qdrant" ;;
     redis) echo "redis" ;;
     all) echo "all" ;;
     *) die "unknown service: ${1:-<empty>}" ;;
@@ -94,9 +93,8 @@ containers_for() {
     resto) echo resto-demo ;;
     caddy) echo caddy ;;
     mysql) echo mysql ;;
-    qdrant) echo qdrant ;;
     redis) echo redis ;;
-    all) echo caddy frontend api ellie-ai resto-demo mysql qdrant redis ;;
+    all) echo caddy frontend api ellie-ai resto-demo mysql redis ;;
     *) die "unknown service: $1" ;;
   esac
 }
@@ -107,13 +105,15 @@ ensure_dirs() {
     "$ENV_DIR" \
     "$STATE_DIR/inventory" \
     "$ROOT/caddy" \
+    "$ROOT/caddy/previews" \
     "$ROOT/certs" \
     "$DATA_DIR/mysql" \
     "$DATA_DIR/mysql-backups" \
-    "$DATA_DIR/qdrant" \
     "$DATA_DIR/redis" \
     "$DATA_DIR/resto" \
     "$DATA_DIR/ellie"
+  touch "$ROOT/caddy/previews/empty.caddy"
+  generate_data_service_envs
 }
 
 ensure_images_env() {
@@ -198,7 +198,7 @@ write_service_env() {
       write_env_file "$ENV_DIR/api.env" \
         DATABASE_URL REDIS_URL INTERNAL_API_TOKEN OPENAI_API_KEY \
         CLICKHOUSE_URL CLICKHOUSE_DATABASE CLICKHOUSE_ACCESS_TOKEN \
-        CLICKHOUSE_USER CLICKHOUSE_PASSWORD QDRANT_API_KEY \
+        CLICKHOUSE_USER CLICKHOUSE_PASSWORD QDRANT_URL QDRANT_API_KEY \
         QDRANT_COLLECTION DIARIZE_URL DIARIZE_API_KEY \
         AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_REGION S3_BUCKET_NAME \
         TWELVELABS_API_KEY SF_VOICE_SECRETS_KEY SF_VOICE_APP_URL \

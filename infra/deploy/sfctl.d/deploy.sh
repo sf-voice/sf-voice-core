@@ -22,6 +22,7 @@ deploy_service() {
   login_ghcr
   write_service_env "$service"
   prepare_image "$service" "$tag"
+  ensure_runtime_dependencies "$service"
   run_api_migrations_if_needed "$service" "$tag"
   compose up -d --no-deps "$compose_service"
   seed_if_needed "$service"
@@ -32,10 +33,18 @@ deploy_service() {
 
 deploy_all() {
   local tag="$1"
-  for item in mysql qdrant redis caddy resto ellie api frontend; do
+  for item in mysql redis caddy resto ellie api frontend; do
     SFCTL_SKIP_SMOKE=1 deploy_service "$item" "$tag"
   done
   smoke all
+}
+
+ensure_runtime_dependencies() {
+  case "$1" in
+    api)
+      compose up -d --no-deps mysql redis
+      ;;
+  esac
 }
 
 prepare_image() {
@@ -152,7 +161,7 @@ smoke() {
     ellie) smoke_ellie ;;
     resto) curl -fsS https://resto-demo.sf-voice.sh/api/menu >/dev/null ;;
     caddy) curl -fsS https://app.sf-voice.sh/ >/dev/null ;;
-    mysql|qdrant|redis) compose ps "$(service_name "$service")" ;;
+    mysql|redis) compose ps "$(service_name "$service")" ;;
     all) smoke resto; smoke ellie; smoke api; smoke frontend ;;
     *) die "unknown service: $service" ;;
   esac

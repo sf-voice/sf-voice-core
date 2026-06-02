@@ -19,7 +19,7 @@ production state lives under one root:
   compose.prod.yml
   caddy/Caddyfile
   certs/origin.{pem,key}
-  data/{mysql,mysql-backups,qdrant,redis,resto,ellie}
+  data/{mysql,mysql-backups,redis,resto,ellie}
   env/{images,api,ellie,resto,mysql,redis}.env
   state/inventory/
 ```
@@ -114,6 +114,7 @@ strings back to the GitHub secrets used by the API deploy.
 | `CLICKHOUSE_ACCESS_TOKEN` | api | `CLICKHOUSE_ACCESS_TOKEN` |
 | `CLICKHOUSE_USER` | api | `CLICKHOUSE_USER` |
 | `CLICKHOUSE_PASSWORD` | api | `CLICKHOUSE_PASSWORD` |
+| `QDRANT_URL` | api | `QDRANT_URL` |
 | `QDRANT_API_KEY` | api | `QDRANT_API_KEY` |
 | `QDRANT_COLLECTION` | api | `QDRANT_COLLECTION` |
 | `DIARIZE_URL` | api | `DIARIZE_URL` |
@@ -132,11 +133,10 @@ strings back to the GitHub secrets used by the API deploy.
 | service | image | data | public host |
 | --- | --- | --- | --- |
 | `frontend` | `ghcr.io/sf-voice/sf-voice-frontend` | none | `app.sf-voice.sh` |
-| `api` | `ghcr.io/sf-voice/sf-voice-api` | mysql + qdrant + redis | `app.sf-voice.sh/api/*` |
+| `api` | `ghcr.io/sf-voice/sf-voice-api` | mysql + redis + Qdrant Cloud | `app.sf-voice.sh/api/*` |
 | `ellie-ai` | `ghcr.io/sf-voice/ellie-ai` | sqlite in `data/ellie` | `ellie-ai.sf-voice.sh` |
 | `resto-demo` | `ghcr.io/sf-voice/restaurant-booking-app` | sqlite in `data/resto` | `resto-demo.sf-voice.sh` |
 | `mysql` | `mysql:8.4` | `data/mysql` | private docker network, loopback `3306` |
-| `qdrant` | `qdrant/qdrant:v1.13.6` | `data/qdrant` | private docker network |
 | `redis` | `redis:7.4-alpine` | `data/redis` | private docker network |
 | `caddy` | `caddy:2-alpine` | caddy volumes + certs | public `80/443` |
 

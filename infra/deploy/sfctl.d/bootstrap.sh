@@ -20,12 +20,13 @@ install_bootstrap_assets() {
   local script_dir
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
   install_asset "$script_dir/compose.prod.yml" "$RAW_BASE/compose.prod.yml" "$COMPOSE_FILE" 644
+  install_asset "$script_dir/compose.preview.yml" "$RAW_BASE/compose.preview.yml" "$ROOT/compose.preview.yml" 644
   install_asset "$script_dir/Caddyfile" "$RAW_BASE/Caddyfile" "$ROOT/caddy/Caddyfile" 644
   install_asset "$script_dir/smoke-vad.py" "$RAW_BASE/smoke-vad.py" "$ROOT/smoke-vad.py" 755
   install_asset "$script_dir/sfctl.sh" "$RAW_BASE/sfctl.sh" "$BIN_DIR/sfctl" 755
 
   mkdir -p "$BIN_DIR/sfctl.d"
-  for file in common bootstrap migrate deploy; do
+  for file in common bootstrap migrate deploy preview; do
     install_asset "$script_dir/sfctl.d/$file.sh" "$RAW_BASE/sfctl.d/$file.sh" "$BIN_DIR/sfctl.d/$file.sh" 644
   done
 }

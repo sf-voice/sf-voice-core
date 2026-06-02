@@ -15,6 +15,7 @@ services:
       - "443:443"
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/previews:/etc/caddy/previews:ro
       - ./certs:/etc/caddy/certs:ro
       - caddy_data:/data
       - caddy_config:/config
@@ -44,7 +45,6 @@ services:
     environment:
       RUST_LOG: ${RUST_LOG:-info}
       VAD_WS_URL: ws://ellie-ai:4001/socket/vad
-      QDRANT_URL: http://qdrant:6334
     expose:
       - "8080"
     networks:
@@ -112,23 +112,6 @@ services:
       - proxy_net
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-
-  qdrant:
-    image: qdrant/qdrant:v1.13.6
-    container_name: qdrant
-    restart: unless-stopped
-    volumes:
-      - ./data/qdrant:/qdrant/storage
-    expose:
-      - "6333"
-      - "6334"
-    networks:
-      - proxy_net
-    healthcheck:
-      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/6333 && printf \"GET /readyz HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n\" >&3 && grep -q 200 <&3'"]
       interval: 10s
       timeout: 5s
       retries: 12

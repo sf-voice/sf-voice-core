@@ -31,7 +31,7 @@ inventory() {
     if [[ -f "$COMPOSE_FILE" ]]; then compose ps || true; fi
     echo
     echo "== recent logs =="
-    for service in caddy frontend api ellie-ai resto-demo mysql qdrant redis; do
+    for service in caddy frontend api ellie-ai resto-demo mysql redis; do
       echo "--- $service ---"
       docker logs --tail 80 "$service" 2>&1 || true
     done
@@ -72,7 +72,6 @@ copy_legacy_layout() {
   local dry_run="$1"
   copy_if_exists /srv/mysql/data/ "$DATA_DIR/mysql/" "$dry_run"
   copy_if_exists /srv/mysql/backups/ "$DATA_DIR/mysql-backups/" "$dry_run"
-  copy_if_exists /srv/qdrant/data/ "$DATA_DIR/qdrant/" "$dry_run"
   copy_if_exists /srv/redis/data/ "$DATA_DIR/redis/" "$dry_run"
   copy_if_exists /srv/resto-demo/data/ "$DATA_DIR/resto/" "$dry_run"
   copy_if_exists /srv/ellie-ai/data/ "$DATA_DIR/ellie/" "$dry_run"
