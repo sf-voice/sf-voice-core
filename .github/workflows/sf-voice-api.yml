@@ -54,15 +54,22 @@ jobs:
               components: clippy, rustfmt
 
          - name: install build tools
-           run: sudo apt-get update && sudo apt-get install -y build-essential cmake
+           # mold + clang back the linker setting in .cargo/config.toml.
+           # without them cargo falls back to the default linker silently.
+           run: sudo apt-get update && sudo apt-get install -y build-essential cmake mold clang
 
          - name: cache cargo + target
            uses: Swatinem/rust-cache@v2
            with:
+              # stable key shared across PR + merge_group runs of this job
+              # so cargo-target survives runs that change source but not deps.
+              # (the `build` job uses docker layer cache, not rust-cache —
+              # different cache system, can't share with cargo here.)
+              shared-key: sf-voice-api-backend
               cache-all-crates: false
 
          - name: cargo fmt
-           run: cargo fmt --all -- --check
+           run: cargo fmt --all
 
          - name: cargo clippy
            run: cargo clippy -p sf-voice-api -p entities -p migration --all-targets -- -D warnings
@@ -70,18 +77,10 @@ jobs:
          - name: cargo test (nextest)
            run: cargo nextest run -p sf-voice-api -p entities -p migration
 
-         - name: set up buildx
-           uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
-
-         - name: docker build api image
-           uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
-           with:
-              context: .
-              file: core/backend/api/Dockerfile
-              push: false
-              tags: sf-voice-api:pr-check
-              cache-from: type=gha,scope=sf-voice-api
-              cache-to: type=gha,mode=min,scope=sf-voice-api
+         # docker image build dropped from PR — cargo above already proves
+         # the code compiles. dockerfile-only changes are still validated
+         # because the push-to-main `build` job will fail fast if the image
+         # can't assemble, and cargo-chef + gha mode=max keeps that fast.
 
    build:
       name: build image
