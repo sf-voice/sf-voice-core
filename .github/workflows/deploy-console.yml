@@ -41,10 +41,12 @@ on:
         type: string
 
 concurrency:
-  # one droplet, one deploy at a time. a push touching shared infra fans
-  # out to all service workflows at once — serialize them here so they
-  # queue instead of racing on env/images.env and compose state.
-  group: deploy-console-droplet
+  # per-service serialization. the env/images.env race is now handled
+  # droplet-side via flock in sfctl set_image_tag, so different services
+  # can deploy in parallel without losing each other's tag writes. we
+  # still queue same-service deploys (api can't race api) to avoid two
+  # `compose up`s on the same container colliding.
+  group: deploy-console-${{ inputs.service || github.event.inputs.service }}
   cancel-in-progress: false
 
 jobs:

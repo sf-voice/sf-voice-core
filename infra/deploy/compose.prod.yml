@@ -103,7 +103,11 @@ services:
       - "--performance-schema=OFF"
       - "--max-connections=64"
     volumes:
-      - ./data/mysql:/var/lib/mysql
+      # absolute path to where prod data actually lives — the legacy
+      # /srv/mysql/ layout the original deploy used. compose recreates
+      # of mysql must hit the same dir or the api connects to an empty
+      # database. don't switch this without rsync'ing the data first.
+      - /srv/mysql/data:/var/lib/mysql
     ports:
       - "127.0.0.1:3306:3306"
     expose:
