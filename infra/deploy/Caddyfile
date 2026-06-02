@@ -72,6 +72,8 @@ app.sf-voice.sh {
 	}
 }
 
+# per-pr preview routes are written by `sfctl preview deploy`.
+import /etc/caddy/previews/*.caddy
 
 # anything else hitting the droplet on 443 with a host we don't know about
 :443 {

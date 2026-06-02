@@ -17,10 +17,13 @@ production state lives under one root:
 /srv/sf-voice/
   bin/sfctl
   compose.prod.yml
+  compose.preview.yml
   caddy/Caddyfile
+  caddy/previews/*.caddy
   certs/origin.{pem,key}
   data/{mysql,mysql-backups,redis,resto,ellie}
   env/{images,api,ellie,resto,mysql,redis}.env
+  previews/<preview-id>/
   state/inventory/
 ```
 
@@ -48,6 +51,41 @@ On the droplet, the same operations are available directly:
 /srv/sf-voice/bin/sfctl smoke all
 /srv/sf-voice/bin/sfctl rollback frontend sha-<previous-sha>
 ```
+
+## pull request previews
+
+Pull requests from this repo build preview images and deploy them to the same
+droplet as isolated Compose projects. Fork PRs are skipped because deploy
+secrets are not exposed to forked workflows.
+
+Preview hosts use:
+
+```text
+https://preview-<pr-number>-<short-commit>.sf-voice.sh
+```
+
+The workflow comments these endpoints on the PR after a successful deploy:
+
+```text
+Frontend: https://preview-<pr-number>-<short-commit>.sf-voice.sh
+API health: https://preview-<pr-number>-<short-commit>.sf-voice.sh/healthz
+API base: https://preview-<pr-number>-<short-commit>.sf-voice.sh/api
+```
+
+Storage is isolated per preview:
+
+| storage | isolation |
+| --- | --- |
+| mysql | one preview-local mysql container + database |
+| redis | one preview-local redis container + acl file |
+| qdrant cloud | one `QDRANT_COLLECTION` named from the preview id |
+| clickhouse | one database named from the preview id |
+| s3 | one `S3_PREFIX=preview/<preview-id>` under the shared bucket |
+
+`sfctl preview deploy` removes older previews for the same PR before starting
+the new commit preview. `sfctl preview destroy-pr <pr-number>` runs when the PR
+closes and removes Compose containers, local volumes, Caddy routes, and
+best-effort remote Qdrant/ClickHouse preview state.
 
 ## first migration
 
@@ -115,6 +153,7 @@ strings back to the GitHub secrets used by the API deploy.
 | `CLICKHOUSE_USER` | api | `CLICKHOUSE_USER` |
 | `CLICKHOUSE_PASSWORD` | api | `CLICKHOUSE_PASSWORD` |
 | `QDRANT_URL` | api | `QDRANT_URL` |
+| `QDRANT_REST_URL` | preview cleanup | optional REST endpoint when it differs from `QDRANT_URL` |
 | `QDRANT_API_KEY` | api | `QDRANT_API_KEY` |
 | `QDRANT_COLLECTION` | api | `QDRANT_COLLECTION` |
 | `DIARIZE_URL` | api | `DIARIZE_URL` |
