@@ -62,6 +62,9 @@ jobs:
          - name: install deps (frontend workspace)
            run: pnpm install --frozen-lockfile --filter @sf-voice/frontend...
 
+         - name: format
+           run: pnpm --filter @sf-voice/frontend format
+
          - name: typecheck
            run: pnpm --filter @sf-voice/frontend typecheck
 
