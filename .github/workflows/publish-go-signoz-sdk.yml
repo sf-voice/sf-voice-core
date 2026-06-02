@@ -1,0 +1,73 @@
+name: publish go-signoz sdk
+
+on:
+   push:
+      tags:
+         - "go-signoz/v*"
+   workflow_dispatch:
+      inputs:
+         version:
+            description: "Version to publish (e.g. 0.1.1)"
+            required: true
+
+
+concurrency:
+   group: publish-go-signoz-sdk-${{ github.ref }}
+   cancel-in-progress: false
+
+jobs:
+   verify:
+      name: verify go module tag
+      runs-on: ubuntu-latest
+      permissions:
+         contents: read
+      steps:
+         - uses: actions/checkout@v4
+
+         - name: resolve version
+           run: |
+              if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+                echo "VERSION=${{ github.event.inputs.version }}" >> "$GITHUB_ENV"
+              else
+                echo "VERSION=${GITHUB_REF_NAME#go-signoz/v}" >> "$GITHUB_ENV"
+              fi
+
+         - name: setup go
+           uses: actions/setup-go@v5
+           with:
+              go-version: "1.21"
+              cache-dependency-path: go-signoz/go.mod
+
+         - name: check formatting
+           working-directory: go-signoz
+           run: |
+              unformatted="$(gofmt -l .)"
+              if [ -n "$unformatted" ]; then
+                echo "::error::gofmt needed on:"; echo "$unformatted"; exit 1
+              fi
+
+         - name: vet
+           working-directory: go-signoz
+           run: go vet ./...
+
+         - name: build
+           working-directory: go-signoz
+           run: go build ./...
+
+         - name: test
+           working-directory: go-signoz
+           run: go test ./...
+
+         - name: request proxy index
+           continue-on-error: true
+           run: |
+              # Go modules are "published" by the path-prefixed git tag
+              # (go-signoz/vX.Y.Z) — no registry upload. This asks the public
+              # proxy to fetch and index the version so that
+              #   go get github.com/sf-voice/sf-voice-signoz-go@vVERSION
+              # resolves. Best-effort (continue-on-error): it only succeeds once
+              # the module path is reachable at its own repo / vanity import,
+              # mirroring the go/ SDK. See go-signoz/README.md "Releasing".
+              GOPROXY=https://proxy.golang.org go list -m \
+                "github.com/sf-voice/sf-voice-signoz-go@v${VERSION}" \
+                || echo "::warning::proxy index pending — see go-signoz/README.md (Releasing)"
