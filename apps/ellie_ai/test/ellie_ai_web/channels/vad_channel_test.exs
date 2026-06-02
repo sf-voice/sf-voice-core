@@ -7,9 +7,6 @@ defmodule EllieAiWeb.VadChannelTest do
 
   @endpoint Endpoint
 
-  # matches config/test.exs.
-  @test_token "test-internal-api-token"
-
   # 256 little-endian f32 zero samples = 1024 bytes = one valid window.
   @silence_window :binary.copy(<<0.0::little-float-32>>, 256)
 
@@ -23,13 +20,13 @@ defmodule EllieAiWeb.VadChannelTest do
     end
 
     test "accepts connections with the shared bearer" do
-      assert {:ok, _socket} = connect(VadSocket, %{"token" => @test_token})
+      assert {:ok, _socket} = connect(VadSocket, %{"token" => internal_api_token()})
     end
   end
 
   describe "join/3" do
     setup do
-      {:ok, socket} = connect(VadSocket, %{"token" => @test_token})
+      {:ok, socket} = connect(VadSocket, %{"token" => internal_api_token()})
       %{socket: socket}
     end
 
@@ -73,7 +70,7 @@ defmodule EllieAiWeb.VadChannelTest do
 
   describe "handle_in audio" do
     setup do
-      {:ok, socket} = connect(VadSocket, %{"token" => @test_token})
+      {:ok, socket} = connect(VadSocket, %{"token" => internal_api_token()})
       {:ok, _reply, channel} = subscribe_and_join(socket, "vad:stream:test", %{})
       %{channel: channel}
     end
@@ -115,5 +112,9 @@ defmodule EllieAiWeb.VadChannelTest do
         refute Map.has_key?(payload, :event)
       end)
     end
+  end
+
+  defp internal_api_token do
+    Application.fetch_env!(:ellie_ai, :internal_api_token)
   end
 end
