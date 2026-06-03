@@ -58,34 +58,43 @@ Pull requests from this repo build preview images and deploy them to the same
 droplet as isolated Compose projects. Fork PRs are skipped because deploy
 secrets are not exposed to forked workflows.
 
-Preview hosts use:
+Preview hosts are PR-keyed (one host per PR, for the PR's whole lifetime):
 
 ```text
-https://preview-<pr-number>-<short-commit>.sf-voice.sh
+https://pr-<pr-number>.sf-voice.sh
 ```
 
-The workflow comments these endpoints on the PR after a successful deploy:
+Each commit on the PR rolls the api + frontend image tags forward; the
+hostname doesn't change. The workflow comments these endpoints on the PR
+after the first successful deploy:
 
 ```text
-Frontend: https://preview-<pr-number>-<short-commit>.sf-voice.sh
-API health: https://preview-<pr-number>-<short-commit>.sf-voice.sh/healthz
-API base: https://preview-<pr-number>-<short-commit>.sf-voice.sh/api
+Frontend: https://pr-<pr-number>.sf-voice.sh
+API health: https://pr-<pr-number>.sf-voice.sh/healthz
+API base: https://pr-<pr-number>.sf-voice.sh/api
 ```
 
-Storage is isolated per preview:
+Storage is isolated per PR (not per commit) and persists for the PR's
+lifetime — pushing a new commit doesn't wipe mysql tables, redis state,
+seeded test data, etc.:
 
-| storage | isolation |
-| --- | --- |
-| mysql | one preview-local mysql container + database |
-| redis | one preview-local redis container + acl file |
-| qdrant cloud | one `QDRANT_COLLECTION` named from the preview id |
-| clickhouse | one database named from the preview id |
-| s3 | one `S3_PREFIX=preview/<preview-id>` under the shared bucket |
+| storage | isolation | lifetime |
+| --- | --- | --- |
+| mysql | one mysql container + database (`pr_<n>`) | PR open → close |
+| redis | one redis container + acl file | PR open → close |
+| qdrant cloud | one `QDRANT_COLLECTION` named `..._pr_<n>` | PR open → close |
+| clickhouse | one database `pr_<n>` | PR open → close |
+| s3 | one `S3_PREFIX=preview/pr-<n>` under the shared bucket | PR open → close |
 
-`sfctl preview deploy` removes older previews for the same PR before starting
-the new commit preview. `sfctl preview destroy-pr <pr-number>` runs when the PR
-closes and removes Compose containers, local volumes, Caddy routes, and
-best-effort remote Qdrant/ClickHouse preview state.
+Per commit, `sfctl preview deploy` is an idempotent upsert: it reuses
+existing mysql/redis containers + credentials, runs pending migrations
+against the existing DB (Phase 1 idempotency convention), and recreates
+only the api + frontend containers because their image tags changed.
+
+`sfctl preview destroy-pr <pr-number>` runs when the PR closes and removes
+Compose containers, local volumes, Caddy routes, and best-effort remote
+Qdrant/ClickHouse preview state. It also sweeps any legacy
+`preview-<pr>-<sha>` orphan directories from before the PR-keyed model.
 
 ## first migration
 

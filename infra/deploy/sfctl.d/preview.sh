@@ -32,8 +32,13 @@ preview_compose() {
 
 preview_validate_id() {
   local preview_id="$1"
-  [[ "$preview_id" =~ ^preview-[0-9]+-[0-9a-f]{7,40}$ ]] \
-    || die "preview id must look like preview-123-abcdef0"
+  # preview ids are PR-keyed only — `pr-<number>`. storage (mysql,
+  # redis, qdrant collection, clickhouse db, s3 prefix) persists across
+  # commits for the same PR and is only torn down on PR close. each
+  # commit just rolls forward the api + frontend image tags via
+  # `compose up -d`; mysql/redis containers stay running.
+  [[ "$preview_id" =~ ^pr-[0-9]+$ ]] \
+    || die "preview id must look like pr-123"
 }
 
 preview_write_secure_file() {
@@ -77,7 +82,9 @@ preview_deploy() {
   mkdir -p "$root/env" "$root/data/mysql" "$root/data/redis" "$ROOT/caddy/previews"
   install -m 644 "$ROOT/compose.preview.yml" "$root/compose.preview.yml"
 
-  preview_destroy_pr_except "$preview_id"
+  # no destroy-others call here — preview_id is PR-keyed so there are
+  # no sibling commit-previews to clean up. mysql/redis data persists
+  # across commits within the same PR.
   preview_write_env "$preview_id" "$host" "$api_tag" "$frontend_tag" "$root"
   preview_prepare_clickhouse "$preview_id"
   preview_write_caddy "$preview_id" "$host"
@@ -104,10 +111,31 @@ preview_write_env() {
   local root="$5"
   local mysql_root_pw mysql_pw redis_pw mysql_db clickhouse_db qdrant_collection s3_prefix
 
-  mysql_root_pw="$(openssl rand -base64 32 | tr -d '\n=+/' | head -c 32)"
-  mysql_pw="$(openssl rand -base64 32 | tr -d '\n=+/' | head -c 32)"
-  redis_pw="$(openssl rand -base64 32 | tr -d '\n=+/' | head -c 32)"
-  mysql_db="${preview_id//-/_}"
+  # PR-stable credentials. on the first deploy of a PR these are
+  # generated; on every subsequent commit they're reused from the
+  # existing env files so the already-running mysql/redis containers
+  # keep working. regenerating would break auth against the on-disk
+  # data dirs (mysql refuses to start with a fresh root password
+  # against an existing data dir).
+  if [[ -f "$root/env/mysql.env" ]]; then
+    mysql_root_pw="$(read_env_value "$root/env/mysql.env" MYSQL_ROOT_PASSWORD)"
+    mysql_pw="$(read_env_value "$root/env/mysql.env" MYSQL_PASSWORD)"
+    mysql_db="$(read_env_value "$root/env/mysql.env" MYSQL_DATABASE)"
+  else
+    mysql_root_pw="$(openssl rand -base64 32 | tr -d '\n=+/' | head -c 32)"
+    mysql_pw="$(openssl rand -base64 32 | tr -d '\n=+/' | head -c 32)"
+    mysql_db="${preview_id//-/_}"
+  fi
+
+  if [[ -f "$root/env/redis.env" ]]; then
+    redis_pw="$(read_env_value "$root/env/redis.env" REDIS_PASSWORD)"
+  else
+    redis_pw="$(openssl rand -base64 32 | tr -d '\n=+/' | head -c 32)"
+  fi
+
+  # PR-stable derived names. these don't need persistence (re-derived
+  # the same way every deploy) but stay PR-keyed so the clickhouse
+  # database / qdrant collection / s3 prefix outlive any single commit.
   clickhouse_db="${preview_id//-/_}"
   qdrant_collection="${QDRANT_COLLECTION:-transcript_embeddings}_${preview_id//-/_}"
   s3_prefix="preview/$preview_id"
@@ -243,37 +271,41 @@ preview_destroy() {
     preview_compose "$preview_id" down -v --remove-orphans || true
   fi
   rm -f "$ROOT/caddy/previews/$preview_id.caddy"
-  rm -rf "$root"
+  # same bind-mount-owned-by-container-uid problem as preview_destroy_pr;
+  # wipe via root container.
+  docker run --rm -v "$ROOT/previews:/p" alpine:3 \
+    sh -c "rm -rf /p/$preview_id" \
+    || rm -rf "$root"
   reload_caddy
   echo "sfctl: preview destroyed: $preview_id"
 }
 
-preview_destroy_pr_except() {
-  local keep_id="$1"
-  local pr_number
-  pr_number="$(printf '%s' "$keep_id" | cut -d- -f2)"
-  preview_destroy_pr "$pr_number" "$keep_id"
-}
-
 preview_destroy_pr() {
   local pr_number="${1:-}"
-  local keep_id="${2:-}"
   [[ "$pr_number" =~ ^[0-9]+$ ]] || die "preview pr number must be numeric"
-  local candidate candidate_id
-  for candidate in "$ROOT/previews/preview-$pr_number-"*; do
-    [[ -d "$candidate" ]] || continue
-    candidate_id="$(basename "$candidate")"
-    [[ "$candidate_id" == "$keep_id" ]] && continue
-    preview_validate_id "$candidate_id"
-    preview_cleanup_remote_storage "$candidate_id" || true
-    preview_compose "$candidate_id" down -v --remove-orphans || true
-    rm -f "$ROOT/caddy/previews/$candidate_id.caddy"
-    rm -rf "$candidate"
+  # PR-keyed: one preview per PR (pr-<n>). also glob the legacy
+  # commit-keyed layout (preview-<n>-<sha>) so orphan previews from
+  # before this change get cleaned up on PR close. both globs use
+  # nullglob via the [[ -d ]] check inside the loop.
+  local candidate candidate_id glob
+  for glob in "$ROOT/previews/pr-$pr_number" "$ROOT/previews/preview-$pr_number-"*; do
+    for candidate in $glob; do
+      [[ -d "$candidate" ]] || continue
+      candidate_id="$(basename "$candidate")"
+      preview_cleanup_remote_storage "$candidate_id" || true
+      preview_compose "$candidate_id" down -v --remove-orphans || true
+      rm -f "$ROOT/caddy/previews/$candidate_id.caddy"
+      # bind-mount-owned files inside $candidate (mysql/redis containers
+      # chown their data dirs to uid 999) can't be unlinked by the deploy
+      # user from the host. wipe via an ephemeral alpine container whose
+      # root user has unrestricted access to the mount.
+      docker run --rm -v "$ROOT/previews:/p" alpine:3 \
+        sh -c "rm -rf /p/$candidate_id" \
+        || rm -rf "$candidate"
+    done
   done
-  if [[ -z "$keep_id" ]]; then
-    reload_caddy
-    echo "sfctl: previews destroyed for PR #$pr_number"
-  fi
+  reload_caddy
+  echo "sfctl: previews destroyed for PR #$pr_number"
 }
 
 preview_cleanup_remote_storage() {

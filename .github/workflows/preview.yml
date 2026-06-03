@@ -30,13 +30,21 @@ jobs:
       same_repo: ${{ steps.meta.outputs.same_repo }}
     steps:
       - id: meta
+        # preview_id and host are PR-stable: one preview per PR, lifetime
+        # = PR open → close. mysql / redis / qdrant collection /
+        # clickhouse db all persist across commits on the same PR.
+        # `tag` is commit-keyed because the image artifact in ghcr has
+        # to be unique per commit; every push rolls the api+frontend
+        # image tags forward and `compose up -d` recreates only those
+        # containers.
         run: |
           head_sha="${{ github.event.pull_request.head.sha }}"
           short_sha="${head_sha::7}"
-          preview_id="preview-${{ github.event.pull_request.number }}-$short_sha"
+          pr_number="${{ github.event.pull_request.number }}"
+          preview_id="pr-$pr_number"
           echo "preview_id=$preview_id" >> "$GITHUB_OUTPUT"
           echo "host=$preview_id.sf-voice.sh" >> "$GITHUB_OUTPUT"
-          echo "tag=$preview_id" >> "$GITHUB_OUTPUT"
+          echo "tag=$preview_id-$short_sha" >> "$GITHUB_OUTPUT"
           if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
             echo "same_repo=true" >> "$GITHUB_OUTPUT"
           else
