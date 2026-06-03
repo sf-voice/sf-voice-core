@@ -109,9 +109,15 @@ jobs:
     needs: [meta, build]
     if: github.event.action != 'closed' && needs.meta.outputs.same_repo == 'true'
     runs-on: ubuntu-latest
+    # the createComment call below targets /issues/:n/comments, which
+    # accepts either issues=write OR pull_requests=write. some repo
+    # settings ("Allow GitHub Actions to create and approve pull
+    # requests" disabled) silently downgrade issues=write on PR-context
+    # endpoints, so declare both explicitly.
     permissions:
       contents: read
       issues: write
+      pull-requests: write
       packages: read
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -208,6 +214,7 @@ jobs:
     permissions:
       contents: read
       issues: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
@@ -273,6 +280,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       issues: write
+      pull-requests: write
     steps:
       - name: explain skip
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
