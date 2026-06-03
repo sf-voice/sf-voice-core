@@ -74,6 +74,7 @@ preview_write_env() {
   local frontend_tag="$4"
   local root="$5"
   local mysql_root_pw mysql_pw redis_pw mysql_db clickhouse_db qdrant_collection s3_prefix
+  local prev_umask
 
   mysql_root_pw="$(openssl rand -base64 32 | tr -d '\n=+/' | head -c 32)"
   mysql_pw="$(openssl rand -base64 32 | tr -d '\n=+/' | head -c 32)"
@@ -82,6 +83,11 @@ preview_write_env() {
   clickhouse_db="${preview_id//-/_}"
   qdrant_collection="${QDRANT_COLLECTION:-transcript_embeddings}_${preview_id//-/_}"
   s3_prefix="preview/$preview_id"
+
+  # tighten umask so the heredocs below create credential files as 0600
+  # at open time — no window where secrets sit world-readable before chmod.
+  prev_umask="$(umask)"
+  umask 077
 
   cat > "$root/env/preview.env" <<EOF
 PREVIEW_ID=$preview_id
@@ -142,7 +148,7 @@ SF_VOICE_AWS_PRINCIPAL=${SF_VOICE_AWS_PRINCIPAL:-}
 SF_VOICE_CFN_TEMPLATE_URL=${SF_VOICE_CFN_TEMPLATE_URL:-}
 EOF
 
-  chmod 600 "$root"/env/*.env "$root/env/redis.users.acl"
+  umask "$prev_umask"
 }
 
 preview_prepare_clickhouse() {
