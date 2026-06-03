@@ -63,7 +63,9 @@ jobs:
            run: pnpm install --frozen-lockfile --filter @sf-voice/frontend...
 
          - name: format
-           run: pnpm --filter @sf-voice/frontend format
+           run: |
+              pnpm --filter `@sf-voice/frontend` format
+              git diff --exit-code
 
          - name: typecheck
            run: pnpm --filter @sf-voice/frontend typecheck
