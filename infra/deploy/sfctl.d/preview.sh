@@ -21,6 +21,7 @@ preview_root() {
 
 preview_compose() {
   local preview_id="$1"
+  shift || true
   local root
   root="$(preview_root "$preview_id")"
   docker compose \
