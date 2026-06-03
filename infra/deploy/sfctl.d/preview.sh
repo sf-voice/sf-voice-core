@@ -48,6 +48,21 @@ preview_write_secure_file() {
   umask "$prev_umask"
 }
 
+# same as preview_write_secure_file but mode 644 — for files the container
+# itself opens (not just the docker daemon). redis runs as uid 999 inside the
+# image, so a 600 file owned by deploy is unreadable to it.
+preview_write_readable_file() {
+  local path="$1"
+  local tmp prev_umask
+  prev_umask="$(umask)"
+  umask 022
+  tmp="$(mktemp)"
+  cat > "$tmp"
+  install -m 644 "$tmp" "$path"
+  rm -f "$tmp"
+  umask "$prev_umask"
+}
+
 preview_deploy() {
   local preview_id="${1:-}"
   local api_tag="${2:-}"
@@ -122,7 +137,7 @@ REDIS_PASSWORD=$redis_pw
 REDIS_URL=redis://sf_voice:$redis_pw@${preview_id}-redis:6379
 EOF
 
-  preview_write_secure_file "$root/env/redis.users.acl" <<EOF
+  preview_write_readable_file "$root/env/redis.users.acl" <<EOF
 user default off
 user sf_voice on >$redis_pw ~* &* +@all
 EOF
