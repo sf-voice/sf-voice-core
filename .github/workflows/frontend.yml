@@ -64,7 +64,7 @@ jobs:
 
          - name: format
            run: |
-              pnpm --filter `@sf-voice/frontend` format
+              pnpm --filter @sf-voice/frontend format
               git diff --exit-code
 
          - name: typecheck
