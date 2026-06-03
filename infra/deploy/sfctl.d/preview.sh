@@ -9,7 +9,8 @@ preview() {
     destroy-pr) preview_destroy_pr "$@" ;;
     status) preview_status "${1:-}" ;;
     logs) preview_logs "${1:-}" "${2:-$DEFAULT_LOG_LINES}" ;;
-    *) die "preview expects deploy, destroy, destroy-pr, status, or logs" ;;
+    smoke) preview_smoke "${1:-}" ;;
+    *) die "preview expects deploy, destroy, destroy-pr, status, logs, or smoke" ;;
   esac
 }
 
@@ -32,6 +33,18 @@ preview_validate_id() {
   local preview_id="$1"
   [[ "$preview_id" =~ ^preview-[0-9]+-[0-9a-f]{7,40}$ ]] \
     || die "preview id must look like preview-123-abcdef0"
+}
+
+preview_write_secure_file() {
+  local path="$1"
+  local tmp prev_umask
+  prev_umask="$(umask)"
+  umask 077
+  tmp="$(mktemp)"
+  cat > "$tmp"
+  install -m 600 "$tmp" "$path"
+  rm -f "$tmp"
+  umask "$prev_umask"
 }
 
 preview_deploy() {
@@ -63,7 +76,7 @@ preview_deploy() {
   preview_compose "$preview_id" up -d api frontend
   reload_caddy
   preview_status "$preview_id"
-  preview_smoke "$host"
+  preview_smoke "$preview_id"
   echo "sfctl: preview ready at https://$host"
 }
 
@@ -74,7 +87,6 @@ preview_write_env() {
   local frontend_tag="$4"
   local root="$5"
   local mysql_root_pw mysql_pw redis_pw mysql_db clickhouse_db qdrant_collection s3_prefix
-  local prev_umask
 
   mysql_root_pw="$(openssl rand -base64 32 | tr -d '\n=+/' | head -c 32)"
   mysql_pw="$(openssl rand -base64 32 | tr -d '\n=+/' | head -c 32)"
@@ -84,42 +96,37 @@ preview_write_env() {
   qdrant_collection="${QDRANT_COLLECTION:-transcript_embeddings}_${preview_id//-/_}"
   s3_prefix="preview/$preview_id"
 
-  # tighten umask so the heredocs below create credential files as 0600
-  # at open time — no window where secrets sit world-readable before chmod.
-  prev_umask="$(umask)"
-  umask 077
-
-  cat > "$root/env/preview.env" <<EOF
+  preview_write_secure_file "$root/env/preview.env" <<EOF
 PREVIEW_ID=$preview_id
 PREVIEW_HOST=$host
 API_IMAGE_TAG=$api_tag
 FRONTEND_IMAGE_TAG=$frontend_tag
 EOF
 
-  cat > "$root/env/images.env" <<EOF
+  preview_write_secure_file "$root/env/images.env" <<EOF
 API_IMAGE_TAG=$api_tag
 FRONTEND_IMAGE_TAG=$frontend_tag
 EOF
 
-  cat > "$root/env/mysql.env" <<EOF
+  preview_write_secure_file "$root/env/mysql.env" <<EOF
 MYSQL_ROOT_PASSWORD=$mysql_root_pw
 MYSQL_DATABASE=$mysql_db
 MYSQL_USER=sf_voice
 MYSQL_PASSWORD=$mysql_pw
 EOF
 
-  cat > "$root/env/redis.env" <<EOF
+  preview_write_secure_file "$root/env/redis.env" <<EOF
 REDIS_USER=sf_voice
 REDIS_PASSWORD=$redis_pw
 REDIS_URL=redis://sf_voice:$redis_pw@${preview_id}-redis:6379
 EOF
 
-  cat > "$root/env/redis.users.acl" <<EOF
+  preview_write_secure_file "$root/env/redis.users.acl" <<EOF
 user default off
 user sf_voice on >$redis_pw ~* &* +@all
 EOF
 
-  cat > "$root/env/api.env" <<EOF
+  preview_write_secure_file "$root/env/api.env" <<EOF
 DATABASE_URL=mysql://sf_voice:$mysql_pw@${preview_id}-mysql:3306/$mysql_db
 REDIS_URL=redis://sf_voice:$redis_pw@${preview_id}-redis:6379
 INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-}
@@ -147,8 +154,6 @@ COOKIE_SECURE=true
 SF_VOICE_AWS_PRINCIPAL=${SF_VOICE_AWS_PRINCIPAL:-}
 SF_VOICE_CFN_TEMPLATE_URL=${SF_VOICE_CFN_TEMPLATE_URL:-}
 EOF
-
-  umask "$prev_umask"
 }
 
 preview_prepare_clickhouse() {
@@ -302,8 +307,20 @@ preview_logs() {
   done
 }
 
+preview_host_for_id() {
+  local preview_id="$1"
+  local root host
+  preview_validate_id "$preview_id"
+  root="$(preview_root "$preview_id")"
+  host="$(read_env_value "$root/env/preview.env" PREVIEW_HOST)"
+  printf '%s' "${host:-$preview_id.sf-voice.sh}"
+}
+
 preview_smoke() {
-  local host="$1"
+  local preview_id="${1:-}"
+  local host
+  [[ -n "$preview_id" ]] || die "usage: sfctl preview smoke <preview-id>"
+  host="$(preview_host_for_id "$preview_id")"
   curl -fsS "https://$host/healthz" >/dev/null
   curl -fsS "https://$host/" >/dev/null
 }

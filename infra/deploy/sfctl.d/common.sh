@@ -36,6 +36,7 @@ usage:
   sfctl preview destroy-pr <pr-number>
   sfctl preview status <preview-id>
   sfctl preview logs <preview-id> [lines]
+  sfctl preview smoke <preview-id>
   sfctl cleanup --dry-run
   sfctl cleanup --archive [YYYYMMDD]
   sfctl cleanup --delete-archive YYYYMMDD

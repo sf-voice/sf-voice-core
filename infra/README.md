@@ -153,7 +153,6 @@ strings back to the GitHub secrets used by the API deploy.
 | `CLICKHOUSE_USER` | api | `CLICKHOUSE_USER` |
 | `CLICKHOUSE_PASSWORD` | api | `CLICKHOUSE_PASSWORD` |
 | `QDRANT_URL` | api | `QDRANT_URL` |
-| `QDRANT_REST_URL` | preview cleanup | optional REST endpoint when it differs from `QDRANT_URL` |
 | `QDRANT_API_KEY` | api | `QDRANT_API_KEY` |
 | `QDRANT_COLLECTION` | api | `QDRANT_COLLECTION` |
 | `DIARIZE_URL` | api | `DIARIZE_URL` |

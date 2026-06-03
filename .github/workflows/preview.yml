@@ -17,11 +17,7 @@ concurrency:
   group: preview-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
-  packages: write
-  pull-requests: write
-  issues: write
+permissions: {}
 
 jobs:
   meta:
@@ -52,24 +48,26 @@ jobs:
     needs: meta
     if: github.event.action != 'closed' && needs.meta.outputs.same_repo == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           submodules: true
           token: ${{ secrets.GH_PAT }}
 
       - name: set up buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
 
       - name: log in to ghcr
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: build and push api
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
         with:
           context: .
           file: core/backend/api/Dockerfile
@@ -82,7 +80,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=sf-voice-api
 
       - name: build and push frontend
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
         with:
           context: .
           file: core/frontend/Dockerfile
@@ -103,11 +101,15 @@ jobs:
     needs: [meta, build]
     if: github.event.action != 'closed' && needs.meta.outputs.same_repo == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      packages: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: upload deploy assets
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634
         with:
           host: ${{ secrets.DROPLET_HOST }}
           username: deploy
@@ -118,7 +120,7 @@ jobs:
           rm: true
 
       - name: deploy preview
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17
         env:
           PREVIEW_ID: ${{ needs.meta.outputs.preview_id }}
           PREVIEW_HOST: ${{ needs.meta.outputs.host }}
@@ -169,7 +171,7 @@ jobs:
             bin/sfctl preview deploy "$PREVIEW_ID" "$PREVIEW_TAG" "$PREVIEW_TAG" "$PREVIEW_HOST"
 
       - name: comment preview url
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
         with:
           script: |
             const host = '${{ needs.meta.outputs.host }}';
@@ -195,11 +197,14 @@ jobs:
     needs: meta
     if: github.event.action == 'closed' && needs.meta.outputs.same_repo == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: upload deploy assets
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634
         with:
           host: ${{ secrets.DROPLET_HOST }}
           username: deploy
@@ -210,7 +215,7 @@ jobs:
           rm: true
 
       - name: destroy preview
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17
         env:
           PREVIEW_ID: ${{ needs.meta.outputs.preview_id }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -243,7 +248,7 @@ jobs:
             bin/sfctl preview destroy-pr "$PR_NUMBER"
 
       - name: comment preview destroyed
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
         with:
           script: |
             await github.rest.issues.createComment({
@@ -258,9 +263,11 @@ jobs:
     needs: meta
     if: github.event.action != 'closed' && needs.meta.outputs.same_repo != 'true'
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     steps:
       - name: explain skip
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
         continue-on-error: true
         with:
           script: |
