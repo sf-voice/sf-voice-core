@@ -102,3 +102,4 @@ data/
 report.md
 
 **/.gradle/
+**/build/
