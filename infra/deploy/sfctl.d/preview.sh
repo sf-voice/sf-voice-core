@@ -271,7 +271,7 @@ preview_cleanup_remote_storage() {
     preview_clickhouse_query "DROP DATABASE IF EXISTS \`$database\`" || true
   fi
 
-  if [[ -n "$collection" && -n "${QDRANT_API_KEY:-}" && ( -n "${QDRANT_REST_URL:-}" || -n "${QDRANT_URL:-}" ) ]]; then
+  if [[ -n "$collection" && -n "${QDRANT_API_KEY:-}" && ( -n "${QDRANT_URL:-}" || -n "${QDRANT_REST_URL:-}" ) ]]; then
     local rest_url
     rest_url="$(preview_qdrant_rest_url)"
     curl -fsS -X DELETE \

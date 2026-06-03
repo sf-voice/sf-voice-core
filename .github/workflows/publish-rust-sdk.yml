@@ -54,10 +54,10 @@ jobs:
               cp -R rust/. "$SDK_DIR"
               echo "SDK_DIR=$SDK_DIR" >> "$GITHUB_ENV"
 
-         - name: cargo fmt
+         - name: check formatting
            run: |
               cd "$SDK_DIR"
-              cargo fmt
+              cargo fmt -- --check
 
          - name: cargo clippy
            run: |
