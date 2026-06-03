@@ -6,8 +6,14 @@
 resolver = "2"
 members = [
     "core/backend/api",
+    "core/backend/aws",
+    "core/backend/billing",
     "core/backend/entities",
+    "core/backend/errors",
+    "core/backend/media",
     "core/backend/migration",
+    "core/backend/notifications",
+    "core/backend/util",
     "rust",
 ]
 exclude = [
