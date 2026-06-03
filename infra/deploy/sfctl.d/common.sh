@@ -140,6 +140,12 @@ set_image_tag() {
   var="$(image_var "$service")"
   tmp="$(mktemp)"
   ensure_images_env
+  # flock serializes read-modify-write on images.env so concurrent deploys
+  # of different services don't clobber each other's image tag. -e=exclusive,
+  # -w 30 waits up to 30s for the lock — long enough to ride out a normal
+  # deploy, short enough that a stuck lock surfaces as a clear error.
+  exec 9>"$ENV_DIR/images.env.lock"
+  flock -e -w 30 9 || die "set_image_tag: could not acquire images.env lock within 30s"
   awk -F= -v key="$var" -v value="$tag" '
     BEGIN { found = 0 }
     $1 == key { print key "=" value; found = 1; next }
@@ -148,6 +154,7 @@ set_image_tag() {
   ' "$ENV_DIR/images.env" > "$tmp"
   install -m 600 "$tmp" "$ENV_DIR/images.env"
   rm -f "$tmp"
+  exec 9>&-
 }
 
 write_env_file() {

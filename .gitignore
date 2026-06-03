@@ -100,3 +100,5 @@ __pycache__/
 .bench/
 data/
 report.md
+
+**/.gradle/
