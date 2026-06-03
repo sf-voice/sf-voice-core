@@ -60,7 +60,7 @@ jobs:
       - name: install deps
         run: mix deps.get
 
-      - name: check formatting
+      - name: format
         run: mix format --check-formatted
 
       - name: compile (warnings as errors)

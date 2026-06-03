@@ -62,8 +62,10 @@ jobs:
          - name: install deps
            run: mix deps.get
 
-         - name: check formatting
-           run: mix format --check-formatted
+         - name: format
+           run: |
+              mix format
+              git diff --exit-code
 
          - name: compile (warnings as errors)
            run: mix compile --warnings-as-errors

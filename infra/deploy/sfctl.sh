@@ -25,7 +25,7 @@ load_libs() {
 
   local tmp
   tmp="$(mktemp -d)"
-  for file in common bootstrap migrate deploy; do
+  for file in common bootstrap migrate deploy preview; do
     curl -fsSL "$RAW_BASE/sfctl.d/$file.sh" -o "$tmp/$file.sh"
   done
   # shellcheck source=/dev/null
@@ -45,6 +45,7 @@ main() {
     status) status_service "${1:-all}" ;;
     logs) logs_service "${1:-all}" "${2:-$DEFAULT_LOG_LINES}" ;;
     smoke) smoke "${1:-all}" ;;
+    preview) preview "$@" ;;
     cleanup) cleanup "${1:---dry-run}" "${2:-}" ;;
     mysql-backup) mysql_backup ;;
     help|-h|--help|"") usage ;;

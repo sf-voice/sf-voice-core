@@ -58,6 +58,11 @@ jobs:
            # without them cargo falls back to the default linker silently.
            run: sudo apt-get update && sudo apt-get install -y build-essential cmake mold clang
 
+         - name: install cargo-nextest
+           # prebuilt binary via taiki-e/install-action — faster than
+           # `cargo install cargo-nextest` (no compile, no cache cost).
+           uses: taiki-e/install-action@nextest
+
          - name: cache cargo + target
            uses: Swatinem/rust-cache@v2
            with:

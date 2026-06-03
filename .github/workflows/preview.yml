@@ -1,0 +1,295 @@
+name: preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    paths:
+      - "core"
+      - "core/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "infra/deploy/**"
+      - ".github/workflows/preview.yml"
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  meta:
+    name: preview metadata
+    runs-on: ubuntu-latest
+    outputs:
+      preview_id: ${{ steps.meta.outputs.preview_id }}
+      host: ${{ steps.meta.outputs.host }}
+      tag: ${{ steps.meta.outputs.tag }}
+      same_repo: ${{ steps.meta.outputs.same_repo }}
+    steps:
+      - id: meta
+        # preview_id and host are PR-stable: one preview per PR, lifetime
+        # = PR open → close. mysql / redis / qdrant collection /
+        # clickhouse db all persist across commits on the same PR.
+        # `tag` is commit-keyed because the image artifact in ghcr has
+        # to be unique per commit; every push rolls the api+frontend
+        # image tags forward and `compose up -d` recreates only those
+        # containers.
+        run: |
+          head_sha="${{ github.event.pull_request.head.sha }}"
+          short_sha="${head_sha::7}"
+          pr_number="${{ github.event.pull_request.number }}"
+          preview_id="pr-$pr_number"
+          echo "preview_id=$preview_id" >> "$GITHUB_OUTPUT"
+          echo "host=$preview_id.sf-voice.sh" >> "$GITHUB_OUTPUT"
+          echo "tag=$preview_id-$short_sha" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
+            echo "same_repo=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "same_repo=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: build preview images
+    needs: meta
+    if: github.event.action != 'closed' && needs.meta.outputs.same_repo == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          submodules: true
+          token: ${{ secrets.GH_PAT }}
+
+      - name: set up buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+
+      - name: log in to ghcr
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: build and push api
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
+        with:
+          context: .
+          file: core/backend/api/Dockerfile
+          push: true
+          tags: ghcr.io/sf-voice/sf-voice-api:${{ needs.meta.outputs.tag }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.event.pull_request.head.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha,scope=sf-voice-api
+          cache-to: type=gha,mode=max,scope=sf-voice-api
+
+      - name: build and push frontend
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
+        with:
+          context: .
+          file: core/frontend/Dockerfile
+          push: true
+          tags: ghcr.io/sf-voice/sf-voice-frontend:${{ needs.meta.outputs.tag }}
+          build-args: |
+            GIT_SHA=${{ github.event.pull_request.head.sha }}
+            IMAGE_TAG=${{ needs.meta.outputs.tag }}
+            BUILT_AT=${{ github.event.pull_request.updated_at }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.event.pull_request.head.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+  deploy:
+    name: deploy preview
+    needs: [meta, build]
+    if: github.event.action != 'closed' && needs.meta.outputs.same_repo == 'true'
+    runs-on: ubuntu-latest
+    # the createComment call below targets /issues/:n/comments, which
+    # accepts either issues=write OR pull_requests=write. some repo
+    # settings ("Allow GitHub Actions to create and approve pull
+    # requests" disabled) silently downgrade issues=write on PR-context
+    # endpoints, so declare both explicitly.
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+      packages: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: upload deploy assets
+        uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: deploy
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          source: "infra/deploy/compose.prod.yml,infra/deploy/compose.preview.yml,infra/deploy/sfctl.sh,infra/deploy/sfctl.d/*.sh,infra/deploy/Caddyfile,infra/deploy/smoke-vad.py"
+          target: "/tmp/sf-voice-preview-assets/"
+          strip_components: 2
+          rm: true
+
+      - name: deploy preview
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17
+        env:
+          PREVIEW_ID: ${{ needs.meta.outputs.preview_id }}
+          PREVIEW_HOST: ${{ needs.meta.outputs.host }}
+          PREVIEW_TAG: ${{ needs.meta.outputs.tag }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+          INTERNAL_API_TOKEN: ${{ secrets.INTERNAL_API_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CLICKHOUSE_URL: ${{ secrets.CLICKHOUSE_URL }}
+          CLICKHOUSE_DATABASE: ${{ secrets.CLICKHOUSE_DATABASE }}
+          CLICKHOUSE_ACCESS_TOKEN: ${{ secrets.CLICKHOUSE_ACCESS_TOKEN }}
+          CLICKHOUSE_USER: ${{ secrets.CLICKHOUSE_USER }}
+          CLICKHOUSE_PASSWORD: ${{ secrets.CLICKHOUSE_PASSWORD }}
+          QDRANT_URL: ${{ secrets.QDRANT_URL }}
+          QDRANT_REST_URL: ${{ secrets.QDRANT_REST_URL }}
+          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+          QDRANT_COLLECTION: ${{ secrets.QDRANT_COLLECTION }}
+          DIARIZE_URL: ${{ secrets.DIARIZE_URL }}
+          DIARIZE_API_KEY: ${{ secrets.DIARIZE_API_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+          TWELVELABS_API_KEY: ${{ secrets.TWELVELABS_API_KEY }}
+          SF_VOICE_SECRETS_KEY: ${{ secrets.SF_VOICE_SECRETS_KEY }}
+          SF_VOICE_SKIP_AWS_VERIFY: ${{ secrets.SF_VOICE_SKIP_AWS_VERIFY }}
+          SF_VOICE_AWS_PRINCIPAL: ${{ secrets.SF_VOICE_AWS_PRINCIPAL }}
+          SF_VOICE_CFN_TEMPLATE_URL: ${{ secrets.SF_VOICE_CFN_TEMPLATE_URL }}
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: deploy
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          envs: PREVIEW_ID,PREVIEW_HOST,PREVIEW_TAG,GHCR_USER,GHCR_TOKEN,INTERNAL_API_TOKEN,OPENAI_API_KEY,CLICKHOUSE_URL,CLICKHOUSE_DATABASE,CLICKHOUSE_ACCESS_TOKEN,CLICKHOUSE_USER,CLICKHOUSE_PASSWORD,QDRANT_URL,QDRANT_REST_URL,QDRANT_API_KEY,QDRANT_COLLECTION,DIARIZE_URL,DIARIZE_API_KEY,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_REGION,S3_BUCKET_NAME,TWELVELABS_API_KEY,SF_VOICE_SECRETS_KEY,SF_VOICE_SKIP_AWS_VERIFY,SF_VOICE_AWS_PRINCIPAL,SF_VOICE_CFN_TEMPLATE_URL
+          script: |
+            set -euxo pipefail
+            asset_dir=/tmp/sf-voice-preview-assets
+            install -d /srv/sf-voice/bin /srv/sf-voice/caddy/previews /srv/sf-voice/certs
+            cd /srv/sf-voice
+            install -m 644 "$asset_dir/compose.prod.yml" compose.prod.yml
+            install -m 644 "$asset_dir/compose.preview.yml" compose.preview.yml
+            install -m 755 "$asset_dir/sfctl.sh" bin/sfctl
+            install -d bin/sfctl.d
+            cp -R "$asset_dir/sfctl.d/." bin/sfctl.d/
+            chmod 644 bin/sfctl.d/*.sh
+            install -m 644 "$asset_dir/Caddyfile" caddy/Caddyfile
+            install -m 755 "$asset_dir/smoke-vad.py" smoke-vad.py
+            rm -rf "$asset_dir"
+            bin/sfctl preview deploy "$PREVIEW_ID" "$PREVIEW_TAG" "$PREVIEW_TAG" "$PREVIEW_HOST"
+
+      - name: comment preview url
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        with:
+          script: |
+            const host = '${{ needs.meta.outputs.host }}';
+            const body = [
+              'Preview environment is ready.',
+              '',
+              `Frontend: https://${host}`,
+              `API health: https://${host}/healthz`,
+              `API base: https://${host}/api`,
+              '',
+              `Preview id: \`${{ needs.meta.outputs.preview_id }}\``,
+              `Commit: \`${{ github.event.pull_request.head.sha }}\``,
+            ].join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+
+  destroy:
+    name: destroy preview
+    needs: meta
+    if: github.event.action == 'closed' && needs.meta.outputs.same_repo == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: upload deploy assets
+        uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: deploy
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          source: "infra/deploy/compose.prod.yml,infra/deploy/compose.preview.yml,infra/deploy/sfctl.sh,infra/deploy/sfctl.d/*.sh,infra/deploy/Caddyfile,infra/deploy/smoke-vad.py"
+          target: "/tmp/sf-voice-preview-assets/"
+          strip_components: 2
+          rm: true
+
+      - name: destroy preview
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17
+        env:
+          PREVIEW_ID: ${{ needs.meta.outputs.preview_id }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          CLICKHOUSE_URL: ${{ secrets.CLICKHOUSE_URL }}
+          CLICKHOUSE_ACCESS_TOKEN: ${{ secrets.CLICKHOUSE_ACCESS_TOKEN }}
+          CLICKHOUSE_USER: ${{ secrets.CLICKHOUSE_USER }}
+          CLICKHOUSE_PASSWORD: ${{ secrets.CLICKHOUSE_PASSWORD }}
+          QDRANT_URL: ${{ secrets.QDRANT_URL }}
+          QDRANT_REST_URL: ${{ secrets.QDRANT_REST_URL }}
+          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: deploy
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          envs: PREVIEW_ID,PR_NUMBER,CLICKHOUSE_URL,CLICKHOUSE_ACCESS_TOKEN,CLICKHOUSE_USER,CLICKHOUSE_PASSWORD,QDRANT_URL,QDRANT_REST_URL,QDRANT_API_KEY
+          script: |
+            set -euxo pipefail
+            asset_dir=/tmp/sf-voice-preview-assets
+            install -d /srv/sf-voice/bin /srv/sf-voice/caddy/previews /srv/sf-voice/certs
+            cd /srv/sf-voice
+            install -m 644 "$asset_dir/compose.prod.yml" compose.prod.yml
+            install -m 644 "$asset_dir/compose.preview.yml" compose.preview.yml
+            install -m 755 "$asset_dir/sfctl.sh" bin/sfctl
+            install -d bin/sfctl.d
+            cp -R "$asset_dir/sfctl.d/." bin/sfctl.d/
+            chmod 644 bin/sfctl.d/*.sh
+            install -m 644 "$asset_dir/Caddyfile" caddy/Caddyfile
+            install -m 755 "$asset_dir/smoke-vad.py" smoke-vad.py
+            rm -rf "$asset_dir"
+            bin/sfctl preview destroy-pr "$PR_NUMBER"
+
+      - name: comment preview destroyed
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: 'Preview environments destroyed for PR #${{ github.event.pull_request.number }}.',
+            });
+
+  skipped-fork:
+    name: preview skipped for fork
+    needs: meta
+    if: github.event.action != 'closed' && needs.meta.outputs.same_repo != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - name: explain skip
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        continue-on-error: true
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: 'Preview environment was skipped because deploy secrets are not available to forked pull requests.',
+            });

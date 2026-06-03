@@ -90,8 +90,11 @@ mix deps.get
 echo "[ci:install] rust deps"
 cargo fetch
 
-echo "[ci:elixir] format check"
-mix workspace.run -t format -- --check-formatted
+echo "[ci:frontend] install (frozen lockfile)"
+pnpm install --frozen-lockfile --filter @sf-voice/frontend...
+
+echo "[ci:format] format"
+mise run format:fix
 
 echo "[ci:elixir] compile"
 mix workspace.run -t compile -- --warnings-as-errors
@@ -99,17 +102,11 @@ mix workspace.run -t compile -- --warnings-as-errors
 echo "[ci:elixir] test"
 mix workspace.run -t test
 
-echo "[ci:rust] fmt check"
-cargo fmt --all -- --check
-
 echo "[ci:rust] clippy"
 cargo clippy --bin sf-voice-api -- -D warnings
 
 echo "[ci:rust] test"
 cargo test --bin sf-voice-api
-
-echo "[ci:frontend] install (frozen lockfile)"
-pnpm install --frozen-lockfile --filter @sf-voice/frontend...
 
 echo "[ci:frontend] typecheck"
 pnpm --filter @sf-voice/frontend typecheck
@@ -218,12 +215,34 @@ description = "watch mode: resto tests"
 dir = "apps/resto_booking_app"
 run = "mix test.watch"
 
-[tasks.format]
-description = "format: elixir (mix) + rust (cargo fmt)"
+[tasks."format:elixir"]
+description = "format: elixir apps"
+run = "mix workspace.run -t format"
+
+[tasks."format:backend"]
+description = "format: core backend rust crates"
+run = "cargo fmt -p sf-voice-api -p entities -p migration"
+
+[tasks."format:rust"]
+description = "format: all rust crates"
+run = "cargo fmt --all"
+
+[tasks."format:frontend"]
+description = "format: core frontend"
+dir = "core/frontend"
+run = "pnpm format"
+
+[tasks."format:fix"]
+description = "format: elixir + rust + core frontend"
 run = [
-  "mix workspace.run -t format",
-  "cargo fmt --all",
+  "mise run format:elixir",
+  "mise run format:rust",
+  "mise run format:frontend",
 ]
+
+[tasks.format]
+description = "format: elixir + rust + core frontend"
+run = "mise run format:fix"
 
 [tasks.compile]
 description = "compile every app with --warnings-as-errors"
