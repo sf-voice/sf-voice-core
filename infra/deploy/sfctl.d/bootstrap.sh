@@ -3,6 +3,7 @@
 bootstrap() {
   need_root
   ensure_dirs
+  ensure_prod_networks
   install_bootstrap_assets
   ensure_images_env
   generate_data_service_envs
@@ -11,7 +12,6 @@ bootstrap() {
   chown -R 999:999 "$DATA_DIR/mysql" "$DATA_DIR/redis" 2>/dev/null || true
   chown -R 65534:65534 "$DATA_DIR/resto" "$DATA_DIR/ellie" 2>/dev/null || true
 
-  docker network create proxy_net 2>/dev/null || true
   install_mysql_backup_timer
   echo "sfctl: bootstrap complete at $ROOT"
 }
@@ -92,7 +92,7 @@ EOF
 user default off
 user $REDIS_USER on >$REDIS_PASSWORD ~* &* +@all
 EOF
-  chmod 600 "$ENV_DIR/redis.users.acl"
+  chmod 644 "$ENV_DIR/redis.users.acl"
 }
 
 install_mysql_backup_timer() {

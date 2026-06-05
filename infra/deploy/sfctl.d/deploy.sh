@@ -19,6 +19,7 @@ deploy_service() {
   local compose_service
   compose_service="$(service_name "$service")"
   ensure_dirs
+  ensure_prod_networks
   login_ghcr
   write_service_env "$service"
   prepare_image "$service" "$tag"
@@ -44,7 +45,15 @@ ensure_runtime_dependencies() {
     api)
       compose up -d --no-deps mysql redis
       ;;
+    caddy)
+      ensure_caddy_certs
+      ;;
   esac
+}
+
+ensure_caddy_certs() {
+  [[ -f "$ROOT/certs/origin.pem" ]] || die "missing caddy cert: $ROOT/certs/origin.pem"
+  [[ -f "$ROOT/certs/origin.key" ]] || die "missing caddy cert: $ROOT/certs/origin.key"
 }
 
 prepare_image() {
@@ -82,12 +91,12 @@ seed_if_needed() {
 
 seed_ellie() {
   wait_for_rpc ellie-ai /app/bin/ellie_ai 60
-  compose exec -T ellie-ai /app/bin/ellie_ai eval "EllieAi.Release.seed()"
+  docker exec ellie-ai /app/bin/ellie_ai eval "EllieAi.Release.seed()"
 }
 
 seed_resto() {
   wait_for_rpc resto-demo /app/bin/resto_booking_app 30
-  compose exec -T resto-demo /app/bin/resto_booking_app eval "RestoBookingApp.Release.seed()"
+  docker exec resto-demo /app/bin/resto_booking_app eval "RestoBookingApp.Release.seed()"
 }
 
 wait_for_rpc() {
@@ -95,7 +104,7 @@ wait_for_rpc() {
   local bin="$2"
   local tries="$3"
   for i in $(seq 1 "$tries"); do
-    if compose exec -T "$service" "$bin" rpc "IO.puts(:up)" >/dev/null 2>&1; then
+    if docker exec "$service" "$bin" rpc "IO.puts(:up)" >/dev/null 2>&1; then
       return 0
     fi
     sleep 1

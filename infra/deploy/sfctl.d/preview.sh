@@ -109,7 +109,7 @@ preview_write_env() {
   local api_tag="$3"
   local frontend_tag="$4"
   local root="$5"
-  local mysql_root_pw mysql_pw redis_pw mysql_db clickhouse_db qdrant_collection s3_prefix
+  local mysql_root_pw mysql_pw redis_pw mysql_db clickhouse_db qdrant_collection s3_key_prefix
 
   # PR-stable credentials. on the first deploy of a PR these are
   # generated; on every subsequent commit they're reused from the
@@ -138,7 +138,7 @@ preview_write_env() {
   # database / qdrant collection / s3 prefix outlive any single commit.
   clickhouse_db="${preview_id//-/_}"
   qdrant_collection="${QDRANT_COLLECTION:-transcript_embeddings}_${preview_id//-/_}"
-  s3_prefix="preview/$preview_id"
+  s3_key_prefix="preview/$preview_id"
 
   preview_write_secure_file "$root/env/preview.env" <<EOF
 PREVIEW_ID=$preview_id
@@ -189,9 +189,10 @@ AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
 AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
 AWS_REGION=${AWS_REGION:-}
 S3_BUCKET_NAME=${S3_BUCKET_NAME:-}
-S3_PREFIX=$s3_prefix
+S3_KEY_PREFIX=$s3_key_prefix
 TWELVELABS_API_KEY=${TWELVELABS_API_KEY:-}
 SF_VOICE_SECRETS_KEY=${SF_VOICE_SECRETS_KEY:-}
+AUTUMN_SECRET_KEY=${AUTUMN_SECRET_KEY:-}
 SF_VOICE_APP_URL=https://$host
 SF_VOICE_SKIP_AWS_VERIFY=${SF_VOICE_SKIP_AWS_VERIFY:-}
 COOKIE_SECURE=true

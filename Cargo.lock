@@ -3398,6 +3398,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "providers"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "errors",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "ptr_meta"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4271,9 +4286,11 @@ dependencies = [
  "errors",
  "futures-util",
  "hex",
+ "http-body 1.0.1",
  "media",
  "migration",
  "notifications",
+ "providers",
  "qdrant-client",
  "rand 0.8.6",
  "reqwest",
@@ -5336,7 +5353,10 @@ version = "0.0.0"
 dependencies = [
  "base64",
  "chacha20poly1305",
+ "chrono",
  "errors",
+ "rand 0.8.6",
+ "uuid",
 ]
 
 [[package]]

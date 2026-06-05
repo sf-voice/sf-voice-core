@@ -122,6 +122,10 @@ ensure_dirs() {
   generate_data_service_envs
 }
 
+ensure_prod_networks() {
+  docker network create proxy_net >/dev/null 2>&1 || true
+}
+
 ensure_images_env() {
   mkdir -p "$ENV_DIR"
   if [[ ! -f "$ENV_DIR/images.env" ]]; then
@@ -214,7 +218,7 @@ write_service_env() {
         CLICKHOUSE_USER CLICKHOUSE_PASSWORD QDRANT_URL QDRANT_API_KEY \
         QDRANT_COLLECTION DIARIZE_URL DIARIZE_API_KEY \
         AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_REGION S3_BUCKET_NAME \
-        TWELVELABS_API_KEY SF_VOICE_SECRETS_KEY SF_VOICE_APP_URL \
+        TWELVELABS_API_KEY SF_VOICE_SECRETS_KEY AUTUMN_SECRET_KEY SF_VOICE_APP_URL \
         SF_VOICE_SKIP_AWS_VERIFY COOKIE_SECURE \
         SF_VOICE_AWS_PRINCIPAL SF_VOICE_CFN_TEMPLATE_URL
       ;;

@@ -13,6 +13,7 @@ members = [
     "core/backend/media",
     "core/backend/migration",
     "core/backend/notifications",
+    "core/backend/providers",
     "core/backend/util",
     "rust",
 ]
