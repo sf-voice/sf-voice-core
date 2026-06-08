@@ -1,60 +1,10 @@
-# canonical production stack for the droplet.
-#
-# run from /srv/sf-voice through bin/sfctl. the script exports env/images.env
-# before invoking compose so image tags stay data, not sed-mutated yaml.
+# parent repo production stack: ellie + resto only.
+# core services (api, frontend, mysql, redis, caddy) are owned by
+# sf-voice/core and deployed via core's own sfctl + workflows.
 
-name: sf-voice
+name: sf-voice-apps
 
 services:
-  caddy:
-    image: caddy:2-alpine
-    container_name: caddy
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./caddy/previews:/etc/caddy/previews:ro
-      - ./certs:/etc/caddy/certs:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    networks:
-      - proxy_net
-
-  frontend:
-    image: ghcr.io/sf-voice/sf-voice-frontend:${FRONTEND_IMAGE_TAG:-latest}
-    container_name: frontend
-    restart: unless-stopped
-    expose:
-      - "3000"
-    networks:
-      - proxy_net
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
-      interval: 10s
-      timeout: 5s
-      retries: 6
-
-  api:
-    image: ghcr.io/sf-voice/sf-voice-api:${API_IMAGE_TAG:-latest}
-    container_name: api
-    restart: unless-stopped
-    env_file:
-      - ./env/api.env
-    environment:
-      RUST_LOG: ${RUST_LOG:-info}
-      VAD_WS_URL: ws://ellie-ai:4001/socket/vad
-    expose:
-      - "8080"
-    networks:
-      - proxy_net
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/healthz"]
-      interval: 10s
-      timeout: 5s
-      retries: 6
-
   ellie-ai:
     image: ghcr.io/sf-voice/ellie-ai:${ELLIE_IMAGE_TAG:-latest}
     container_name: ellie-ai
@@ -91,59 +41,6 @@ services:
       - "4000"
     networks:
       - proxy_net
-
-  mysql:
-    image: mysql:8.4
-    container_name: mysql
-    restart: unless-stopped
-    env_file:
-      - ./env/mysql.env
-    command:
-      - "--innodb-buffer-pool-size=128M"
-      - "--performance-schema=OFF"
-      - "--max-connections=64"
-    volumes:
-      # absolute path to where prod data actually lives — the legacy
-      # /srv/mysql/ layout the original deploy used. compose recreates
-      # of mysql must hit the same dir or the api connects to an empty
-      # database. don't switch this without rsync'ing the data first.
-      - /srv/mysql/data:/var/lib/mysql
-    ports:
-      - "127.0.0.1:3306:3306"
-    expose:
-      - "3306"
-    networks:
-      - proxy_net
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-
-  redis:
-    image: ${REDIS_IMAGE:-redis/redis-stack-server:7.4.0-v8}
-    container_name: redis
-    restart: unless-stopped
-    env_file:
-      - ./env/redis.env
-    environment:
-      REDIS_ARGS: "--appendonly yes --aclfile /usr/local/etc/redis/users.acl"
-    volumes:
-      - ./data/redis:/data
-      - ./env/redis.users.acl:/usr/local/etc/redis/users.acl:ro
-    expose:
-      - "6379"
-    networks:
-      - proxy_net
-    healthcheck:
-      test: ["CMD-SHELL", "redis-cli --user \"$${REDIS_USER}\" --pass \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-
-volumes:
-  caddy_data:
-  caddy_config:
 
 networks:
   proxy_net:
