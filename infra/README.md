@@ -1,23 +1,27 @@
 # infra
 
-Operational glue for ellie-ai and resto-demo on the shared droplet.
+Operational glue for the shared droplet: caddy reverse proxy, ellie-ai,
+and resto-demo.
 
-Core services (api, frontend, mysql, redis, caddy) and their dev data
-layer have moved to `sf-voice/core` — see `core/infra/`.
+Core services (api, frontend, mysql, redis) and the dev data layer
+have moved to `sf-voice/core` — see `core/infra/`.
 
 ## layout
 
-- `deploy/compose.prod.yml` — ellie + resto production compose stack.
+- `deploy/compose.prod.yml` — caddy + ellie + resto production compose stack.
 - `deploy/sfctl.sh` — production control script, installed on the
   droplet as `/srv/sf-voice/bin/sfctl`.
 - `deploy/sfctl.d/` — modular sfctl commands (deploy, preview teardown).
+- `deploy/Caddyfile` — reverse proxy config for all services.
+- `deploy/smoke-vad.py` — deploy smoke test for ellie's VAD websocket.
 
 ## deploy console
 
-The `deploy console` workflow handles ellie and resto. Manual examples:
+The `deploy console` workflow handles caddy, ellie, and resto. Manual examples:
 
 ```text
 operation=status service=all
+operation=deploy service=caddy tag=latest
 operation=deploy service=ellie tag=sha-<sha>
 operation=logs service=ellie log_lines=300
 operation=rollback service=resto tag=sha-<previous-sha>
@@ -27,6 +31,7 @@ On the droplet:
 
 ```bash
 /srv/sf-voice/bin/sfctl status all
+/srv/sf-voice/bin/sfctl deploy caddy latest
 /srv/sf-voice/bin/sfctl deploy ellie sha-<sha>
 /srv/sf-voice/bin/sfctl logs ellie 300
 ```
@@ -57,5 +62,6 @@ Core API secrets (`DATABASE_URL`, `REDIS_URL`, `CLICKHOUSE_*`,
 
 | service | image | data | public host |
 | --- | --- | --- | --- |
+| `caddy` | `caddy:2-alpine` | caddy volumes + certs | public `80/443` |
 | `ellie-ai` | `ghcr.io/sf-voice/ellie-ai` | sqlite in `data/ellie` | `ellie-ai.sf-voice.sh` |
 | `resto-demo` | `ghcr.io/sf-voice/restaurant-booking-app` | sqlite in `data/resto` | `resto-demo.sf-voice.sh` |
