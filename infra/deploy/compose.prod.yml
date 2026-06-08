@@ -1,26 +1,13 @@
-# parent repo production stack: caddy (shared proxy) + ellie + resto.
-# core services (api, frontend, mysql, redis) are owned by
+# parent repo production stack: ellie + resto.
+# caddy lives in core's compose (sf-voice project) on the VM because
+# the existing container is owned by that project. the caddy.yml
+# workflow reloads its config via `docker exec caddy caddy reload`.
+# core services (api, frontend, caddy, mysql, redis) are owned by
 # sf-voice/core and deployed via core's own sfctl + workflows.
 
 name: sf-voice-apps
 
 services:
-  caddy:
-    image: caddy:2-alpine
-    container_name: caddy
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./caddy/previews:/etc/caddy/previews:ro
-      - ./certs:/etc/caddy/certs:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    networks:
-      - proxy_net
-
   ellie-ai:
     image: ghcr.io/sf-voice/ellie-ai:${ELLIE_IMAGE_TAG:-latest}
     container_name: ellie-ai
@@ -57,10 +44,6 @@ services:
       - "4000"
     networks:
       - proxy_net
-
-volumes:
-  caddy_data:
-  caddy_config:
 
 networks:
   proxy_net:

@@ -25,7 +25,6 @@ deploy_service() {
   ensure_prod_networks
   login_ghcr
   write_service_env "$service"
-  ensure_runtime_dependencies "$service"
   prepare_image "$service" "$tag"
   compose up -d --no-deps "$compose_service"
   seed_if_needed "$service"
@@ -36,19 +35,10 @@ deploy_service() {
 
 deploy_all() {
   local tag="$1"
-  for item in caddy resto ellie; do
+  for item in resto ellie; do
     SFCTL_SKIP_SMOKE=1 deploy_service "$item" "$tag"
   done
   smoke all
-}
-
-ensure_runtime_dependencies() {
-  case "$1" in
-    caddy)
-      [[ -f "$ROOT/certs/origin.pem" ]] || die "missing caddy cert: $ROOT/certs/origin.pem"
-      [[ -f "$ROOT/certs/origin.key" ]] || die "missing caddy cert: $ROOT/certs/origin.key"
-      ;;
-  esac
 }
 
 prepare_image() {
@@ -143,8 +133,7 @@ smoke() {
   case "$service" in
     ellie) smoke_ellie ;;
     resto) curl -fsS https://resto-demo.sf-voice.sh/api/menu >/dev/null ;;
-    caddy) curl -fsS https://app.sf-voice.sh/ >/dev/null ;;
-    all) smoke caddy; smoke resto; smoke ellie ;;
+    all) smoke resto; smoke ellie ;;
     *) die "unknown service: $service" ;;
   esac
   echo "sfctl: smoke passed for $service"
