@@ -61,7 +61,6 @@ service_name() {
   case "${1:-}" in
     ellie) echo "ellie-ai" ;;
     resto) echo "resto-demo" ;;
-    caddy) echo "caddy" ;;
     all) echo "all" ;;
     *) die "unknown service: ${1:-<empty>} (core services moved to sf-voice/core)" ;;
   esac
@@ -87,8 +86,7 @@ containers_for() {
   case "${1:-all}" in
     ellie) echo ellie-ai ;;
     resto) echo resto-demo ;;
-    caddy) echo caddy ;;
-    all) echo caddy ellie-ai resto-demo ;;
+    all) echo ellie-ai resto-demo ;;
     *) die "unknown service: $1" ;;
   esac
 }
@@ -98,12 +96,8 @@ ensure_dirs() {
     "$BIN_DIR" \
     "$ENV_DIR" \
     "$STATE_DIR/inventory" \
-    "$ROOT/caddy" \
-    "$ROOT/caddy/previews" \
-    "$ROOT/certs" \
     "$DATA_DIR/resto" \
     "$DATA_DIR/ellie"
-  touch "$ROOT/caddy/previews/empty.caddy"
 }
 
 ensure_prod_networks() {

@@ -5,19 +5,11 @@ on:
     branches: [main]
     paths:
       - "infra/deploy/Caddyfile"
-      - "infra/deploy/compose.prod.yml"
-      - "infra/deploy/sfctl.sh"
-      - "infra/deploy/sfctl.d/**"
       - ".github/workflows/caddy.yml"
-      - ".github/workflows/deploy-console.yml"
   pull_request:
     paths:
       - "infra/deploy/Caddyfile"
-      - "infra/deploy/compose.prod.yml"
-      - "infra/deploy/sfctl.sh"
-      - "infra/deploy/sfctl.d/**"
       - ".github/workflows/caddy.yml"
-      - ".github/workflows/deploy-console.yml"
 
 concurrency:
   group: caddy-${{ github.ref }}
@@ -45,12 +37,35 @@ jobs:
             caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
 
   deploy:
-    name: deploy
+    name: reload caddy config
     needs: validate
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    uses: ./.github/workflows/deploy-console.yml
-    with:
-      operation: deploy
-      service: caddy
-      tag: latest
-    secrets: inherit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: upload Caddyfile
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: deploy
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          source: "infra/deploy/Caddyfile"
+          target: "/tmp/sf-voice-caddy-update/"
+          strip_components: 2
+          rm: true
+
+      - name: install and reload
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: deploy
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            install -m 644 /tmp/sf-voice-caddy-update/Caddyfile /srv/sf-voice/caddy/Caddyfile
+            rm -rf /tmp/sf-voice-caddy-update
+            docker exec caddy caddy reload --config /etc/caddy/Caddyfile
+            echo "caddy config reloaded"
