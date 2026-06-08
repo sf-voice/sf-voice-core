@@ -141,7 +141,8 @@ smoke() {
 
 smoke_ellie() {
   curl -fsS https://ellie-ai.sf-voice.sh/ >/dev/null
-  if [[ -n "${INTERNAL_API_TOKEN:-}" && -f "$ROOT/smoke-vad.py" ]]; then
+  if [[ -n "${INTERNAL_API_TOKEN:-}" && -f "$ROOT/smoke-vad.py" ]] \
+     && python3 -c "import websockets" 2>/dev/null; then
     python3 "$ROOT/smoke-vad.py" wss://ellie-ai.sf-voice.sh/socket/vad "$INTERNAL_API_TOKEN"
   fi
 }
