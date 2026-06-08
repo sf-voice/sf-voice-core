@@ -467,10 +467,12 @@ run = "pnpm typecheck"
 
 [tasks."api:dev"]
 description = "api dev server"
+dir = "core"
 run = "cargo run -p sf-voice-api"
 
 [tasks."api:build"]
 description = "api release build"
+dir = "core"
 run = "cargo build -p sf-voice-api --release"
 
 
@@ -516,7 +518,7 @@ echo "[install] inference (placeholder — no python deps yet)"
 # uv sync goes here once core/inference has real dependencies.
 
 echo "[install] pull dev data-layer images"
-docker compose -f infra/dev/docker-compose.yml pull
+docker compose -f core/infra/dev/docker-compose.yml pull
 
 echo "[install] done."
 """
@@ -526,7 +528,7 @@ description = "full core dev stack"
 run = """
 set -e
 
-COMPOSE="docker compose -f infra/dev/docker-compose.yml"
+COMPOSE="docker compose -f core/infra/dev/docker-compose.yml"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "docker not found — install Docker Desktop or colima first" >&2
@@ -567,7 +569,7 @@ echo ""
 # 4. app processes. each backgrounded with a sed prefix so logs interleave
 #    cleanly. inference is a placeholder loop until there's real code.
 (cd core/frontend && pnpm dev 2>&1 | sed -u 's/^/[web]    /') &
-(cargo run -p sf-voice-api 2>&1 | sed -u 's/^/[api]    /') &
+(cd core && cargo run -p sf-voice-api 2>&1 | sed -u 's/^/[api]    /') &
 ( while true; do echo "[inf]    scaffold — no inference process yet"; sleep 300; done ) &
 wait
 """
@@ -575,24 +577,24 @@ wait
 [tasks."db:start"]
 description = "start dev data-layer containers"
 run = """
-docker compose -f infra/dev/docker-compose.yml up -d --wait --wait-timeout 180
+docker compose -f core/infra/dev/docker-compose.yml up -d --wait --wait-timeout 180
 """
 
 [tasks."db:stop"]
 description = "stop dev data-layer containers"
-run = "docker compose -f infra/dev/docker-compose.yml down"
+run = "docker compose -f core/infra/dev/docker-compose.yml down"
 
 [tasks."db:nuke"]
 description = "destructive: wipe dev data-layer volumes"
 run = """
-docker compose -f infra/dev/docker-compose.yml down -v
+docker compose -f core/infra/dev/docker-compose.yml down -v
 """
 
 [tasks."db:reset"]
 description = "destructive: reset sf_voice_dev db"
 run = """
 set -e
-docker compose -f infra/dev/docker-compose.yml exec -T mysql \
+docker compose -f core/infra/dev/docker-compose.yml exec -T mysql \
   mysql -usf_voice -psf_voice \
   -e "DROP DATABASE IF EXISTS sf_voice_dev; CREATE DATABASE sf_voice_dev;"
 echo "[db:reset] sf_voice_dev recreated. next api boot will rebuild schema."
@@ -600,4 +602,4 @@ echo "[db:reset] sf_voice_dev recreated. next api boot will rebuild schema."
 
 [tasks."db:logs"]
 description = "tail dev data-layer logs"
-run = "docker compose -f infra/dev/docker-compose.yml logs -f"
+run = "docker compose -f core/infra/dev/docker-compose.yml logs -f"

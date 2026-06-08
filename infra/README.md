@@ -1,195 +1,61 @@
 # infra
 
-operational glue for the droplet and local data layer.
+Operational glue for ellie-ai and resto-demo on the shared droplet.
+
+Core services (api, frontend, mysql, redis, caddy) and their dev data
+layer have moved to `sf-voice/core` — see `core/infra/`.
 
 ## layout
 
-- `deploy/compose.prod.yml` — the single production compose stack.
-- `deploy/sfctl.sh` — the single production control script. installed on the
+- `deploy/compose.prod.yml` — ellie + resto production compose stack.
+- `deploy/sfctl.sh` — production control script, installed on the
   droplet as `/srv/sf-voice/bin/sfctl`.
-- `deploy/Caddyfile` — the production reverse proxy config.
-- `deploy/smoke-vad.py` — deploy smoke for ellie's VAD websocket.
-- `dev/` — local-only mysql + qdrant + redis for `mise run core:dev`.
-
-production state lives under one root:
-
-```text
-/srv/sf-voice/
-  bin/sfctl
-  compose.prod.yml
-  compose.preview.yml
-  caddy/Caddyfile
-  caddy/previews/*.caddy
-  certs/origin.{pem,key}
-  data/{mysql,mysql-backups,redis,resto,ellie}
-  env/{images,api,ellie,resto,mysql,redis}.env
-  previews/<preview-id>/
-  state/inventory/
-```
+- `deploy/sfctl.d/` — modular sfctl commands (deploy, preview teardown).
 
 ## deploy console
 
-GitHub Actions is the normal operator surface. Use the `deploy console`
-workflow for manual deploys, rollbacks, restarts, status, logs, and smoke
-checks. Pushes to `main` still deploy automatically through the app workflows,
-but they now call the same console workflow instead of duplicating ssh blocks.
-
-Manual examples from the GitHub UI:
+The `deploy console` workflow handles ellie and resto. Manual examples:
 
 ```text
 operation=status service=all
-operation=logs service=frontend log_lines=300
-operation=smoke service=all
-operation=rollback service=frontend tag=sha-<previous-sha>
+operation=deploy service=ellie tag=sha-<sha>
+operation=logs service=ellie log_lines=300
+operation=rollback service=resto tag=sha-<previous-sha>
 ```
 
-On the droplet, the same operations are available directly:
+On the droplet:
 
 ```bash
 /srv/sf-voice/bin/sfctl status all
-/srv/sf-voice/bin/sfctl logs frontend 300
-/srv/sf-voice/bin/sfctl smoke all
-/srv/sf-voice/bin/sfctl rollback frontend sha-<previous-sha>
+/srv/sf-voice/bin/sfctl deploy ellie sha-<sha>
+/srv/sf-voice/bin/sfctl logs ellie 300
 ```
-
-## pull request previews
-
-Pull requests from this repo build preview images and deploy them to the same
-droplet as isolated Compose projects. Fork PRs are skipped because deploy
-secrets are not exposed to forked workflows.
-
-Preview hosts are PR-keyed (one host per PR, for the PR's whole lifetime):
-
-```text
-https://pr-<pr-number>.sf-voice.sh
-```
-
-Each commit on the PR rolls the api + frontend image tags forward; the
-hostname doesn't change. The workflow comments these endpoints on the PR
-after the first successful deploy:
-
-```text
-Frontend: https://pr-<pr-number>.sf-voice.sh
-API health: https://pr-<pr-number>.sf-voice.sh/healthz
-API base: https://pr-<pr-number>.sf-voice.sh/api
-```
-
-Storage is isolated per PR (not per commit) and persists for the PR's
-lifetime — pushing a new commit doesn't wipe mysql tables, redis state,
-seeded test data, etc.:
-
-| storage | isolation | lifetime |
-| --- | --- | --- |
-| mysql | one mysql container + database (`pr_<n>`) | PR open → close |
-| redis | one redis container + acl file | PR open → close |
-| qdrant cloud | one `QDRANT_COLLECTION` named `..._pr_<n>` | PR open → close |
-| clickhouse | one database `pr_<n>` | PR open → close |
-| s3 | one `S3_KEY_PREFIX=preview/pr-<n>` under the shared bucket | PR open → close |
-
-Per commit, `sfctl preview deploy` is an idempotent upsert: it reuses
-existing mysql/redis containers + credentials, runs pending migrations
-against the existing DB (Phase 1 idempotency convention), and recreates
-only the api + frontend containers because their image tags changed.
-
-`sfctl preview destroy-pr <pr-number>` runs when the PR closes and removes
-Compose containers, local volumes, Caddy routes, and best-effort remote
-Qdrant/ClickHouse preview state. It also sweeps any legacy
-`preview-<pr>-<sha>` orphan directories from before the PR-keyed model.
-
-## first migration
-
-Do not delete old `/srv/*` paths while migrating. The safe order is:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/sf-voice/sf-voice-core/main/infra/deploy/sfctl.sh \
-  | sudo bash -s -- bootstrap
-sudo /srv/sf-voice/bin/sfctl inventory
-sudo /srv/sf-voice/bin/sfctl migrate-layout --dry-run
-sudo /srv/sf-voice/bin/sfctl migrate-layout --apply
-/srv/sf-voice/bin/sfctl deploy all latest
-/srv/sf-voice/bin/sfctl smoke all
-sudo /srv/sf-voice/bin/sfctl cleanup --dry-run
-sudo /srv/sf-voice/bin/sfctl cleanup --archive "$(date -u +%Y%m%d)"
-```
-
-`migrate-layout --apply` copies durable data and stops legacy compose stacks so
-container names are free for the unified stack. It does not delete old
-directories.
-
-After 24-72h of healthy deploys and backups, delete the archive explicitly:
-
-```bash
-sudo /srv/sf-voice/bin/sfctl cleanup --delete-archive YYYYMMDD
-```
-
-`cleanup --archive` renames old paths into `/srv/.archive-YYYYMMDD/*`; it does
-not remove data. `cleanup --delete-archive` is the only destructive cleanup
-path.
 
 ## secrets
 
-GitHub repo secrets are the source of truth for app runtime env. The deploy
-console renders app env files on every deploy, so manual edits under
-`/srv/sf-voice/env/{api,ellie,resto}.env` are overwritten.
+| GH secret | used by |
+| --- | --- |
+| `SECRET_KEY_BASE` | resto, ellie |
+| `INTERNAL_API_TOKEN` | resto, ellie |
+| `OPENAI_API_KEY` | ellie |
+| `TELNYX_API_KEY` | ellie |
+| `TELNYX_PUBLIC_KEY` | ellie |
+| `PHONE_NUMBER` | ellie |
+| `STAFF_PHONE_E164` | ellie |
+| `AWS_ACCESS_KEY_ID` | ellie |
+| `AWS_SECRET_ACCESS_KEY` | ellie |
+| `AWS_REGION` | ellie |
+| `S3_BUCKET_NAME` | ellie |
+| `DROPLET_HOST` | runner |
+| `DROPLET_SSH_KEY` | runner |
 
-Host-generated data-service credentials live on the VM:
-
-- `/srv/sf-voice/env/mysql.env`
-- `/srv/sf-voice/env/redis.env`
-- `/srv/sf-voice/env/redis.users.acl`
-
-When MySQL or Redis credentials are generated, copy the printed app connection
-strings back to the GitHub secrets used by the API deploy.
-
-| GH secret | used by | maps to |
-| --- | --- | --- |
-| `SECRET_KEY_BASE` | resto, ellie | `SECRET_KEY_BASE` |
-| `INTERNAL_API_TOKEN` | resto, ellie, api | `INTERNAL_API_TOKEN` |
-| `OPENAI_API_KEY` | ellie, api | `OPENAI_API_KEY` |
-| `TELNYX_API_KEY` | ellie | `TELNYX_API_KEY` |
-| `TELNYX_PUBLIC_KEY` | ellie | `TELNYX_PUBLIC_KEY` |
-| `PHONE_NUMBER` | ellie | `PHONE_NUMBER` |
-| `STAFF_PHONE_E164` | ellie | `STAFF_PHONE_E164` |
-| `AWS_ACCESS_KEY_ID` | ellie, api | `AWS_ACCESS_KEY_ID` |
-| `AWS_SECRET_ACCESS_KEY` | ellie, api | `AWS_SECRET_ACCESS_KEY` |
-| `AWS_REGION` | ellie, api | `AWS_REGION` |
-| `S3_BUCKET_NAME` | ellie, api | `S3_BUCKET_NAME` |
-| `DATABASE_URL` | api | `DATABASE_URL` |
-| `REDIS_URL` | api | `REDIS_URL` |
-| `CLICKHOUSE_URL` | api | `CLICKHOUSE_URL` |
-| `CLICKHOUSE_DATABASE` | api | `CLICKHOUSE_DATABASE` |
-| `CLICKHOUSE_ACCESS_TOKEN` | api | `CLICKHOUSE_ACCESS_TOKEN` |
-| `CLICKHOUSE_USER` | api | `CLICKHOUSE_USER` |
-| `CLICKHOUSE_PASSWORD` | api | `CLICKHOUSE_PASSWORD` |
-| `QDRANT_URL` | api | `QDRANT_URL` |
-| `QDRANT_API_KEY` | api | `QDRANT_API_KEY` |
-| `QDRANT_COLLECTION` | api | `QDRANT_COLLECTION` |
-| `DIARIZE_URL` | api | `DIARIZE_URL` |
-| `DIARIZE_API_KEY` | api | `DIARIZE_API_KEY` |
-| `TWELVELABS_API_KEY` | api | `TWELVELABS_API_KEY` |
-| `SF_VOICE_SECRETS_KEY` | api | `SF_VOICE_SECRETS_KEY` |
-| `AGENTMAIL_API_KEY` | api | `AGENTMAIL_API_KEY` |
-| `AGENTMAIL_INBOX_ID` | api | `AGENTMAIL_INBOX_ID` |
-| `AGENTMAIL_API_BASE` | api | `AGENTMAIL_API_BASE` |
-| `SF_VOICE_APP_URL` | api | `SF_VOICE_APP_URL` |
-| `SF_VOICE_SKIP_AWS_VERIFY` | api | `SF_VOICE_SKIP_AWS_VERIFY` |
-| `SF_VOICE_AWS_PRINCIPAL` | api | `SF_VOICE_AWS_PRINCIPAL` |
-| `SF_VOICE_CFN_TEMPLATE_URL` | api | `SF_VOICE_CFN_TEMPLATE_URL` |
-| `DROPLET_HOST` | runner | ssh host |
-| `DROPLET_SSH_KEY` | runner | ssh key for `deploy` |
+Core API secrets (`DATABASE_URL`, `REDIS_URL`, `CLICKHOUSE_*`,
+`QDRANT_*`, `AUTUMN_SECRET_KEY`, etc.) are managed in the
+`sf-voice/core` repo and are not present here.
 
 ## runtime services
 
 | service | image | data | public host |
 | --- | --- | --- | --- |
-| `frontend` | `ghcr.io/sf-voice/sf-voice-frontend` | none | `app.sf-voice.sh` |
-| `api` | `ghcr.io/sf-voice/sf-voice-api` | mysql + redis + Qdrant Cloud | `app.sf-voice.sh/api/*` |
 | `ellie-ai` | `ghcr.io/sf-voice/ellie-ai` | sqlite in `data/ellie` | `ellie-ai.sf-voice.sh` |
 | `resto-demo` | `ghcr.io/sf-voice/restaurant-booking-app` | sqlite in `data/resto` | `resto-demo.sf-voice.sh` |
-| `mysql` | `mysql:8.4` | `data/mysql` | private docker network, loopback `3306` |
-| `redis` | `redis:7.4-alpine` | `data/redis` | private docker network |
-| `caddy` | `caddy:2-alpine` | caddy volumes + certs | public `80/443` |
-
-The frontend image writes `/version.json` at build time. `sfctl status
-frontend` compares that public version with the running Docker image label so
-we can prove the VM is serving the expected SHA.
