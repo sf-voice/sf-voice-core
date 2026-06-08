@@ -14,7 +14,7 @@ on:
         required: true
         default: ellie
         type: choice
-        options: [ellie, resto]
+        options: [ellie, resto, caddy]
       tag:
         description: "image tag for deploy/rollback, e.g. sha-abc123"
         required: false
