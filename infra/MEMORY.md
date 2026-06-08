@@ -117,11 +117,15 @@ the win is worth for now). Per-PR docker build via path-filter
 
 ## [2026-06-05] — AgentMail env is API runtime config
 **What was decided:** Agent onboarding email delivery uses
-`AGENTMAIL_API_KEY` and `AGENTMAIL_INBOX_ID` as GitHub repo secrets,
-forwarded through both production deploy-console and PR preview deploys
-into the api env file. `AGENTMAIL_API_BASE` is also plumbed as an
-optional override; if unset, the backend keeps its built-in AgentMail
-API default.
+`AGENTMAIL_API_KEY`, `AGENTMAIL_INBOX_ID`, and optional
+`AGENTMAIL_API_BASE` as runtime env vars for the core API. These
+secrets are forwarded exclusively by the `sf-voice/core` repository's
+own `deploy-console.yml` and `preview.yml` workflows (via
+`core/infra/deploy/sfctl.d/common.sh` `write_service_env` and
+`core/infra/deploy/sfctl.d/preview.sh` `preview_write_env`). This
+parent repo does not forward them — `preview.yml` was removed,
+`preview.sh` was stripped to destroy-only, `deploy-console.yml`
+excludes api, and `write_service_env` no longer has an `api)` case.
 
 **Why:** The agent onboarding route can still fall back to
 `agentmail_not_configured`, but production should send setup codes

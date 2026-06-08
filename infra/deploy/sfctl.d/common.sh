@@ -62,7 +62,7 @@ service_name() {
     ellie) echo "ellie-ai" ;;
     resto) echo "resto-demo" ;;
     all) echo "all" ;;
-    *) die "unknown service: ${1:-<empty>}" ;;
+    *) die "unknown service: ${1:-<empty>} (core services moved to sf-voice/core)" ;;
   esac
 }
 
