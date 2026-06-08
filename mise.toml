@@ -88,7 +88,7 @@ echo "[ci:install] elixir deps"
 mix deps.get
 
 echo "[ci:install] rust deps"
-cargo fetch
+(cd core && cargo fetch)
 
 echo "[ci:frontend] install (frozen lockfile)"
 pnpm install --frozen-lockfile --filter @sf-voice/frontend...
@@ -103,10 +103,10 @@ echo "[ci:elixir] test"
 mix workspace.run -t test
 
 echo "[ci:rust] clippy"
-cargo clippy --bin sf-voice-api -- -D warnings
+(cd core && cargo clippy --bin sf-voice-api -- -D warnings)
 
 echo "[ci:rust] test"
-cargo test --bin sf-voice-api
+(cd core && cargo test --bin sf-voice-api)
 
 echo "[ci:frontend] typecheck"
 pnpm --filter @sf-voice/frontend typecheck
@@ -158,7 +158,7 @@ description = "sdk ci: rust sdk (sf_voice_media) — clippy"
 run = """
 set -e
 echo "[ci:sdk:rust] clippy"
-cargo clippy -p sf_voice_media -- -D warnings
+(cd rust && cargo clippy -- -D warnings)
 """
 
 [tasks."ci:sdk:java"]
@@ -221,10 +221,12 @@ run = "mix workspace.run -t format"
 
 [tasks."format:backend"]
 description = "format: core backend rust crates"
+dir = "core"
 run = "cargo fmt -p sf-voice-api -p entities -p migration"
 
 [tasks."format:rust"]
 description = "format: all rust crates"
+dir = "core"
 run = "cargo fmt --all"
 
 [tasks."format:frontend"]
@@ -512,7 +514,7 @@ echo "[install] js deps (pnpm — covers core/frontend + apps/fraud-prototype)"
 pnpm install
 
 echo "[install] rust deps (cargo fetch)"
-cargo fetch
+(cd core && cargo fetch)
 
 echo "[install] inference (placeholder — no python deps yet)"
 # uv sync goes here once core/inference has real dependencies.
