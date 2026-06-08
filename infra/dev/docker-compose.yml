@@ -80,10 +80,11 @@ services:
       start_period: 20s
 
   redis:
-    image: redis:7.4-alpine
+    image: ${REDIS_IMAGE:-redis/redis-stack-server:7.4.0-v8}
     container_name: sf-voice-redis
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    environment:
+      REDIS_ARGS: "--appendonly yes"
     ports:
       - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:

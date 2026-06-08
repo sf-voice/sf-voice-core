@@ -115,6 +115,38 @@ costs extra service to maintain). sccache (more infra to maintain than
 the win is worth for now). Per-PR docker build via path-filter
 (complexity for a marginal latency win once cargo-chef is hot).
 
+## [2026-06-05] — AgentMail env is API runtime config
+**What was decided:** Agent onboarding email delivery uses
+`AGENTMAIL_API_KEY` and `AGENTMAIL_INBOX_ID` as GitHub repo secrets,
+forwarded through both production deploy-console and PR preview deploys
+into the api env file. `AGENTMAIL_API_BASE` is also plumbed as an
+optional override; if unset, the backend keeps its built-in AgentMail
+API default.
+
+**Why:** The agent onboarding route can still fall back to
+`agentmail_not_configured`, but production should send setup codes
+without manual droplet env edits.
+
+**What was rejected:** Adding AgentMail to backend fail-fast env
+validation. The route is optional and should degrade cleanly when the
+secrets are absent in local or fork-preview contexts.
+
+## [2026-06-05] — Core deployment moves to the core repo
+**What was decided:** Core API/frontend deployment ownership is moving
+to `sf-voice/core`. The core repo now has standalone Rust/pnpm workspace
+files and its own `.github/workflows/{api,frontend,preview,deploy-console}.yml`.
+The new core deploy console is intentionally limited to `api` and `frontend`
+and forwards only core runtime env.
+
+**Why:** Keeping core deploy workflows and core runtime secrets in the
+parent `sf-voice-core` repo exposes more secret surface than needed.
+The parent repo should keep shared droplet/app operations; core should
+own core image builds and core deploys.
+
+**What was rejected:** Copying the parent deploy console wholesale into
+core. That would drag ellie/resto/caddy/mysql/redis operational secrets
+into the core repo, which is the problem this split is meant to remove.
+
 ## [2026-06-02] — Stateful services don't belong in deploy_all
 **What was decided:** **PLANNED, NOT YET FIXED.** `sfctl deploy_all`
 currently loops `mysql qdrant redis caddy resto ellie api frontend`,

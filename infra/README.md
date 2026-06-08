@@ -84,7 +84,7 @@ seeded test data, etc.:
 | redis | one redis container + acl file | PR open → close |
 | qdrant cloud | one `QDRANT_COLLECTION` named `..._pr_<n>` | PR open → close |
 | clickhouse | one database `pr_<n>` | PR open → close |
-| s3 | one `S3_PREFIX=preview/pr-<n>` under the shared bucket | PR open → close |
+| s3 | one `S3_KEY_PREFIX=preview/pr-<n>` under the shared bucket | PR open → close |
 
 Per commit, `sfctl preview deploy` is an idempotent upsert: it reuses
 existing mysql/redis containers + credentials, runs pending migrations
@@ -168,6 +168,9 @@ strings back to the GitHub secrets used by the API deploy.
 | `DIARIZE_API_KEY` | api | `DIARIZE_API_KEY` |
 | `TWELVELABS_API_KEY` | api | `TWELVELABS_API_KEY` |
 | `SF_VOICE_SECRETS_KEY` | api | `SF_VOICE_SECRETS_KEY` |
+| `AGENTMAIL_API_KEY` | api | `AGENTMAIL_API_KEY` |
+| `AGENTMAIL_INBOX_ID` | api | `AGENTMAIL_INBOX_ID` |
+| `AGENTMAIL_API_BASE` | api | `AGENTMAIL_API_BASE` |
 | `SF_VOICE_APP_URL` | api | `SF_VOICE_APP_URL` |
 | `SF_VOICE_SKIP_AWS_VERIFY` | api | `SF_VOICE_SKIP_AWS_VERIFY` |
 | `SF_VOICE_AWS_PRINCIPAL` | api | `SF_VOICE_AWS_PRINCIPAL` |
