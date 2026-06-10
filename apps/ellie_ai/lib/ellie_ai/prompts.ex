@@ -215,23 +215,30 @@ defmodule EllieAi.Prompts do
   @doc """
   re-render from Memory's current state. used at the 13-min session
   refresh so the rolling transcript flows into the new instructions.
+
+  scammer legs (set via `Memory.scammer_script/1`) keep their canned
+  persona prompt — they don't get the org/restaurant template.
   """
   @spec re_render!(String.t()) :: :ok
   def re_render!(ccid) when is_binary(ccid) do
-    case Memory.org() do
-      %Org{} = org ->
-        ctx = %{
-          customer: Memory.customer(ccid),
-          customer_intro: Memory.customer_intro(ccid),
-          call_history: Memory.call_history(ccid),
-          reservations: Memory.reservations(ccid),
-          transcript: Memory.transcript(ccid)
-        }
+    if Memory.scammer_script(ccid) do
+      :ok
+    else
+      case Memory.org() do
+        %Org{} = org ->
+          ctx = %{
+            customer: Memory.customer(ccid),
+            customer_intro: Memory.customer_intro(ccid),
+            call_history: Memory.call_history(ccid),
+            reservations: Memory.reservations(ccid),
+            transcript: Memory.transcript(ccid)
+          }
 
-        write_rendered_prompt(org, ccid, ctx)
+          write_rendered_prompt(org, ccid, ctx)
 
-      _ ->
-        :ok
+        _ ->
+          :ok
+      end
     end
   end
 
