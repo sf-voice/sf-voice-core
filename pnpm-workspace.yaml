@@ -1,8 +1,6 @@
-# pnpm workspace root for the sf-voice monorepo. JS packages live under
-# core/ and apps/. elixir/, rust/, and cpp/ are separate ecosystems — pnpm ignores them.
+# parent workspace: sdk + prototype apps only.
+# core/frontend has its own pnpm workspace in core/pnpm-workspace.yaml.
 packages:
-  - "core/frontend"
-  - "core/*"
   - "ts/sdk"
   - "apps/fraud-prototype"
   - "apps/fifteenlabs"

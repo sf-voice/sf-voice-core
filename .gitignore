@@ -104,3 +104,8 @@ report.md
 # java and kotlin
 **/.gradle/
 **/build/
+
+# elixir
+.hex
+.mix
+.ropeproject
