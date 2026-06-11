@@ -12,3 +12,8 @@
 **What didn't work:** Running `python3 -m unittest discover -s tests` with the system Python failed because `httpx` was not installed. Retrying with `UV_CACHE_DIR=/private/tmp/sfvoice-uv-cache UV_OFFLINE=1 uv run ...` failed because that temp cache did not contain `httpx`; retrying against the default uv cache failed because the sandbox could not open files under `~/.cache/uv`.
 **What worked:** Run tests with system Python and a read-only `PYTHONPATH` composed from the unpacked uv archive cache entries for `httpx`, `httpcore`, `anyio`, `certifi`, `idna`, `sniffio`, and `h11`.
 **Note for next time:** This verifies the SDK tests without network access or cache writes. Prefer a real editable install outside the restricted sandbox when possible.
+
+## GitHub secret copy with local gh version
+**What didn't work:** Running the secret-copy loop under zsh failed on bash-style indirect expansion (`${!name}`). Retrying under bash with `gh secret set --body-file -` failed because this installed `gh` does not support `--body-file`.
+**What worked:** Run the loop under bash and pipe each value on stdin to `gh secret set NAME --repo OWNER/REPO` with no `--body` flag; this `gh` version reads the secret body from stdin.
+**Note for next time:** Check `gh secret set --help` before choosing flags. Avoid `--body "$value"` because it puts secret values in the process command line.
