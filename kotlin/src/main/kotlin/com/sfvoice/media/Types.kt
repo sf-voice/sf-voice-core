@@ -2,6 +2,7 @@ package com.sfvoice.media
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 // ── enums ─────────────────────────────────────────────────────────────────
 
@@ -120,6 +121,63 @@ data class SearchResult(
 data class SearchResponse(
     val results: List<SearchResult>,
     @SerialName("page_info") val pageInfo: PageInfo,
+)
+
+// ── monitors ─────────────────────────────────────────────────────────────
+
+@Serializable
+data class Monitor(
+    val id: String,
+    val slug: String,
+    val text: String,
+    val threshold: Float,
+    val enabled: Boolean,
+    @SerialName("created_at") val createdAt: String,
+    @SerialName("updated_at") val updatedAt: String,
+    @SerialName("project_id") val projectId: String? = null,
+    @SerialName("asset_class") val assetClass: String? = null,
+)
+
+@Serializable
+data class MonitorListResponse(
+    val items: List<Monitor>,
+    val total: Long,
+)
+
+@Serializable
+data class CreateMonitorRequest(
+    val text: String,
+    val slug: String? = null,
+    @SerialName("project_id") val projectId: String? = null,
+    @SerialName("asset_class") val assetClass: String? = null,
+    val threshold: Float? = null,
+)
+
+@Serializable
+data class UpdateMonitorRequest(
+    val text: String? = null,
+    @SerialName("asset_class") val assetClass: String? = null,
+    val threshold: Float? = null,
+    val enabled: Boolean? = null,
+)
+
+@Serializable
+data class MonitorEvent(
+    val id: String,
+    @SerialName("monitor_id") val monitorId: String,
+    @SerialName("document_id") val documentId: String,
+    val matched: Boolean,
+    @SerialName("webhook_sent") val webhookSent: Boolean,
+    @SerialName("created_at") val createdAt: String,
+    @SerialName("asset_id") val assetId: String? = null,
+    val score: Float? = null,
+    @SerialName("match_detail") val matchDetail: JsonObject? = null,
+)
+
+@Serializable
+data class MonitorEventListResponse(
+    val items: List<MonitorEvent>,
+    val total: Long,
 )
 
 // ── error envelope ────────────────────────────────────────────────────────

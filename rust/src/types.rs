@@ -361,3 +361,122 @@ pub struct SearchResponse {
     pub results: Vec<SearchResult>,
     pub page_info: PageInfo,
 }
+
+// ─── monitors ───────────────────────────────────────────────────────────────
+
+/// request body for `POST /v1/monitors`.
+/// use `CreateMonitorRequest::new(text)` then chain optional setters.
+#[derive(Debug, Clone, Serialize)]
+pub struct CreateMonitorRequest {
+    pub text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slug: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub asset_class: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub threshold: Option<f32>,
+}
+
+impl CreateMonitorRequest {
+    /// create a monitor request with the given text and all optional fields unset.
+    pub fn new(text: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            slug: None,
+            project_id: None,
+            asset_class: None,
+            threshold: None,
+        }
+    }
+
+    pub fn slug(mut self, slug: impl Into<String>) -> Self {
+        self.slug = Some(slug.into());
+        self
+    }
+
+    pub fn project_id(mut self, project_id: impl Into<String>) -> Self {
+        self.project_id = Some(project_id.into());
+        self
+    }
+
+    pub fn asset_class(mut self, asset_class: impl Into<String>) -> Self {
+        self.asset_class = Some(asset_class.into());
+        self
+    }
+
+    pub fn threshold(mut self, threshold: f32) -> Self {
+        self.threshold = Some(threshold);
+        self
+    }
+}
+
+/// request body for `PATCH /v1/monitors/:id`.
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct UpdateMonitorRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub threshold: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub asset_class: Option<String>,
+}
+
+/// a single monitor resource.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Monitor {
+    pub id: String,
+    pub slug: String,
+    pub text: String,
+    #[serde(default)]
+    pub project_id: Option<String>,
+    #[serde(default)]
+    pub asset_class: Option<String>,
+    pub threshold: f32,
+    pub enabled: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// response envelope for `GET /v1/monitors`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct MonitorListResponse {
+    pub items: Vec<Monitor>,
+    pub total: u64,
+}
+
+/// a single monitor event (match evaluation result).
+#[derive(Debug, Clone, Deserialize)]
+pub struct MonitorEvent {
+    pub id: String,
+    pub monitor_id: String,
+    pub document_id: String,
+    #[serde(default)]
+    pub asset_id: Option<String>,
+    pub matched: bool,
+    #[serde(default)]
+    pub score: Option<f32>,
+    pub webhook_sent: bool,
+    #[serde(default)]
+    pub match_detail: Option<serde_json::Value>,
+    pub created_at: String,
+}
+
+/// response envelope for `GET /v1/monitors/:id/events`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct MonitorEventListResponse {
+    pub items: Vec<MonitorEvent>,
+    pub total: u64,
+}
+
+/// options for the high-level `alert()` convenience method.
+#[derive(Debug, Clone, Default)]
+pub struct AlertOptions {
+    pub slug: Option<String>,
+    pub project_id: Option<String>,
+    pub asset_class: Option<String>,
+    pub threshold: Option<f32>,
+}

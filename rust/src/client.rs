@@ -3,6 +3,9 @@
 //! construct once, reuse across tasks. the underlying `reqwest::Client`
 //! connection pool is shared, so cloning is cheap.
 
+use std::collections::HashSet;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use reqwest::{header, Client, StatusCode};
@@ -11,8 +14,9 @@ use tokio::time::Instant;
 use crate::{
     error::SfVoiceMediaError,
     types::{
-        Asset, AssetListResponse, IngestRequest, IngestResponse, SearchRequest, SearchResponse,
-        Task,
+        AlertOptions, Asset, AssetListResponse, CreateMonitorRequest, IngestRequest,
+        IngestResponse, Monitor, MonitorEvent, MonitorEventListResponse, MonitorListResponse,
+        SearchRequest, SearchResponse, Task, UpdateMonitorRequest,
     },
 };
 
@@ -322,5 +326,171 @@ impl SfVoiceMedia {
             .await?;
 
         Ok(Self::check(response).await?.json().await?)
+    }
+
+    // ─── monitors ────────────────────────────────────────────────────────────
+
+    /// Create a new monitor.
+    pub async fn create_monitor(
+        &self,
+        request: &CreateMonitorRequest,
+    ) -> Result<Monitor, SfVoiceMediaError> {
+        let response = self
+            .http
+            .post(self.url("/v1/monitors"))
+            .json(request)
+            .send()
+            .await?;
+
+        Ok(Self::check(response).await?.json().await?)
+    }
+
+    /// List all monitors.
+    pub async fn list_monitors(&self) -> Result<MonitorListResponse, SfVoiceMediaError> {
+        let response = self.http.get(self.url("/v1/monitors")).send().await?;
+
+        Ok(Self::check(response).await?.json().await?)
+    }
+
+    /// Fetch a single monitor by ID.
+    pub async fn get_monitor(
+        &self,
+        monitor_id: impl Into<String>,
+    ) -> Result<Monitor, SfVoiceMediaError> {
+        let response = self
+            .http
+            .get(self.url(&format!("/v1/monitors/{}", monitor_id.into())))
+            .send()
+            .await?;
+
+        Ok(Self::check(response).await?.json().await?)
+    }
+
+    /// Update a monitor's fields (text, threshold, enabled, asset_class).
+    pub async fn update_monitor(
+        &self,
+        monitor_id: impl Into<String>,
+        request: &UpdateMonitorRequest,
+    ) -> Result<Monitor, SfVoiceMediaError> {
+        let response = self
+            .http
+            .patch(self.url(&format!("/v1/monitors/{}", monitor_id.into())))
+            .json(request)
+            .send()
+            .await?;
+
+        Ok(Self::check(response).await?.json().await?)
+    }
+
+    /// Delete a monitor by ID.
+    pub async fn delete_monitor(
+        &self,
+        monitor_id: impl Into<String>,
+    ) -> Result<(), SfVoiceMediaError> {
+        let response = self
+            .http
+            .delete(self.url(&format!("/v1/monitors/{}", monitor_id.into())))
+            .send()
+            .await?;
+
+        Self::check(response).await?;
+        Ok(())
+    }
+
+    /// List events for a monitor with optional filtering and pagination.
+    pub async fn list_monitor_events(
+        &self,
+        monitor_id: impl Into<String>,
+        matched_only: Option<bool>,
+        limit: Option<u64>,
+        offset: Option<u64>,
+    ) -> Result<MonitorEventListResponse, SfVoiceMediaError> {
+        let mut request = self
+            .http
+            .get(self.url(&format!("/v1/monitors/{}/events", monitor_id.into())));
+
+        if let Some(v) = matched_only {
+            request = request.query(&[("matched_only", v.to_string())]);
+        }
+        if let Some(v) = limit {
+            request = request.query(&[("limit", v.to_string())]);
+        }
+        if let Some(v) = offset {
+            request = request.query(&[("offset", v.to_string())]);
+        }
+
+        let response = request.send().await?;
+        Ok(Self::check(response).await?.json().await?)
+    }
+
+    /// High-level convenience: create a monitor, poll for matched events,
+    /// invoke the callback for each new match, and clean up on stop.
+    ///
+    /// Returns an `AlertHandle` whose `stop()` method cancels polling and
+    /// deletes the monitor.
+    pub async fn alert(
+        &self,
+        text: &str,
+        callback: impl Fn(MonitorEvent) + Send + 'static,
+        interval: Duration,
+        opts: AlertOptions,
+    ) -> Result<AlertHandle, SfVoiceMediaError> {
+        let mut req = CreateMonitorRequest::new(text);
+        req.slug = opts.slug;
+        req.project_id = opts.project_id;
+        req.asset_class = opts.asset_class;
+        req.threshold = opts.threshold;
+
+        let monitor = self.create_monitor(&req).await?;
+        let monitor_id = monitor.id.clone();
+
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        let flag_clone = Arc::clone(&stop_flag);
+        let client_clone = self.clone();
+        let mid = monitor_id.clone();
+
+        let task = tokio::spawn(async move {
+            let mut seen: HashSet<String> = HashSet::new();
+
+            while !flag_clone.load(Ordering::Relaxed) {
+                if let Ok(resp) = client_clone
+                    .list_monitor_events(&mid, Some(true), Some(100), None)
+                    .await
+                {
+                    for event in resp.items {
+                        if seen.insert(event.id.clone()) {
+                            callback(event);
+                        }
+                    }
+                }
+                tokio::time::sleep(interval).await;
+            }
+        });
+
+        Ok(AlertHandle {
+            monitor_id,
+            stop_flag,
+            task,
+            client: self.clone(),
+        })
+    }
+}
+
+/// handle returned by `SfVoiceMedia::alert()`. call `stop()` to cancel
+/// polling and delete the underlying monitor.
+pub struct AlertHandle {
+    pub monitor_id: String,
+    stop_flag: Arc<AtomicBool>,
+    task: tokio::task::JoinHandle<()>,
+    client: SfVoiceMedia,
+}
+
+impl AlertHandle {
+    /// stop polling and delete the monitor. consumes the handle.
+    pub async fn stop(self) -> Result<(), SfVoiceMediaError> {
+        self.stop_flag.store(true, Ordering::Relaxed);
+        let _ = self.task.await;
+        self.client.delete_monitor(&self.monitor_id).await.ok();
+        Ok(())
     }
 }

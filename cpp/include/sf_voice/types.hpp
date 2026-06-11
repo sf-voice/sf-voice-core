@@ -240,6 +240,102 @@ inline void from_json(const nlohmann::json& j, SearchResponse& r) {
     else r.page_info = j.get<PageInfo>();
 }
 
+// ── monitors ──────────────────────────────────────────────────────────
+
+struct CreateMonitorRequest {
+    std::string text;
+    std::optional<std::string> slug;
+    std::optional<std::string> project_id;
+    std::optional<std::string> asset_class;
+    std::optional<float> threshold;
+};
+
+inline nlohmann::json to_json(const CreateMonitorRequest& req) {
+    nlohmann::json j;
+    j["text"] = req.text;
+    if (req.slug)        j["slug"]        = *req.slug;
+    if (req.project_id)  j["project_id"]  = *req.project_id;
+    if (req.asset_class) j["asset_class"] = *req.asset_class;
+    if (req.threshold)   j["threshold"]   = *req.threshold;
+    return j;
+}
+
+struct UpdateMonitorRequest {
+    std::optional<std::string> text;
+    std::optional<float> threshold;
+    std::optional<bool> enabled;
+    std::optional<std::string> asset_class;
+};
+
+inline nlohmann::json to_json(const UpdateMonitorRequest& req) {
+    nlohmann::json j;
+    if (req.text)        j["text"]        = *req.text;
+    if (req.threshold)   j["threshold"]   = *req.threshold;
+    if (req.enabled)     j["enabled"]     = *req.enabled;
+    if (req.asset_class) j["asset_class"] = *req.asset_class;
+    return j;
+}
+
+struct Monitor {
+    std::string id, slug, text, created_at, updated_at;
+    std::optional<std::string> project_id, asset_class;
+    float threshold = 0.7f;
+    bool enabled = true;
+};
+
+inline void from_json(const nlohmann::json& j, Monitor& m) {
+    j.at("id").get_to(m.id);
+    j.at("slug").get_to(m.slug);
+    j.at("text").get_to(m.text);
+    j.at("created_at").get_to(m.created_at);
+    j.at("updated_at").get_to(m.updated_at);
+    if (j.contains("project_id")  && !j["project_id"].is_null())  m.project_id  = j["project_id"].get<std::string>();
+    if (j.contains("asset_class") && !j["asset_class"].is_null()) m.asset_class = j["asset_class"].get<std::string>();
+    if (j.contains("threshold"))  j.at("threshold").get_to(m.threshold);
+    if (j.contains("enabled"))    j.at("enabled").get_to(m.enabled);
+}
+
+struct MonitorListResponse {
+    std::vector<Monitor> items;
+    int64_t total = 0;
+};
+
+inline void from_json(const nlohmann::json& j, MonitorListResponse& r) {
+    j.at("items").get_to(r.items);
+    if (j.contains("total")) j.at("total").get_to(r.total);
+}
+
+struct MonitorEvent {
+    std::string id, monitor_id, document_id, created_at;
+    std::optional<std::string> asset_id;
+    bool matched = false;
+    std::optional<float> score;
+    bool webhook_sent = false;
+    nlohmann::json match_detail;
+};
+
+inline void from_json(const nlohmann::json& j, MonitorEvent& e) {
+    j.at("id").get_to(e.id);
+    j.at("monitor_id").get_to(e.monitor_id);
+    j.at("document_id").get_to(e.document_id);
+    j.at("created_at").get_to(e.created_at);
+    if (j.contains("asset_id")      && !j["asset_id"].is_null())      e.asset_id      = j["asset_id"].get<std::string>();
+    if (j.contains("matched"))       j.at("matched").get_to(e.matched);
+    if (j.contains("score")         && !j["score"].is_null())         e.score         = j["score"].get<float>();
+    if (j.contains("webhook_sent"))  j.at("webhook_sent").get_to(e.webhook_sent);
+    if (j.contains("match_detail")  && !j["match_detail"].is_null()) e.match_detail  = j["match_detail"];
+}
+
+struct MonitorEventListResponse {
+    std::vector<MonitorEvent> items;
+    int64_t total = 0;
+};
+
+inline void from_json(const nlohmann::json& j, MonitorEventListResponse& r) {
+    j.at("items").get_to(r.items);
+    if (j.contains("total")) j.at("total").get_to(r.total);
+}
+
 // placeholder for 204 No Content responses
 struct Empty {};
 

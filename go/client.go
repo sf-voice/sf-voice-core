@@ -193,3 +193,143 @@ func (c *Client) PollTask(ctx context.Context, taskID string, intervalMs, timeou
 		}
 	}
 }
+
+// ── monitors ─────────────────────────────────────────────────────────────
+
+// CreateMonitor creates a new monitor.
+func (c *Client) CreateMonitor(ctx context.Context, req CreateMonitorRequest) (Monitor, error) {
+	var out Monitor
+	return out, c.do(ctx, http.MethodPost, "/v1/monitors", req, &out)
+}
+
+// ListMonitors returns all monitors for the current API key.
+func (c *Client) ListMonitors(ctx context.Context) (MonitorListResponse, error) {
+	var out MonitorListResponse
+	return out, c.do(ctx, http.MethodGet, "/v1/monitors", nil, &out)
+}
+
+// GetMonitor fetches a single monitor by ID.
+func (c *Client) GetMonitor(ctx context.Context, monitorID string) (Monitor, error) {
+	var out Monitor
+	return out, c.do(ctx, http.MethodGet, "/v1/monitors/"+url.PathEscape(monitorID), nil, &out)
+}
+
+// UpdateMonitor patches an existing monitor.
+func (c *Client) UpdateMonitor(ctx context.Context, monitorID string, req UpdateMonitorRequest) (Monitor, error) {
+	var out Monitor
+	return out, c.do(ctx, http.MethodPatch, "/v1/monitors/"+url.PathEscape(monitorID), req, &out)
+}
+
+// DeleteMonitor deletes a monitor by ID. Returns nil on success.
+func (c *Client) DeleteMonitor(ctx context.Context, monitorID string) error {
+	return c.do(ctx, http.MethodDelete, "/v1/monitors/"+url.PathEscape(monitorID), nil, nil)
+}
+
+// ListMonitorEvents returns a paginated list of events for a monitor.
+// Set matchedOnly to true to only return matched events.
+func (c *Client) ListMonitorEvents(ctx context.Context, monitorID string, matchedOnly bool, limit, offset int) (MonitorEventListResponse, error) {
+	q := url.Values{}
+	if matchedOnly {
+		q.Set("matched_only", "true")
+	}
+	if limit > 0 {
+		q.Set("limit", strconv.Itoa(limit))
+	}
+	if offset > 0 {
+		q.Set("offset", strconv.Itoa(offset))
+	}
+	path := "/v1/monitors/" + url.PathEscape(monitorID) + "/events"
+	if encoded := q.Encode(); encoded != "" {
+		path += "?" + encoded
+	}
+	var out MonitorEventListResponse
+	return out, c.do(ctx, http.MethodGet, path, nil, &out)
+}
+
+// ── alert (high-level convenience) ───────────────────────────────────────
+
+// AlertHandle is returned by Alert and lets the caller stop polling
+// and clean up the underlying monitor.
+type AlertHandle struct {
+	MonitorID string
+	cancel    context.CancelFunc
+	done      chan struct{}
+	client    *Client
+}
+
+// Stop cancels the polling goroutine, waits for it to exit, and
+// best-effort deletes the monitor that was created by Alert.
+func (h *AlertHandle) Stop() error {
+	h.cancel()
+	<-h.done
+	// best-effort delete the monitor
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = h.client.DeleteMonitor(ctx, h.MonitorID)
+	return nil
+}
+
+// Alert creates a monitor for text and polls for matched events,
+// calling callback on each new match. The polling goroutine runs until
+// the returned AlertHandle is stopped or the context is cancelled.
+func (c *Client) Alert(ctx context.Context, text string, callback func(MonitorEvent), opts AlertOptions) (*AlertHandle, error) {
+	req := CreateMonitorRequest{
+		Text:       text,
+		Slug:       opts.Slug,
+		ProjectID:  opts.ProjectID,
+		AssetClass: opts.AssetClass,
+		Threshold:  opts.Threshold,
+	}
+
+	mon, err := c.CreateMonitor(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	intervalMs := opts.IntervalMs
+	if intervalMs <= 0 {
+		intervalMs = 5000
+	}
+	interval := time.Duration(intervalMs) * time.Millisecond
+
+	childCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+
+	handle := &AlertHandle{
+		MonitorID: mon.ID,
+		cancel:    cancel,
+		done:      done,
+		client:    c,
+	}
+
+	go func() {
+		defer close(done)
+		seen := make(map[string]bool)
+
+		for {
+			resp, err := c.ListMonitorEvents(childCtx, mon.ID, true, 50, 0)
+			if err != nil {
+				// context cancelled means we're shutting down
+				if childCtx.Err() != nil {
+					return
+				}
+				// transient error — keep polling
+			} else {
+				for _, ev := range resp.Items {
+					if !seen[ev.ID] {
+						seen[ev.ID] = true
+						callback(ev)
+					}
+				}
+			}
+
+			select {
+			case <-childCtx.Done():
+				return
+			case <-time.After(interval):
+			}
+		}
+	}()
+
+	return handle, nil
+}

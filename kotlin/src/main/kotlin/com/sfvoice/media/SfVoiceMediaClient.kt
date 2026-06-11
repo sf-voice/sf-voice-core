@@ -8,7 +8,7 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.*
 import kotlinx.serialization.json.Json
 
 /**
@@ -187,6 +187,172 @@ class SfVoiceMediaClient(
         }
     }
 
+    // ── monitors ────────────────────────────────────────────────────────────
+
+    /**
+     * Creates a new monitor that watches for content matching the given text.
+     *
+     * @param request The monitor definition including search text and optional filters.
+     * @return The created Monitor.
+     */
+    suspend fun createMonitor(request: CreateMonitorRequest): Monitor {
+        val response = http.post("$baseUrl/v1/monitors") {
+            header("X-API-Key", apiKey)
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }
+        response.throwIfError()
+        return response.body()
+    }
+
+    /**
+     * Lists all monitors owned by this API key.
+     *
+     * @return A MonitorListResponse containing the monitors and total count.
+     */
+    suspend fun listMonitors(): MonitorListResponse {
+        val response = http.get("$baseUrl/v1/monitors") {
+            header("X-API-Key", apiKey)
+        }
+        response.throwIfError()
+        return response.body()
+    }
+
+    /**
+     * Retrieves a single monitor by its identifier.
+     *
+     * @param monitorId The ID of the monitor to fetch.
+     * @return The requested Monitor.
+     */
+    suspend fun getMonitor(monitorId: String): Monitor {
+        val response = http.get("$baseUrl/v1/monitors/$monitorId") {
+            header("X-API-Key", apiKey)
+        }
+        response.throwIfError()
+        return response.body()
+    }
+
+    /**
+     * Partially updates an existing monitor.
+     *
+     * Only fields present in [request] are modified; omitted fields remain unchanged.
+     *
+     * @param monitorId The ID of the monitor to update.
+     * @param request The fields to patch.
+     * @return The updated Monitor.
+     */
+    suspend fun updateMonitor(monitorId: String, request: UpdateMonitorRequest): Monitor {
+        val response = http.patch("$baseUrl/v1/monitors/$monitorId") {
+            header("X-API-Key", apiKey)
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }
+        response.throwIfError()
+        return response.body()
+    }
+
+    /**
+     * Deletes a monitor by its identifier.
+     *
+     * @param monitorId The ID of the monitor to delete.
+     */
+    suspend fun deleteMonitor(monitorId: String) {
+        val response = http.delete("$baseUrl/v1/monitors/$monitorId") {
+            header("X-API-Key", apiKey)
+        }
+        response.throwIfError()
+    }
+
+    /**
+     * Lists events for a monitor with optional filtering and pagination.
+     *
+     * @param monitorId The ID of the monitor whose events to list.
+     * @param matchedOnly When true, only return events where matched is true.
+     * @param limit Maximum number of events to return.
+     * @param offset Number of events to skip for pagination.
+     * @return A MonitorEventListResponse containing events and total count.
+     */
+    suspend fun listMonitorEvents(
+        monitorId: String,
+        matchedOnly: Boolean = false,
+        limit: Int = 50,
+        offset: Int = 0,
+    ): MonitorEventListResponse {
+        val response = http.get("$baseUrl/v1/monitors/$monitorId/events") {
+            header("X-API-Key", apiKey)
+            parameter("matched_only", matchedOnly)
+            parameter("limit", limit)
+            parameter("offset", offset)
+        }
+        response.throwIfError()
+        return response.body()
+    }
+
+    /**
+     * Creates a monitor and polls it for matching events in the background.
+     *
+     * Returns an [AlertHandle] that can be used to stop polling and clean up the monitor.
+     * The [callback] is invoked for each new matched event as it appears.
+     *
+     * ```kotlin
+     * val handle = client.alert("breaking news about AI") { event ->
+     *     println("match: score=${event.score}")
+     * }
+     * // ... later
+     * handle.stop()
+     * ```
+     *
+     * @param text The search text for the monitor.
+     * @param callback Invoked for each new matched MonitorEvent.
+     * @param slug Optional slug for the monitor.
+     * @param projectId Optional project ID filter.
+     * @param assetClass Optional asset class filter.
+     * @param threshold Optional similarity threshold.
+     * @param intervalMs Milliseconds between polls.
+     * @return An AlertHandle to control the background polling.
+     */
+    suspend fun alert(
+        text: String,
+        callback: (MonitorEvent) -> Unit,
+        slug: String? = null,
+        projectId: String? = null,
+        assetClass: String? = null,
+        threshold: Float? = null,
+        intervalMs: Long = 5_000L,
+    ): AlertHandle {
+        val monitor = createMonitor(
+            CreateMonitorRequest(
+                text = text,
+                slug = slug,
+                projectId = projectId,
+                assetClass = assetClass,
+                threshold = threshold,
+            )
+        )
+
+        val seen = mutableSetOf<String>()
+        val job = CoroutineScope(Dispatchers.Default).launch {
+            while (isActive) {
+                delay(intervalMs)
+                val events = runCatching {
+                    listMonitorEvents(monitor.id, matchedOnly = true)
+                }.getOrNull() ?: continue
+
+                for (event in events.items) {
+                    if (seen.add(event.id)) {
+                        callback(event)
+                    }
+                }
+            }
+        }
+
+        return AlertHandle(
+            monitorId = monitor.id,
+            job = job,
+            client = this,
+        )
+    }
+
     /**
      * Releases resources held by this client.
      *
@@ -194,5 +360,27 @@ class SfVoiceMediaClient(
      */
     override fun close() {
         http.close()
+    }
+}
+
+/**
+ * Handle returned by [SfVoiceMediaClient.alert] to control background polling.
+ *
+ * Call [stop] to cancel the polling coroutine and delete the underlying monitor.
+ */
+class AlertHandle(
+    val monitorId: String,
+    private val job: Job,
+    private val client: SfVoiceMediaClient,
+) {
+    /**
+     * Cancels the background polling and attempts to delete the monitor.
+     *
+     * The monitor deletion is best-effort; failures are silently ignored.
+     */
+    suspend fun stop() {
+        job.cancel()
+        job.join()
+        runCatching { client.deleteMonitor(monitorId) }
     }
 }

@@ -30,17 +30,24 @@ bun install @sf-voice/media@latest
 import { SfVoiceMedia } from "@sf-voice/media";
 
 const client = new SfVoiceMedia({
-  baseUrl: "https://api.sf-voice.com",
   apiKey: process.env.SF_VOICE_API_KEY!,
-  timeoutMs: 30_000,
 });
 ```
 
 | Option | Required | Description |
 |---|---:|---|
-| `baseUrl` | yes | Base URL for the sf-voice media API. |
 | `apiKey` | yes | API key sent as the `X-API-Key` header. |
+| `baseUrl` | no | Base URL for the sf-voice media API. Defaults to `SF_VOICE_BASE_URL` env var, then `https://api.sf-voice.com`. |
 | `timeoutMs` | no | Per-request timeout in milliseconds. Defaults to `30_000`. |
+
+To point the client at a local server, set `SF_VOICE_BASE_URL=http://localhost:8080` in your environment — no code change needed. Or pass it explicitly:
+
+```ts
+const client = new SfVoiceMedia({
+  apiKey: "...",
+  baseUrl: "http://localhost:8080",
+});
+```
 
 ## Core Concepts
 
@@ -58,7 +65,6 @@ const client = new SfVoiceMedia({
 import { SfVoiceMedia, SfVoiceMediaError } from "@sf-voice/media";
 
 const client = new SfVoiceMedia({
-  baseUrl: "https://api.sf-voice.com",
   apiKey: process.env.SF_VOICE_API_KEY!,
 });
 
@@ -129,6 +135,8 @@ Common fields:
 | `media_type` | no | `"video"` or `"audio"`. |
 | `types` | no | Surfaces to index: `"video"`, `"audio"`, `"transcript"`. |
 | `metadata` | no | Flat key/value metadata for your own correlation. |
+| `prefix` | no | Knowledge-bank namespace. Routes the asset through the native transcript pipeline (whisper + local embeddings). Must be 1–128 chars, letters/numbers/hyphens/underscores only. |
+| `transcript_only` | no | When `true`, skips TwelveLabs entirely and uses the native pipeline. Requires `prefix`. |
 
 Source-specific fields:
 
@@ -180,6 +188,36 @@ const ingest = await client.ingest({
   media_type: "video",
   types: ["video", "audio", "transcript"],
 });
+```
+
+### Native Transcript Pipeline
+
+When `prefix` is set (and optionally `transcript_only: true`), the asset is routed through the local whisper + embedding pipeline instead of TwelveLabs. All assets under the same prefix share a Qdrant collection scoped to your org.
+
+```ts
+const ingest = await client.ingest({
+  source: "file",
+  asset_id: "call_2026_001",
+  file,
+  filename: "call.mp3",
+  media_type: "audio",
+  prefix: "support-calls",
+  transcript_only: true,
+});
+```
+
+Search the prefix with a native query to get back results with matched transcript text:
+
+```ts
+const results = await client.search({
+  query: "customer mentioned a billing issue",
+  prefix: "support-calls",
+});
+
+for (const r of results.results) {
+  // r.text contains the matched transcript segment
+  console.log(r.asset_id, r.text);
+}
 ```
 
 ### Ingest Output
@@ -268,6 +306,7 @@ const search = await client.search({
 | `asset_ids` | no | Restrict search to specific customer asset ids. |
 | `asset_class` | no | Restrict search to one logical group. Recommended for customer-scoped search. |
 | `scope` | no | Set to `"all"` only when intentionally searching across every asset. |
+| `prefix` | no | Search the native Qdrant collection for this prefix instead of TwelveLabs. Results include a `text` field with the matched transcript segment. |
 | `threshold` | no | Minimum match score from `0.0` to `1.0`. Defaults to the API default. |
 | `page` | no | Page number. |
 | `limit` | no | Max results per page. |
@@ -313,6 +352,7 @@ type SearchResponse = {
     end_ms: number;
     match_type: "video" | "audio" | "transcript";
     thumbnail_url?: string;
+    text?: string; // only present on native prefix searches
   }>;
   page_info: {
     total: number;
@@ -342,6 +382,18 @@ Example:
     "page": 1,
     "limit": 10
   }
+}
+```
+
+## Prefixes
+
+`listPrefixes()` returns all native-pipeline prefixes the org has used. `owned_by_caller` is `true` when the prefix was first created by the current API key.
+
+```ts
+const { items } = await client.listPrefixes();
+
+for (const p of items) {
+  console.log(p.prefix, p.owned_by_caller);
 }
 ```
 
@@ -433,6 +485,7 @@ client.listAssets(params?): Promise<AssetListResponse>
 client.getAsset(assetId): Promise<Asset>
 client.deleteAsset(assetId): Promise<void>
 client.search(request): Promise<SearchResponse>
+client.listPrefixes(): Promise<PrefixListResponse>
 ```
 
 ## Examples

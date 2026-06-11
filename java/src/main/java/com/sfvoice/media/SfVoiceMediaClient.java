@@ -10,6 +10,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * blocking HTTP client for the sf-voice media API.
@@ -78,7 +81,7 @@ public class SfVoiceMediaClient {
 
         HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
 
-        if (response.statusCode() == 204) {
+        if (response.statusCode() == 204 || responseType == Void.class) {
             return null;
         }
 
@@ -239,6 +242,232 @@ public class SfVoiceMediaClient {
             .build();
         return execute(req, SearchResponse.class);
     }
+
+    // ── monitors ──────────────────────────────────────────────────────────
+
+    /**
+     * Create a new monitor.
+     *
+     * @param request the monitor creation payload
+     * @return the created Monitor
+     * @throws SfVoiceMediaException if the API responds with an error status
+     * @throws IOException if an I/O error occurs sending the request or reading the response
+     * @throws InterruptedException if the operation is interrupted while waiting for the HTTP response
+     */
+    public Monitor createMonitor(CreateMonitorRequest request)
+            throws SfVoiceMediaException, IOException, InterruptedException {
+
+        HttpRequest req = baseRequest("/v1/monitors")
+            .POST(HttpRequest.BodyPublishers.ofString(toJson(request)))
+            .build();
+        return execute(req, Monitor.class);
+    }
+
+    /**
+     * List all monitors.
+     *
+     * @return a MonitorListResponse containing the monitors and total count
+     * @throws SfVoiceMediaException if the API responds with an error status
+     * @throws IOException if an I/O error occurs sending the request or reading the response
+     * @throws InterruptedException if the operation is interrupted while waiting for the HTTP response
+     */
+    public MonitorListResponse listMonitors()
+            throws SfVoiceMediaException, IOException, InterruptedException {
+
+        HttpRequest req = baseRequest("/v1/monitors")
+            .GET()
+            .build();
+        return execute(req, MonitorListResponse.class);
+    }
+
+    /**
+     * Retrieve a monitor by its ID.
+     *
+     * @param monitorId the monitor identifier
+     * @return the Monitor corresponding to the given monitorId
+     * @throws SfVoiceMediaException if the API returns a non-2xx HTTP status
+     * @throws IOException if an I/O error occurs sending the request or reading the response
+     * @throws InterruptedException if the thread is interrupted while waiting for the HTTP response
+     */
+    public Monitor getMonitor(String monitorId)
+            throws SfVoiceMediaException, IOException, InterruptedException {
+
+        HttpRequest req = baseRequest("/v1/monitors/" + monitorId)
+            .GET()
+            .build();
+        return execute(req, Monitor.class);
+    }
+
+    /**
+     * Partially update an existing monitor.
+     *
+     * @param monitorId the monitor identifier
+     * @param request   the fields to update (null fields are omitted from the request body)
+     * @return the updated Monitor
+     * @throws SfVoiceMediaException if the API responds with an error status
+     * @throws IOException if an I/O error occurs sending the request or reading the response
+     * @throws InterruptedException if the operation is interrupted while waiting for the HTTP response
+     */
+    public Monitor updateMonitor(String monitorId, UpdateMonitorRequest request)
+            throws SfVoiceMediaException, IOException, InterruptedException {
+
+        HttpRequest req = baseRequest("/v1/monitors/" + monitorId)
+            .method("PATCH", HttpRequest.BodyPublishers.ofString(toJson(request)))
+            .build();
+        return execute(req, Monitor.class);
+    }
+
+    /**
+     * Delete a monitor by its ID.
+     *
+     * @param monitorId the monitor identifier
+     * @throws SfVoiceMediaException if the API responds with an error status
+     * @throws IOException if an I/O error occurs sending the request or reading the response
+     * @throws InterruptedException if the thread is interrupted while waiting for the HTTP response
+     */
+    public void deleteMonitor(String monitorId)
+            throws SfVoiceMediaException, IOException, InterruptedException {
+
+        HttpRequest req = baseRequest("/v1/monitors/" + monitorId)
+            .DELETE()
+            .build();
+        execute(req, Void.class);
+    }
+
+    /**
+     * List events for a monitor with filtering and pagination.
+     *
+     * @param monitorId   the monitor identifier
+     * @param matchedOnly when true, only return events where matched is true
+     * @param limit       maximum number of events to return
+     * @param offset      number of events to skip
+     * @return a MonitorEventListResponse containing the events and total count
+     * @throws SfVoiceMediaException if the API responds with an error status
+     * @throws IOException if an I/O error occurs sending the request or reading the response
+     * @throws InterruptedException if the thread is interrupted while waiting for the HTTP response
+     */
+    public MonitorEventListResponse listMonitorEvents(
+            String monitorId, boolean matchedOnly, int limit, int offset)
+            throws SfVoiceMediaException, IOException, InterruptedException {
+
+        String path = "/v1/monitors/" + monitorId + "/events"
+            + "?matched_only=" + matchedOnly
+            + "&limit=" + limit
+            + "&offset=" + offset;
+        HttpRequest req = baseRequest(path)
+            .GET()
+            .build();
+        return execute(req, MonitorEventListResponse.class);
+    }
+
+    // ── alert convenience ────────────────────────────────────────────────
+
+    /**
+     * Create a monitor and begin polling its events in a background thread.
+     * The callback fires for each new matched event. Returns an AlertHandle
+     * that can stop polling and clean up the monitor.
+     *
+     * @param text     the monitor text (what to watch for)
+     * @param callback invoked on the polling thread for each new matched event
+     * @param opts     optional alert configuration (slug, projectId, assetClass, threshold, intervalMs)
+     * @return an AlertHandle to control and stop the background poll
+     * @throws SfVoiceMediaException if creating the monitor fails
+     * @throws IOException if an I/O error occurs creating the monitor
+     * @throws InterruptedException if the thread is interrupted while creating the monitor
+     */
+    public AlertHandle alert(String text, Consumer<MonitorEvent> callback, AlertOptions opts)
+            throws SfVoiceMediaException, IOException, InterruptedException {
+
+        CreateMonitorRequest.Builder builder = CreateMonitorRequest.text(text);
+        if (opts != null) {
+            if (opts.slug != null)       builder.slug(opts.slug);
+            if (opts.projectId != null)  builder.projectId(opts.projectId);
+            if (opts.assetClass != null) builder.assetClass(opts.assetClass);
+            if (opts.threshold != null)  builder.threshold(opts.threshold);
+        }
+
+        Monitor monitor = createMonitor(builder.build());
+        long interval = (opts != null && opts.intervalMs > 0) ? opts.intervalMs : 5000;
+
+        AlertHandle handle = new AlertHandle(monitor.getId(), this);
+        Thread poller = new Thread(() -> {
+            Set<String> seen = new HashSet<>();
+            while (!handle.stopped) {
+                try {
+                    MonitorEventListResponse resp = listMonitorEvents(
+                        handle.monitorId, true, 100, 0);
+                    for (MonitorEvent event : resp.getItems()) {
+                        if (seen.add(event.getId())) {
+                            callback.accept(event);
+                        }
+                    }
+                    Thread.sleep(interval);
+                } catch (InterruptedException e) {
+                    // stop() interrupted us — exit cleanly
+                    Thread.currentThread().interrupt();
+                    break;
+                } catch (Exception e) {
+                    // transient errors — keep polling
+                    if (handle.stopped) break;
+                    try { Thread.sleep(interval); } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+        }, "sf-voice-alert-" + monitor.getId());
+        poller.setDaemon(true);
+        poller.start();
+
+        handle.thread = poller;
+        return handle;
+    }
+
+    /**
+     * Options for {@link #alert(String, Consumer, AlertOptions)}.
+     */
+    public static class AlertOptions {
+        public String slug;
+        public String projectId;
+        public String assetClass;
+        public Float threshold;
+        /** poll interval in milliseconds, defaults to 5000 */
+        public long intervalMs = 5000;
+    }
+
+    /**
+     * Handle returned by {@link #alert(String, Consumer, AlertOptions)} to
+     * control the background polling thread and clean up the monitor.
+     */
+    public static class AlertHandle {
+        private final String monitorId;
+        private final SfVoiceMediaClient client;
+        private volatile boolean stopped = false;
+        private Thread thread;
+
+        AlertHandle(String monitorId, SfVoiceMediaClient client) {
+            this.monitorId = monitorId;
+            this.client    = client;
+        }
+
+        public String getMonitorId() { return monitorId; }
+
+        /**
+         * Stop polling and delete the monitor. Safe to call multiple times.
+         */
+        public void stop() {
+            stopped = true;
+            if (thread != null) {
+                thread.interrupt();
+                try { thread.join(5000); } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            try { client.deleteMonitor(monitorId); } catch (Exception ignored) {}
+        }
+    }
+
+    // ── poll task ─────────────────────────────────────────────────────────
 
     /**
      * Waits until the specified task reaches a terminal state.
