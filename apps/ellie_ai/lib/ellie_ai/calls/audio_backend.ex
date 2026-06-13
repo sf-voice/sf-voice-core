@@ -17,7 +17,7 @@ defmodule EllieAi.Calls.AudioBackend do
   a no-op. only the modular backend needs the new wiring.
   """
 
-  alias EllieAi.Scammer.Scripts.Script
+  alias EllieAi.Scammer.Scripts.Script, as: S
 
   @doc "true if this backend can run a call right now (config + adapters reachable)."
   @callback available?() :: boolean()
@@ -31,10 +31,14 @@ defmodule EllieAi.Calls.AudioBackend do
   `Scammer.dial/2` already populated. Modular sets up its STT/LLM/TTS
   workers.
   """
-  @callback prepare(ccid :: String.t(), Script.t()) :: :ok | {:error, term()}
+  @callback prepare(ccid :: String.t(), S.t()) :: :ok | {:error, term()}
 
   @doc "resolve a backend module from a script field."
-  @spec for(Script.t()) :: module()
-  def for(%Script{backend: :realtime}), do: __MODULE__.Realtime
-  def for(%Script{backend: :modular}), do: __MODULE__.Modular
+  @spec for(S.t()) :: module()
+  def for(script) do
+    case Map.get(script, :backend) do
+      :realtime -> __MODULE__.Realtime
+      :modular -> __MODULE__.Modular
+    end
+  end
 end

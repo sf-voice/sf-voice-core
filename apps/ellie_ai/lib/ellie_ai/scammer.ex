@@ -16,10 +16,11 @@ defmodule EllieAi.Scammer do
   hangs up this leg and dials the user back on a separate alert leg.
   """
 
-  alias EllieAi.{Calls, Orgs}
-  alias EllieAi.Calls.Memory
-  alias EllieAi.Scammer.Scripts
-  alias EllieAi.Scammer.Scripts.Script
+  alias EllieAi.{Orgs}
+  alias EllieAi.Calls, as: C
+  alias EllieAi.Calls.Memory, as: Mem
+  alias EllieAi.Scammer.Scripts, as: Scrs
+  alias EllieAi.Scammer.Scripts.Script, as: Scr
   alias EllieAi.Telnyx.Client, as: TC
 
   require Logger
@@ -32,7 +33,7 @@ defmodule EllieAi.Scammer do
   """
   @spec dial(String.t(), atom()) :: {:ok, String.t()} | {:error, term()}
   def dial(to_e164, script_id) when is_binary(to_e164) and is_atom(script_id) do
-    with %Script{} = script <- Scripts.fetch!(script_id),
+    with %Scr{} = script <- Scrs.fetch!(script_id),
          :ok <- ensure_backend_available(script),
          {:ok, from} <- from_number(),
          connection_id when is_binary(connection_id) <- connection_id(),
@@ -47,11 +48,11 @@ defmodule EllieAi.Scammer do
 
       # spawn CallTree now so Memory is populated and AudioBridge is
       # ready to take the media stream the instant call.answered fires.
-      case Calls.spawn_or_noop(org, ccid, %{"from" => from, "to" => to_e164, "scammer" => true}) do
+      case C.spawn_or_noop(org, ccid, %{"from" => from, "to" => to_e164, "scammer" => true}) do
         {:ok, _pid} ->
           install_scammer_context(ccid, script)
 
-          Calls.record_system_event(
+          C.record_system_event(
             ccid,
             "scammer",
             "scammer.dialing",
@@ -106,11 +107,11 @@ defmodule EllieAi.Scammer do
     {:error, {:permanent, "modular backend not implemented in v1 (script=#{id})"}}
   end
 
-  defp install_scammer_context(ccid, %Script{} = script) do
+  defp install_scammer_context(ccid, %Scr{} = script) do
     # overwrite the org-templated rendered_prompt with the scammer
     # persona. `Memory.scammer_script/1` is set so `Prompts.re_render!`
     # doesn't clobber us on the next turn.
-    Memory.put_call_context(ccid, %{
+    Mem.put_call_context(ccid, %{
       rendered_prompt: bake_prompt(script),
       realtime_voice: script.voice,
       scammer_script: script.id
@@ -129,8 +130,13 @@ defmodule EllieAi.Scammer do
 
   defp ensure_table do
     if :ets.whereis(@table) == :undefined do
-      :ets.new(@table, [:named_table, :public, read_concurrency: true])
+      try do
+        :ets.new(@table, [:named_table, :public, read_concurrency: true])
+      rescue
+        ArgumentError -> :ok
+      end
     end
+    :ok
   end
 
   defp remember_leg(ccid, script_id) do

@@ -13,7 +13,7 @@ defmodule EllieAi.Scammer.Scripts do
   realistic enough to exercise the heuristic + LLM detector signals.
   """
 
-  alias EllieAi.Calls.Constants
+  alias EllieAi.Calls.Constants, as: Constants
 
   defmodule Script do
     @moduledoc false

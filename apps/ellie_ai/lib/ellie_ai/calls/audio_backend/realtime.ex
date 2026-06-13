@@ -8,7 +8,7 @@ defmodule EllieAi.Calls.AudioBackend.Realtime do
 
   @behaviour EllieAi.Calls.AudioBackend
 
-  alias EllieAi.Scammer.Scripts.Script
+  alias EllieAi.Scammer.Scripts.Script, as: ScScript
 
   @impl true
   def available?, do: true
@@ -17,5 +17,5 @@ defmodule EllieAi.Calls.AudioBackend.Realtime do
   def id, do: :realtime
 
   @impl true
-  def prepare(_ccid, %Script{}), do: :ok
+  def prepare(_ccid, _script), do: :ok
 end

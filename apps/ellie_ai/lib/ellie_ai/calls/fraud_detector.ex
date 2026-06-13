@@ -19,8 +19,8 @@ defmodule EllieAi.Calls.FraudDetector do
   future `AudioFraudScorer` plugs in without rewriting the detector.
   """
 
-  alias EllieAi.{Calls, Medium, Repo}
-  alias EllieAi.Calls.{Call, FraudDetector.Heuristics, FraudResponder, Memory, TranscriptTurn}
+  alias EllieAi.{Calls, Medium}
+  alias EllieAi.Calls.{FraudDetector.Heuristics, FraudResponder, Memory, TranscriptTurn}
 
   require Logger
 
@@ -115,11 +115,8 @@ defmodule EllieAi.Calls.FraudDetector do
     end
   end
 
-  defp ccid_for_turn(%TranscriptTurn{call_id: call_id}) when is_binary(call_id) do
-    case Repo.get(Call, call_id) do
-      %Call{provider_id: ccid} -> ccid
-      _ -> nil
-    end
+  defp ccid_for_turn(%TranscriptTurn{}) do
+    Memory.ccid()
   end
 
   defp ccid_for_turn(_), do: nil

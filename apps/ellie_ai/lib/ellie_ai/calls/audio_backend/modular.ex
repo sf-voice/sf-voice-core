@@ -19,17 +19,17 @@ defmodule EllieAi.Calls.AudioBackend.Modular do
 
   @behaviour EllieAi.Calls.AudioBackend
 
-  alias EllieAi.Calls
+  alias EllieAi.Calls, as: C
   alias EllieAi.Llm.Adapter.Anthropic, as: AnthropicAdapter
   alias EllieAi.Scammer.Scripts.Script
-  alias EllieAi.Speech.Stt.KugelAudio
-  alias EllieAi.Speech.Tts.ElevenLabs
+  alias EllieAi.Speech.Stt.KugelAudio, as: KA
+  alias EllieAi.Speech.Tts.ElevenLabs, as: EL
 
   @impl true
   def available? do
     AnthropicAdapter.available?() and
-      ElevenLabs.available?() and
-      KugelAudio.available?()
+      EL.available?() and
+      KA.available?()
   end
 
   @impl true
@@ -37,7 +37,7 @@ defmodule EllieAi.Calls.AudioBackend.Modular do
 
   @impl true
   def prepare(ccid, %Script{id: script_id}) when is_binary(ccid) do
-    Calls.record_system_event(
+    C.record_system_event(
       ccid,
       "audio_backend",
       "audio_backend.modular.unavailable",
