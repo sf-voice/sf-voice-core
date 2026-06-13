@@ -444,6 +444,11 @@ impl SfVoiceMedia {
         let monitor = self.create_monitor(&req).await?;
         let monitor_id = monitor.id.clone();
 
+        let effective_interval = opts
+            .interval_ms
+            .map(Duration::from_millis)
+            .unwrap_or(interval);
+
         let stop_flag = Arc::new(AtomicBool::new(false));
         let flag_clone = Arc::clone(&stop_flag);
         let client_clone = self.clone();
@@ -453,17 +458,38 @@ impl SfVoiceMedia {
             let mut seen: HashSet<String> = HashSet::new();
 
             while !flag_clone.load(Ordering::Relaxed) {
-                if let Ok(resp) = client_clone
-                    .list_monitor_events(&mid, Some(true), Some(100), None)
-                    .await
-                {
-                    for event in resp.items {
-                        if seen.insert(event.id.clone()) {
-                            callback(event);
+                let mut offset = 0u64;
+                let limit = 100u64;
+
+                loop {
+                    match client_clone
+                        .list_monitor_events(&mid, Some(true), Some(limit), Some(offset))
+                        .await
+                    {
+                        Ok(resp) => {
+                            let fetched_count = resp.items.len() as u64;
+                            for event in resp.items {
+                                if seen.insert(event.id.clone()) {
+                                    callback(event);
+                                }
+                            }
+                            // Evict old IDs to prevent unbounded memory growth
+                            if seen.len() > 10_000 {
+                                seen.clear();
+                            }
+                            // If we got fewer items than the limit, we've exhausted this page cycle
+                            if fetched_count < limit {
+                                break;
+                            }
+                            offset += fetched_count;
+                        }
+                        Err(e) => {
+                            eprintln!("error fetching monitor events: {:?}", e);
+                            break;
                         }
                     }
                 }
-                tokio::time::sleep(interval).await;
+                tokio::time::sleep(effective_interval).await;
             }
         });
 
@@ -490,7 +516,7 @@ impl AlertHandle {
     pub async fn stop(self) -> Result<(), SfVoiceMediaError> {
         self.stop_flag.store(true, Ordering::Relaxed);
         let _ = self.task.await;
-        self.client.delete_monitor(&self.monitor_id).await.ok();
+        self.client.delete_monitor(&self.monitor_id).await?;
         Ok(())
     }
 }

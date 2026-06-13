@@ -289,7 +289,7 @@ class MonitorEvent:
     created_at: str
     asset_id: Optional[str] = None
     score: Optional[float] = None
-    match_detail: Optional[str] = None
+    match_detail: Optional[Dict[str, Any]] = None
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "MonitorEvent":

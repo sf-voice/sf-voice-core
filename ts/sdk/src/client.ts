@@ -496,9 +496,11 @@ export class SfVoiceMedia {
          try {
             const { items } = await this.listMonitorEvents(monitor.id, {
                matched_only: true,
+               limit: 100,
             });
             for (const event of items) {
                if (!seen.has(event.id)) {
+                  if (stopped) return;
                   seen.add(event.id);
                   callback(event);
                }

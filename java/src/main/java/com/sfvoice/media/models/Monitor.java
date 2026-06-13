@@ -9,8 +9,8 @@ public class Monitor {
     private String text;
     @JsonProperty("project_id")  private String projectId;
     @JsonProperty("asset_class") private String assetClass;
-    private float threshold;
-    private boolean enabled;
+    private Float threshold;
+    private Boolean enabled;
     @JsonProperty("created_at")  private String createdAt;
     @JsonProperty("updated_at")  private String updatedAt;
 
@@ -19,8 +19,8 @@ public class Monitor {
     public String getText()       { return text; }
     public String getProjectId()  { return projectId; }
     public String getAssetClass() { return assetClass; }
-    public float getThreshold()   { return threshold; }
-    public boolean isEnabled()    { return enabled; }
+    public float getThreshold()   { return threshold != null ? threshold : 0.7f; }
+    public boolean isEnabled()    { return enabled != null ? enabled : true; }
     public String getCreatedAt()  { return createdAt; }
     public String getUpdatedAt()  { return updatedAt; }
 }

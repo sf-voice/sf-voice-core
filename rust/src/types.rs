@@ -479,4 +479,5 @@ pub struct AlertOptions {
     pub project_id: Option<String>,
     pub asset_class: Option<String>,
     pub threshold: Option<f32>,
+    pub interval_ms: Option<u64>,
 }
