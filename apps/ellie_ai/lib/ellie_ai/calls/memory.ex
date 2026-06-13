@@ -82,6 +82,14 @@ defmodule EllieAi.Calls.Memory do
   @spec rendered_prompt(String.t()) :: String.t() | nil
   def rendered_prompt(ccid) when is_binary(ccid), do: ets_field(ccid, :rendered_prompt)
 
+  @doc "optional per-call realtime voice id override; nil = use default."
+  @spec realtime_voice(String.t()) :: String.t() | nil
+  def realtime_voice(ccid) when is_binary(ccid), do: ets_field(ccid, :realtime_voice)
+
+  @doc "the scammer script id bound to this leg, or nil for a normal call."
+  @spec scammer_script(String.t()) :: atom() | nil
+  def scammer_script(ccid) when is_binary(ccid), do: ets_field(ccid, :scammer_script)
+
   @doc "append one turn to the rolling transcript. race-tolerant for single-call-per-restaurant v1."
   @spec append_turn(String.t(), String.t(), String.t(), DateTime.t() | nil) :: :ok
   def append_turn(ccid, role, text, at \\ nil)
