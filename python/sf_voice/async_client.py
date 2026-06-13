@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import httpx
 
@@ -19,15 +19,23 @@ from ._wire import (
 )
 from .errors import SfVoiceMediaPollTimeoutError, SfVoiceMediaRequestTimeoutError
 from .models import (
+    AlertHandle,
     Asset,
     AssetListResponse,
+    CreateMonitorRequest,
     IngestRequest,
     IngestResponse,
     ListAssetsParams,
+    ListMonitorEventsParams,
+    Monitor,
+    MonitorEvent,
+    MonitorEventListResponse,
+    MonitorListResponse,
     PollTaskOptions,
     SearchRequest,
     SearchResponse,
     Task,
+    UpdateMonitorRequest,
 )
 
 
@@ -120,6 +128,119 @@ class AsyncSfVoiceMedia:
         """run semantic search across indexed media."""
         body = await self._request("POST", "/v1/search", json=compact_dict(request))
         return SearchResponse.from_dict(body)
+
+    # ------------------------------------------------------------------
+    # monitors
+    # ------------------------------------------------------------------
+
+    async def create_monitor(self, request: CreateMonitorRequest) -> Monitor:
+        """create a new monitor."""
+        body = await self._request("POST", "/v1/monitors", json=compact_dict(request))
+        return Monitor.from_dict(body)
+
+    async def list_monitors(self) -> MonitorListResponse:
+        """list all monitors."""
+        body = await self._request("GET", "/v1/monitors")
+        return MonitorListResponse.from_dict(body)
+
+    async def get_monitor(self, monitor_id: str) -> Monitor:
+        """fetch one monitor by id."""
+        body = await self._request("GET", f"/v1/monitors/{path_segment(monitor_id)}")
+        return Monitor.from_dict(body)
+
+    async def update_monitor(
+        self, monitor_id: str, request: UpdateMonitorRequest
+    ) -> Monitor:
+        """update a monitor's fields."""
+        body = await self._request(
+            "PATCH",
+            f"/v1/monitors/{path_segment(monitor_id)}",
+            json=compact_dict(request),
+        )
+        return Monitor.from_dict(body)
+
+    async def delete_monitor(self, monitor_id: str) -> None:
+        """delete a monitor."""
+        await self._request("DELETE", f"/v1/monitors/{path_segment(monitor_id)}")
+
+    async def list_monitor_events(
+        self,
+        monitor_id: str,
+        params: Optional[ListMonitorEventsParams] = None,
+    ) -> MonitorEventListResponse:
+        """list events for a monitor, optionally filtering to matches only."""
+        body = await self._request(
+            "GET",
+            f"/v1/monitors/{path_segment(monitor_id)}/events",
+            params=compact_dict(params or {}),
+        )
+        return MonitorEventListResponse.from_dict(body)
+
+    async def alert(
+        self,
+        text: str,
+        callback: Callable[[MonitorEvent], None],
+        *,
+        slug: Optional[str] = None,
+        project_id: Optional[str] = None,
+        asset_class: Optional[str] = None,
+        threshold: Optional[float] = None,
+        interval_ms: int = 5000,
+    ) -> AlertHandle:
+        """create a monitor and poll for matched events in a background task.
+
+        returns an AlertHandle whose stop() cancels the task and deletes the monitor.
+        """
+        request: CreateMonitorRequest = {"text": text}
+        if slug is not None:
+            request["slug"] = slug
+        if project_id is not None:
+            request["project_id"] = project_id
+        if asset_class is not None:
+            request["asset_class"] = asset_class
+        if threshold is not None:
+            request["threshold"] = threshold
+
+        monitor = await self.create_monitor(request)
+        seen: set[str] = set()
+
+        async def _poll() -> None:
+            try:
+                while True:
+                    try:
+                        resp = await self.list_monitor_events(
+                            monitor.id, {"matched_only": True}
+                        )
+                        for event in resp.items:
+                            if event.id not in seen:
+                                seen.add(event.id)
+                                callback(event)
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:
+                        pass  # swallow transient errors; next tick will retry
+                    await asyncio.sleep(interval_ms / 1000)
+            except asyncio.CancelledError:
+                return
+
+        task = asyncio.create_task(_poll())
+        client_ref = self
+
+        async def _safe_delete() -> None:
+            try:
+                await client_ref.delete_monitor(monitor.id)
+            except Exception:
+                pass
+
+        def _stop() -> None:
+            task.cancel()
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(_safe_delete())
+            except RuntimeError:
+                pass
+
+        return AlertHandle(monitor_id=monitor.id, _stop=_stop)
 
     async def close(self) -> None:
         """close the underlying http session."""

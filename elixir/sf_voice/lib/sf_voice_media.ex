@@ -180,8 +180,170 @@ defmodule SfVoiceMedia do
     post(client, "/v1/search", request)
   end
 
-  
-  
+  # ── monitors ──────────────────────────────────────────────────────────────────
+
+  @doc """
+  Creates a monitor that watches for content matching the given text.
+
+  ## Examples
+
+      {:ok, monitor} =
+        SfVoiceMedia.create_monitor(client, %{text: "product launch discussion"})
+
+      {:ok, monitor} =
+        SfVoiceMedia.create_monitor(client, %{
+          text: "quarterly revenue",
+          threshold: 0.8,
+          asset_class: "earnings_call"
+        })
+  """
+  @spec create_monitor(Client.t(), Types.create_monitor_request()) ::
+          {:ok, Types.monitor()} | {:error, Error.t()}
+  def create_monitor(%Client{} = client, request) when is_map(request) do
+    post(client, "/v1/monitors", request)
+  end
+
+  @doc """
+  Lists all monitors for the current API key.
+
+  ## Examples
+
+      {:ok, %{items: monitors, total: n}} = SfVoiceMedia.list_monitors(client)
+  """
+  @spec list_monitors(Client.t()) ::
+          {:ok, Types.monitor_list_response()} | {:error, Error.t()}
+  def list_monitors(%Client{} = client) do
+    get(client, "/v1/monitors")
+  end
+
+  @doc """
+  Fetches a single monitor by ID.
+
+  ## Examples
+
+      {:ok, monitor} = SfVoiceMedia.get_monitor(client, "mon_abc123")
+  """
+  @spec get_monitor(Client.t(), String.t()) ::
+          {:ok, Types.monitor()} | {:error, Error.t()}
+  def get_monitor(%Client{} = client, monitor_id) when is_binary(monitor_id) do
+    get(client, "/v1/monitors/#{URI.encode(monitor_id)}")
+  end
+
+  @doc """
+  Updates a monitor's configuration.
+
+  ## Examples
+
+      {:ok, updated} =
+        SfVoiceMedia.update_monitor(client, "mon_abc123", %{threshold: 0.9, enabled: false})
+  """
+  @spec update_monitor(Client.t(), String.t(), Types.update_monitor_request()) ::
+          {:ok, Types.monitor()} | {:error, Error.t()}
+  def update_monitor(%Client{} = client, monitor_id, request)
+      when is_binary(monitor_id) and is_map(request) do
+    patch(client, "/v1/monitors/#{URI.encode(monitor_id)}", request)
+  end
+
+  @doc """
+  Deletes a monitor by ID.
+
+  Returns `:ok` on success.
+
+  ## Examples
+
+      :ok = SfVoiceMedia.delete_monitor(client, "mon_abc123")
+  """
+  @spec delete_monitor(Client.t(), String.t()) :: :ok | {:error, Error.t()}
+  def delete_monitor(%Client{} = client, monitor_id) when is_binary(monitor_id) do
+    case request(client, :delete, "/v1/monitors/#{URI.encode(monitor_id)}") do
+      {:ok, _} -> :ok
+      {:error, _} = err -> err
+    end
+  end
+
+  @doc """
+  Lists events for a monitor, optionally filtering to matched-only.
+
+  ## Options (as map keys)
+
+    - `:matched_only` — when `true`, only return events where the monitor matched
+    - `:limit` — max number of events to return
+    - `:offset` — pagination offset
+
+  ## Examples
+
+      {:ok, %{items: events, total: n}} =
+        SfVoiceMedia.list_monitor_events(client, "mon_abc123")
+
+      {:ok, %{items: events}} =
+        SfVoiceMedia.list_monitor_events(client, "mon_abc123", %{matched_only: true, limit: 50})
+  """
+  @spec list_monitor_events(Client.t(), String.t(), map()) ::
+          {:ok, Types.monitor_event_list_response()} | {:error, Error.t()}
+  def list_monitor_events(%Client{} = client, monitor_id, params \\ %{})
+      when is_binary(monitor_id) and is_map(params) do
+    qs = build_query(params)
+    get(client, "/v1/monitors/#{URI.encode(monitor_id)}/events#{qs}")
+  end
+
+  @doc """
+  Creates a monitor and spawns a background process that polls for matched events,
+  invoking `callback` for each new match.
+
+  Returns `{:ok, %{pid: pid, monitor_id: id}}` on success. The spawned process
+  is linked to the caller — if the caller dies, polling stops.
+
+  Use `stop_alert/2` to tear down both the polling process and the monitor.
+
+  ## Options
+
+    - `:interval_ms` — polling interval in milliseconds (default: 5_000)
+    - any other key is forwarded to `create_monitor/2` (e.g. `:threshold`, `:asset_class`)
+
+  ## Examples
+
+      {:ok, handle} =
+        SfVoiceMedia.alert(client, "product launch", fn event ->
+          IO.inspect(event, label: "matched")
+        end)
+
+      # later…
+      SfVoiceMedia.stop_alert(handle, client)
+  """
+  @spec alert(Client.t(), String.t(), (Types.monitor_event() -> any()), keyword()) ::
+          {:ok, %{pid: pid(), monitor_id: String.t()}} | {:error, Error.t()}
+  def alert(%Client{} = client, text, callback, opts \\ []) when is_function(callback, 1) do
+    {interval_ms, monitor_opts} = Keyword.pop(opts, :interval_ms, 5_000)
+    monitor_req = Map.merge(%{text: text}, Map.new(monitor_opts))
+
+    case create_monitor(client, monitor_req) do
+      {:ok, monitor} ->
+        pid =
+          spawn_link(fn ->
+            alert_loop(client, monitor[:id], callback, interval_ms, MapSet.new())
+          end)
+
+        {:ok, %{pid: pid, monitor_id: monitor[:id]}}
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  @doc """
+  Stops an alert by killing its polling process and deleting the monitor.
+
+  ## Examples
+
+      SfVoiceMedia.stop_alert(handle, client)
+  """
+  @spec stop_alert(%{pid: pid(), monitor_id: String.t()}, Client.t()) ::
+          :ok | {:error, Error.t()}
+  def stop_alert(%{pid: pid, monitor_id: monitor_id}, %Client{} = client) do
+    send(pid, :stop)
+    delete_monitor(client, monitor_id)
+  end
+
   @doc """
   Polls an ingestion task until its status becomes "ready" or "failed".
 
@@ -237,6 +399,36 @@ defmodule SfVoiceMedia do
     end
   end
 
+  # ── alert polling loop (private) ──────────────────────────────────────────────
+
+  # polls matched events for a monitor, calling the callback for each unseen event.
+  # stops when it receives a :stop message.
+  defp alert_loop(client, monitor_id, callback, interval_ms, seen) do
+    receive do
+      :stop -> :ok
+    after
+      interval_ms ->
+        case list_monitor_events(client, monitor_id, %{matched_only: true}) do
+          {:ok, %{items: items}} ->
+            new_seen =
+              Enum.reduce(items, seen, fn event, acc ->
+                if MapSet.member?(acc, event[:id]) do
+                  acc
+                else
+                  callback.(event)
+                  MapSet.put(acc, event[:id])
+                end
+              end)
+
+            alert_loop(client, monitor_id, callback, interval_ms, new_seen)
+
+          {:error, _} ->
+            # transient failure — retry on next tick
+            alert_loop(client, monitor_id, callback, interval_ms, seen)
+        end
+    end
+  end
+
   # ── http helpers ─────────────────────────────────────────────────────────────
 
   defp get(client, path) do
@@ -248,6 +440,13 @@ defmodule SfVoiceMedia do
 
   defp post(client, path, body) do
     case request(client, :post, path, body) do
+      {:ok, resp} -> {:ok, resp}
+      {:error, _} = err -> err
+    end
+  end
+
+  defp patch(client, path, body) do
+    case request(client, :patch, path, body) do
       {:ok, resp} -> {:ok, resp}
       {:error, _} = err -> err
     end
@@ -271,6 +470,7 @@ defmodule SfVoiceMedia do
       case method do
         :get -> Req.get(req_opts)
         :post -> Req.post(req_opts)
+        :patch -> Req.patch(req_opts)
         :delete -> Req.delete(req_opts)
       end
 

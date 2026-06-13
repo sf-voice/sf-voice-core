@@ -6,7 +6,7 @@ the shapes mirror the typescript sdk contract.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, BinaryIO, Dict, List, Literal, Optional, TypedDict, Union, cast
+from typing import Any, BinaryIO, Callable, Dict, List, Literal, Optional, TypedDict, Union, cast
 
 
 MediaType = Literal["video", "audio"]
@@ -219,3 +219,129 @@ class AssetListResponse:
             items=[Asset.from_dict(item) for item in d.get("items", [])],
             page_info=PageInfo.from_dict(d["page_info"]),
         )
+
+
+# ---------------------------------------------------------------------------
+# monitors
+# ---------------------------------------------------------------------------
+
+
+# text is required; the rest are optional
+class _CreateMonitorRequired(TypedDict):
+    text: str
+
+
+class CreateMonitorRequest(_CreateMonitorRequired, total=False):
+    slug: str
+    project_id: str
+    asset_class: str
+    threshold: float
+
+
+class UpdateMonitorRequest(TypedDict, total=False):
+    text: str
+    threshold: float
+    enabled: bool
+    asset_class: str
+
+
+class ListMonitorEventsParams(TypedDict, total=False):
+    matched_only: bool
+    limit: int
+    offset: int
+
+
+@dataclass
+class Monitor:
+    id: str
+    slug: str
+    text: str
+    threshold: float
+    enabled: bool
+    created_at: str
+    updated_at: str
+    project_id: Optional[str] = None
+    asset_class: Optional[str] = None
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "Monitor":
+        """build a monitor from the api response."""
+        return cls(
+            id=d["id"],
+            slug=d["slug"],
+            text=d["text"],
+            threshold=d["threshold"],
+            enabled=d["enabled"],
+            created_at=d["created_at"],
+            updated_at=d["updated_at"],
+            project_id=d.get("project_id"),
+            asset_class=d.get("asset_class"),
+        )
+
+
+@dataclass
+class MonitorEvent:
+    id: str
+    monitor_id: str
+    document_id: str
+    matched: bool
+    webhook_sent: bool
+    created_at: str
+    asset_id: Optional[str] = None
+    score: Optional[float] = None
+    match_detail: Optional[Dict[str, Any]] = None
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "MonitorEvent":
+        """build a monitor event from the api response."""
+        return cls(
+            id=d["id"],
+            monitor_id=d["monitor_id"],
+            document_id=d["document_id"],
+            matched=d["matched"],
+            webhook_sent=d["webhook_sent"],
+            created_at=d["created_at"],
+            asset_id=d.get("asset_id"),
+            score=d.get("score"),
+            match_detail=d.get("match_detail"),
+        )
+
+
+@dataclass
+class MonitorListResponse:
+    items: List[Monitor]
+    total: int
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "MonitorListResponse":
+        """build a paginated monitor list from the api response."""
+        return cls(
+            items=[Monitor.from_dict(item) for item in d.get("items", [])],
+            total=d["total"],
+        )
+
+
+@dataclass
+class MonitorEventListResponse:
+    items: List[MonitorEvent]
+    total: int
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "MonitorEventListResponse":
+        """build a paginated monitor event list from the api response."""
+        return cls(
+            items=[MonitorEvent.from_dict(item) for item in d.get("items", [])],
+            total=d["total"],
+        )
+
+
+@dataclass
+class AlertHandle:
+    """handle returned by the alert() convenience method."""
+
+    monitor_id: str
+    _stop: Callable[[], None]
+
+    def stop(self) -> None:
+        """stop polling and delete the monitor."""
+        self._stop()

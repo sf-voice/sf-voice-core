@@ -4,16 +4,28 @@ import {
    SfVoiceMediaRequestTimeoutError,
 } from "./errors.js";
 import type {
+   AlertHandle,
+   AlertOptions,
    ApiErrorBody,
    Asset,
    AssetListResponse,
+   CreateMonitorRequest,
    IngestRequest,
    IngestResponse,
+   ListAssetClassesParams,
+   ListAssetClassesResponse,
    ListAssetsParams,
+   ListMonitorEventsParams,
+   Monitor,
+   MonitorEvent,
+   MonitorEventListResponse,
+   MonitorListResponse,
    PollTaskOptions,
+   PrefixListResponse,
    SearchRequest,
    SearchResponse,
    Task,
+   UpdateMonitorRequest,
 } from "./types.js";
 
 /** sleep utility used by pollTask */
@@ -61,9 +73,21 @@ function toUploadBlob(
       : new Blob([bytes]);
 }
 
+const DEFAULT_BASE_URL = "https://api.sf-voice.com";
+
+// reads SF_VOICE_BASE_URL from the environment when available (node / edge runtimes).
+// falls back to the production URL so browser bundles work without any config.
+function resolveBaseUrl(explicit?: string): string {
+   if (explicit) return explicit;
+   if (typeof process !== "undefined" && process.env?.SF_VOICE_BASE_URL) {
+      return process.env.SF_VOICE_BASE_URL;
+   }
+   return DEFAULT_BASE_URL;
+}
+
 export type SfVoiceMediaOptions = {
-   /** base URL of the media API, e.g. "https://api.sf-voice.com" */
-   baseUrl: string;
+   /** base URL of the media API. defaults to SF_VOICE_BASE_URL env var, then "https://api.sf-voice.com". */
+   baseUrl?: string;
    /** API key sent as X-API-Key header */
    apiKey: string;
    /** per-request fetch timeout in ms; defaults to 30 000 */
@@ -76,7 +100,6 @@ export type SfVoiceMediaOptions = {
  * @example
  * ```ts
  * const client = new SfVoiceMedia({
- *   baseUrl: "https://api.sf-voice.com",
  *   apiKey: process.env.SF_VOICE_API_KEY!,
  * });
  * ```
@@ -88,7 +111,7 @@ export class SfVoiceMedia {
 
    constructor({ baseUrl, apiKey, timeoutMs = 30_000 }: SfVoiceMediaOptions) {
       // strip trailing slash so every path concat is predictable
-      this.baseUrl = baseUrl.replace(/\/$/, "");
+      this.baseUrl = resolveBaseUrl(baseUrl).replace(/\/$/, "");
       this.headers = {
          "X-API-Key": apiKey,
       };
@@ -213,8 +236,20 @@ export class SfVoiceMedia {
          if (req.metadata !== undefined) {
             form.append("metadata", JSON.stringify(req.metadata));
          }
+         if (req.recorded_at !== undefined) {
+            form.append("recorded_at", req.recorded_at);
+         }
+         if (req.file_last_modified_ms !== undefined) {
+            form.append(
+               "file_last_modified_ms",
+               String(req.file_last_modified_ms),
+            );
+         }
          if (req.types !== undefined)
             form.append("types", JSON.stringify(req.types));
+         if (req.prefix !== undefined) form.append("prefix", req.prefix);
+         if (req.transcript_only !== undefined)
+            form.append("transcript_only", String(req.transcript_only));
 
          return this.request<IngestResponse>(
             "POST",
@@ -264,6 +299,39 @@ export class SfVoiceMedia {
     * const asset = await client.getAsset("customer-video-123");
     * ```
     */
+   /**
+    * list distinct `asset_class` values the org has used. powers
+    * autocomplete UX in dashboards / cli tooling so customers don't
+    * mistype an existing class.
+    *
+    * @example
+    * ```ts
+    * const { asset_classes } = await client.listAssetClasses({ project: "default" });
+    * ```
+    */
+   async listAssetClasses(
+      params: ListAssetClassesParams = {},
+   ): Promise<ListAssetClassesResponse> {
+      const qs = toQueryString(params);
+      return this.request<ListAssetClassesResponse>(
+         "GET",
+         `/v1/asset-classes${qs}`,
+      );
+   }
+
+   /**
+    * list native-pipeline prefixes the org has used.
+    * `owned_by_caller` is true when the prefix was created by this API key.
+    *
+    * @example
+    * ```ts
+    * const { items } = await client.listPrefixes();
+    * ```
+    */
+   async listPrefixes(): Promise<PrefixListResponse> {
+      return this.request<PrefixListResponse>("GET", "/v1/prefixes");
+   }
+
    async getAsset(assetId: string): Promise<Asset> {
       return this.request<Asset>(
          "GET",
@@ -339,5 +407,121 @@ export class SfVoiceMedia {
 
          await sleep(intervalMs);
       }
+   }
+
+   // ─── monitors ──────────────────────────────────────────────────────────────
+
+   async createMonitor(req: CreateMonitorRequest): Promise<Monitor> {
+      return this.request<Monitor>("POST", "/v1/monitors", req);
+   }
+
+   async listMonitors(): Promise<MonitorListResponse> {
+      return this.request<MonitorListResponse>("GET", "/v1/monitors");
+   }
+
+   async getMonitor(monitorId: string): Promise<Monitor> {
+      return this.request<Monitor>(
+         "GET",
+         `/v1/monitors/${encodeURIComponent(monitorId)}`,
+      );
+   }
+
+   async updateMonitor(
+      monitorId: string,
+      req: UpdateMonitorRequest,
+   ): Promise<Monitor> {
+      return this.request<Monitor>(
+         "PATCH",
+         `/v1/monitors/${encodeURIComponent(monitorId)}`,
+         req,
+      );
+   }
+
+   async deleteMonitor(monitorId: string): Promise<void> {
+      return this.request<void>(
+         "DELETE",
+         `/v1/monitors/${encodeURIComponent(monitorId)}`,
+      );
+   }
+
+   async listMonitorEvents(
+      monitorId: string,
+      params: ListMonitorEventsParams = {},
+   ): Promise<MonitorEventListResponse> {
+      const qs = toQueryString(
+         params as Record<string, string | number | boolean | undefined>,
+      );
+      return this.request<MonitorEventListResponse>(
+         "GET",
+         `/v1/monitors/${encodeURIComponent(monitorId)}/events${qs}`,
+      );
+   }
+
+   /**
+    * create a monitor for the given search query and poll for matched events
+    * in the background. the callback fires once per new matched event.
+    *
+    * call `handle.stop()` to stop polling and delete the monitor.
+    *
+    * @example
+    * ```ts
+    * const handle = await client.alert("someone mentions pricing", (event) => {
+    *   console.log("match:", event.asset_id, event.score);
+    * });
+    *
+    * // later…
+    * await handle.stop();
+    * ```
+    */
+   async alert(
+      text: string,
+      callback: (event: MonitorEvent) => void,
+      opts: AlertOptions = {},
+   ): Promise<AlertHandle> {
+      const req: CreateMonitorRequest = { text };
+      if (opts.slug !== undefined) req.slug = opts.slug;
+      if (opts.project_id !== undefined) req.project_id = opts.project_id;
+      if (opts.asset_class !== undefined) req.asset_class = opts.asset_class;
+      if (opts.threshold !== undefined) req.threshold = opts.threshold;
+
+      const monitor = await this.createMonitor(req);
+
+      const intervalMs = opts.interval_ms ?? 5_000;
+      const seen = new Set<string>();
+      let stopped = false;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+
+      const poll = async () => {
+         if (stopped) return;
+         try {
+            const { items } = await this.listMonitorEvents(monitor.id, {
+               matched_only: true,
+               limit: 100,
+            });
+            for (const event of items) {
+               if (!seen.has(event.id)) {
+                  if (stopped) return;
+                  seen.add(event.id);
+                  callback(event);
+               }
+            }
+         } catch {
+            // next tick retries
+         }
+         if (!stopped) {
+            timer = setTimeout(poll, intervalMs);
+         }
+      };
+
+      timer = setTimeout(poll, intervalMs);
+
+      return {
+         monitor_id: monitor.id,
+         stop: async () => {
+            stopped = true;
+            if (timer !== null) clearTimeout(timer);
+            await this.deleteMonitor(monitor.id).catch(() => {});
+         },
+      };
    }
 }

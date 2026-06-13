@@ -5,8 +5,9 @@ create one client and reuse it across requests.
 
 from __future__ import annotations
 
+import threading
 import time
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import httpx
 
@@ -18,15 +19,23 @@ from ._wire import (
 )
 from .errors import SfVoiceMediaPollTimeoutError, SfVoiceMediaRequestTimeoutError
 from .models import (
+    AlertHandle,
     Asset,
     AssetListResponse,
+    CreateMonitorRequest,
     IngestRequest,
     IngestResponse,
     ListAssetsParams,
+    ListMonitorEventsParams,
+    Monitor,
+    MonitorEvent,
+    MonitorEventListResponse,
+    MonitorListResponse,
     PollTaskOptions,
     SearchRequest,
     SearchResponse,
     Task,
+    UpdateMonitorRequest,
 )
 
 
@@ -115,6 +124,107 @@ class SfVoiceMedia:
         """run semantic search across indexed media."""
         body = self._request("POST", "/v1/search", json=compact_dict(request))
         return SearchResponse.from_dict(body)
+
+    # ------------------------------------------------------------------
+    # monitors
+    # ------------------------------------------------------------------
+
+    def create_monitor(self, request: CreateMonitorRequest) -> Monitor:
+        """create a new monitor."""
+        body = self._request("POST", "/v1/monitors", json=compact_dict(request))
+        return Monitor.from_dict(body)
+
+    def list_monitors(self) -> MonitorListResponse:
+        """list all monitors."""
+        body = self._request("GET", "/v1/monitors")
+        return MonitorListResponse.from_dict(body)
+
+    def get_monitor(self, monitor_id: str) -> Monitor:
+        """fetch one monitor by id."""
+        body = self._request("GET", f"/v1/monitors/{path_segment(monitor_id)}")
+        return Monitor.from_dict(body)
+
+    def update_monitor(self, monitor_id: str, request: UpdateMonitorRequest) -> Monitor:
+        """update a monitor's fields."""
+        body = self._request(
+            "PATCH",
+            f"/v1/monitors/{path_segment(monitor_id)}",
+            json=compact_dict(request),
+        )
+        return Monitor.from_dict(body)
+
+    def delete_monitor(self, monitor_id: str) -> None:
+        """delete a monitor."""
+        self._request("DELETE", f"/v1/monitors/{path_segment(monitor_id)}")
+
+    def list_monitor_events(
+        self,
+        monitor_id: str,
+        params: Optional[ListMonitorEventsParams] = None,
+    ) -> MonitorEventListResponse:
+        """list events for a monitor, optionally filtering to matches only."""
+        body = self._request(
+            "GET",
+            f"/v1/monitors/{path_segment(monitor_id)}/events",
+            params=compact_dict(params or {}),
+        )
+        return MonitorEventListResponse.from_dict(body)
+
+    def alert(
+        self,
+        text: str,
+        callback: Callable[[MonitorEvent], None],
+        *,
+        slug: Optional[str] = None,
+        project_id: Optional[str] = None,
+        asset_class: Optional[str] = None,
+        threshold: Optional[float] = None,
+        interval_ms: int = 5000,
+    ) -> AlertHandle:
+        """create a monitor and poll for matched events in a background thread.
+
+        returns an AlertHandle whose stop() method tears everything down.
+        """
+        request: CreateMonitorRequest = {"text": text}
+        if slug is not None:
+            request["slug"] = slug
+        if project_id is not None:
+            request["project_id"] = project_id
+        if asset_class is not None:
+            request["asset_class"] = asset_class
+        if threshold is not None:
+            request["threshold"] = threshold
+
+        monitor = self.create_monitor(request)
+        stop_event = threading.Event()
+        seen: set[str] = set()
+
+        def _poll() -> None:
+            while not stop_event.is_set():
+                try:
+                    resp = self.list_monitor_events(
+                        monitor.id, {"matched_only": True}
+                    )
+                    for event in resp.items:
+                        if event.id not in seen:
+                            seen.add(event.id)
+                            callback(event)
+                except Exception:
+                    pass  # swallow transient errors; next tick will retry
+                stop_event.wait(interval_ms / 1000)
+
+        thread = threading.Thread(target=_poll, daemon=True)
+        thread.start()
+
+        def _stop() -> None:
+            stop_event.set()
+            thread.join()
+            try:
+                self.delete_monitor(monitor.id)
+            except Exception:
+                pass  # best-effort cleanup
+
+        return AlertHandle(monitor_id=monitor.id, _stop=_stop)
 
     def close(self) -> None:
         """close the underlying http session."""

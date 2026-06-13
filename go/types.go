@@ -1,5 +1,7 @@
 package sfvoice
 
+import "encoding/json"
+
 // ── enums ─────────────────────────────────────────────────────────────────
 
 type TaskStatus string
@@ -92,6 +94,67 @@ type SearchResult struct {
 type SearchResponse struct {
 	Results  []SearchResult `json:"results"`
 	PageInfo PageInfo       `json:"page_info"`
+}
+
+// ── monitor ──────────────────────────────────────────────────────────────
+
+type Monitor struct {
+	ID         string  `json:"id"`
+	Slug       string  `json:"slug"`
+	Text       string  `json:"text"`
+	ProjectID  string  `json:"project_id,omitempty"`
+	AssetClass string  `json:"asset_class,omitempty"`
+	Threshold  float64 `json:"threshold"`
+	Enabled    bool    `json:"enabled"`
+	CreatedAt  string  `json:"created_at"`
+	UpdatedAt  string  `json:"updated_at"`
+}
+
+type MonitorListResponse struct {
+	Items []Monitor `json:"items"`
+	Total int64     `json:"total"`
+}
+
+type CreateMonitorRequest struct {
+	Text       string   `json:"text"`
+	Slug       string   `json:"slug,omitempty"`
+	ProjectID  string   `json:"project_id,omitempty"`
+	AssetClass string   `json:"asset_class,omitempty"`
+	Threshold  *float64 `json:"threshold,omitempty"`
+}
+
+type UpdateMonitorRequest struct {
+	Text       *string  `json:"text,omitempty"`
+	AssetClass *string  `json:"asset_class,omitempty"`
+	Threshold  *float64 `json:"threshold,omitempty"`
+	Enabled    *bool    `json:"enabled,omitempty"`
+}
+
+type MonitorEvent struct {
+	ID          string          `json:"id"`
+	MonitorID   string          `json:"monitor_id"`
+	DocumentID  string          `json:"document_id"`
+	AssetID     string          `json:"asset_id,omitempty"`
+	Matched     bool            `json:"matched"`
+	Score       *float64        `json:"score,omitempty"`
+	WebhookSent bool            `json:"webhook_sent"`
+	MatchDetail json.RawMessage `json:"match_detail,omitempty"`
+	CreatedAt   string          `json:"created_at"`
+}
+
+type MonitorEventListResponse struct {
+	Items []MonitorEvent `json:"items"`
+	Total int64          `json:"total"`
+}
+
+// AlertOptions configures the Alert convenience method.
+type AlertOptions struct {
+	Slug       string   `json:"slug,omitempty"`
+	ProjectID  string   `json:"project_id,omitempty"`
+	AssetClass string   `json:"asset_class,omitempty"`
+	Threshold  *float64 `json:"threshold,omitempty"`
+	// IntervalMs is the polling interval in milliseconds. Defaults to 5000 if zero.
+	IntervalMs int64 `json:"-"`
 }
 
 // ── internal ──────────────────────────────────────────────────────────────

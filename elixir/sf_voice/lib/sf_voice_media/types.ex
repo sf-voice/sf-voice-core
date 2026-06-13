@@ -130,6 +130,63 @@ defmodule SfVoiceMedia.Types do
           page_info: page_info()
         }
 
+  # ── monitors ─────────────────────────────────────────────────────────────────
+
+  @typedoc "a monitor that watches for matching content across ingested media"
+  @type monitor :: %{
+          required(:id) => String.t(),
+          required(:slug) => String.t(),
+          required(:text) => String.t(),
+          required(:threshold) => float(),
+          required(:enabled) => boolean(),
+          required(:created_at) => String.t(),
+          required(:updated_at) => String.t(),
+          optional(:project_id) => String.t(),
+          optional(:asset_class) => String.t()
+        }
+
+  @typedoc "paginated list of monitors from `GET /v1/monitors`"
+  @type monitor_list_response :: %{
+          required(:items) => [monitor()],
+          required(:total) => non_neg_integer()
+        }
+
+  @typedoc "request body for `POST /v1/monitors`"
+  @type create_monitor_request :: %{
+          required(:text) => String.t(),
+          optional(:slug) => String.t(),
+          optional(:project_id) => String.t(),
+          optional(:asset_class) => String.t(),
+          optional(:threshold) => float()
+        }
+
+  @typedoc "request body for `PATCH /v1/monitors/:id`"
+  @type update_monitor_request :: %{
+          optional(:text) => String.t(),
+          optional(:threshold) => float(),
+          optional(:enabled) => boolean(),
+          optional(:asset_class) => String.t()
+        }
+
+  @typedoc "a single event fired when a monitor matches (or is evaluated against) a document"
+  @type monitor_event :: %{
+          required(:id) => String.t(),
+          required(:monitor_id) => String.t(),
+          required(:document_id) => String.t(),
+          required(:matched) => boolean(),
+          required(:webhook_sent) => boolean(),
+          required(:created_at) => String.t(),
+          optional(:asset_id) => String.t(),
+          optional(:score) => float(),
+          optional(:match_detail) => map()
+        }
+
+  @typedoc "paginated list of monitor events from `GET /v1/monitors/:id/events`"
+  @type monitor_event_list_response :: %{
+          required(:items) => [monitor_event()],
+          required(:total) => non_neg_integer()
+        }
+
   # ── poll_task opts ───────────────────────────────────────────────────────────
 
   @typedoc """
